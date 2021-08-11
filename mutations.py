@@ -2,9 +2,13 @@ import numpy as np
 import copy
 import networkx as nx
 import matplotlib.pyplot as plt
+from itertools import product as prod
+from functools import reduce
 
 def flattenList(l):
-    return [x for y in l for x in y]
+    if type(l) is list or type(l) is tuple:
+        return [x for y in l for x in flattenList(y)]
+    return [l]
 
 
 class QuiverWithPotential():
@@ -21,7 +25,7 @@ class QuiverWithPotential():
             self.Q1 = graph_obj.Q1
         self.Q0 = range(self.incidence_matrix.shape[0])
 
-        self.potential = potential
+        self.potential = {cycleOrder(tuple(k)):v for k,v in potential.items()}
         self.arrows_with_head = [[] for x in range(len(self.Q0))]
         self.arrows_with_tail = [[] for x in range(len(self.Q0))]
         self.loops_at = [[] for x in range(len(self.Q0))]
@@ -66,8 +70,15 @@ class QuiverWithPotential():
         for v in self.Q0:
             self.arrows_with_head[v] = [(new_edge_indices[x[0]], self.Q1[new_edge_indices[x[0]]]) for x in self.arrows_with_head[v] if keep[x[0]]>0]
             self.arrows_with_tail[v] = [(new_edge_indices[x[0]], self.Q1[new_edge_indices[x[0]]]) for x in self.arrows_with_tail[v] if keep[x[0]]>0]
-            self.loops_at[v] = [(new_edge_indices[x[0]], self.Q1[new_edge_indices[x[0]]]) for x in self.loops_at[v]]
+            self.loops_at[v] = [(new_edge_indices[x[0]], self.Q1[new_edge_indices[x[0]]]) for x in self.loops_at[v] if keep[x[0]]>0]
         self.incidence_matrix = matrixFromEdges(self.Q1)
+
+        #update the potential 
+        p = {}
+        for term, coef in self.potential.items():
+            new_term = tuple([new_edge_indices[x] for x in term])#if keep[x] > 0])
+            p[new_term] = coef
+        self.potential = p
 
 
     def mutate(self, v):
@@ -82,63 +93,50 @@ class QuiverWithPotential():
         for (i, e) in self.arrows_with_tail[v] + self.arrows_with_head[v]:
             QP.Q1[i] = self.Q1[i][::-1]
         # update connectivity info for quiver
-        QP.arrows_with_head[v] = self.arrows_with_tail[v]
-        QP.arrows_with_tail[v] = self.arrows_with_head[v]
+        QP.arrows_with_head[v] = list(self.arrows_with_tail[v])
+        QP.arrows_with_tail[v] = list(self.arrows_with_head[v])
     
-        delta = []
+        delta = {}
         shortcuts = {}
         new_edges = []
         edgectr = len(QP.Q1)
         # add 'shortcuts' i->j for all 2-paths(which are then reversed): i->v->j 
         # and keep track of the 3-cycles that are produced (saved in list delta)
         for e1i, e1 in self.arrows_with_head[v]:
-            i = self.Q1[e1i][0]
+            i = self.Q1[e1i][1]
             for e2i, e2 in self.arrows_with_tail[v]:
-                j = self.Q1[e2i][1]
-
-                # indexing so we don't add multiedges
-                update = 1
-                eidx = edgectr
-                if [i, j] in QP.Q1:
-                    eidx = QP.Q1.index([i,j])
-                    update = 0
+                j = self.Q1[e2i][0]
 
                 # add the shortcut edge
-                if update:
-                    new_edges.append([i,j])
+                new_edges.append([i,j])
 
                 # keep track of 3-cycle introduced by adding this edge
-                delta.append((1, [eidx,e1i,e2i]))
-                shortcuts[tuple(sorted([e1i,e2i]))] = eidx
-                edgectr += update
+                delta[cycleOrder((edgectr, e1i, e2i))] = 1
+                shortcuts[tuple(sorted([e1i,e2i]))] = edgectr
+                edgectr += 1
         QP.add_edges(new_edges)
 
         # update the potential
-        wprime = []
+        wprime = {}
         # first replace each 2-path i->v->j with its shortcut i->j
-        for (coef, monoid) in self.potential:
+        for monoid, coef in self.potential.items():
             m = []
-            for i, x1 in enumerate(monoid[:-1]):
-                if (x1, self.Q1[x1]) in self.arrows_with_head[v]:
-                    x2 = monoid[i+1]
-                    if (x2, self.Q1[x2]) in self.arrows_with_tail[v]:
+            for i, x1 in enumerate(monoid):
+                if (x1, self.Q1[x1]) in self.arrows_with_tail[v]:
+                    x2 = monoid[(i+1)%len(monoid)]
+                    if (x2, self.Q1[x2]) in self.arrows_with_head[v]:
                         m.append(shortcuts[tuple(sorted([x1, x2]))])
+                    else:
+                        m.append(x1)
                 else:
-                    m.append(x1)
-            wprime.append((coef,m))
-
-        # remove all 2-cycles that now show up in potential
-        to_remove = []
-        for coef, monoid in wprime:
-            if len(monoid) < 3:
-                to_remove.extend(monoid)
-        QP.remove_edges(to_remove)
+                    if (x1, self.Q1[x1]) not in self.arrows_with_head[v]:
+                        m.append(x1)
+            wprime[tuple(m)] = coef
 
         # add the set of 3-cycles introduced with the shortcuts
-        QP.potential = wprime + delta
+        QP.potential = {**wprime, **delta}
 
-        # do we now reduce? 
-        return QP
+        return reduce_QP(QP)
 
 
 
@@ -253,15 +251,15 @@ class Resolution():
 def potential(edges, triangles):
     # build triples. Note: since the triangles' edges aren't necessarily ordered, we need to impose order here.
     triples = [[6*ti + x for x in i] for i in [[1,3,5],[0,2,4]] for ti in range(len(triangles))]
-    p = []
+    p = {}
     for t in triples:
         t1,h1 = edges[t[0]]
         t2,h2 = edges[t[1]]
         if h1 == t2:
-            orderedTriple = t
+            orderedTriple = tuple(t)
         else:
-            orderedTriple = [t[1],t[0],t[2]]
-        p.append([1, orderedTriple])
+            orderedTriple = (t[1],t[0],t[2])
+        p[cycleOrder(orderedTriple)] = 1
     return p
 
 
@@ -318,11 +316,11 @@ def make_triangulation(edges):
 
 def path_derivative(potential, arrow):
     to_return = {}
-    for (coef,term) in potential:
+    for term, coef in potential.items():
         if arrow in term:
             i = term.index(arrow)
             new_term = term[i+1:]+term[:i]
-            to_return.append((coef, new_term))
+            to_return[new_term] = coef
     return to_return
 
 
@@ -340,4 +338,87 @@ def matrixFromEdges(edges, oriented=True):
     return m
 
 
+def reduce_QP(QP):
+    print("the new potential is ", QP.potential)
+
+    # compute the partial derivative of QP's potential for every edge
+    partials = [path_derivative(QP.potential, a) for a in range(len(QP.Q1))]
+
+    # find out which edges show up in quadratic terms in the potential. 
+    edges_to_remove = sorted([x for term in QP.potential.keys() for x in term if len(list(term)) == 2])
+
+    # create a lookup of the replacements associated to each partial derivative
+    reduce_dict = {}
+    for term in partials:
+        #print("looking at partials. The current term is", term)
+        for k,v in term.items():
+            reduce_dict[k] = [(k1,v1*v) for k1,v1 in term.items() if k1 != k]
+
+    # now make sure that the replacement for each edge does not contain one of the edges to be removed
+    for e in edges_to_remove:
+
+        # unpack the list of monoids that sum up to replace e
+        terms_for_e = reduce_dict[tuple([e])]
+
+        # now check if any of these monoids contains another edge that is going to be removed
+        found_replacement = False
+        while not found_replacement:
+            current_list = []
+            found_replacement = True
+
+            #print("e = %d"%e, terms_for_e)
+            # unpack each monoid
+            for term in terms_for_e:
+                #print("...currently, the term is: ", term)
+                list_per_term = []
+                coef_per_term = []
+
+                # check if an edge listed in this monoid is going to be removed
+                for y in term[0]:
+                    if y in edges_to_remove:
+                        found_replacement=False
+                        list_per_term.append([z[0] for z in reduce_dict[tuple([y])]])
+                        coef_per_term.append([z[1] for z in reduce_dict[tuple([y])]])
+                    else:
+                        list_per_term.append([y])
+                        coef_per_term.append([1])
+                producted_out = all_products_zipped(list_per_term, coef_per_term)
+                #print("....",producted_out)
+                current_list.extend([(tuple(flattenList(p[0])), term[1]*p[1]) for p in producted_out])
+                #print(".....currently, the term is: ", current_list)
+
+            if not found_replacement:
+                terms_for_e = current_list
+            reduce_dict[tuple([e])] = terms_for_e
+
+    reduce_dict = {k:v[0] for k,v in reduce_dict.items() if len(list(k)) < 2}
+
+    Wprime = {}
+    for term, coef in QP.potential.items():
+        new_term = tuple(flattenList([reduce_dict[tuple([x])][0] if x in edges_to_remove else x for x in term]))
+        new_coef = coef * reduce(lambda a,b:a*b, [reduce_dict[tuple([x])][1] if x in edges_to_remove else 1 for x in term])
+        Wprime[cycleOrder(new_term)] = new_coef
+
+    QP.potential = Wprime
+    QP.remove_edges(sorted(edges_to_remove))
+    return QP
+
+
+def cycleOrder(cycle):
+    cycle = tuple(cycle)
+    minidx = cycle.index(min(cycle))
+    return tuple(cycle[minidx:]+cycle[:minidx])
+
+
+def all_products_zipped(list1, list2):
+    if len(list1) != len(list2):
+        return []
+    for i, x in enumerate(list1):
+        if len(x) != len(list2[i]):
+            return []
+    indices = prod(*[list(range(len(x))) for x in list1])
+
+    return [(tuple([list1[ji][jv] for ji,jv in enumerate(i)]), \
+            reduce(lambda x,y:x*y, [list2[ji][jv] for ji,jv in enumerate(i)])) \
+            for i in indices]
 
