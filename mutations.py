@@ -13,7 +13,7 @@ def flattenList(l):
 
 class QuiverWithPotential():
 
-    def __init__(self, graph_obj, potential=None):
+    def __init__(self, graph_obj, potential=None, positions=None):
         if isinstance(graph_obj, list): # if graph input is a list of edges
             self.Q1 = graph_obj
             self.incidence_matrix = matrixFromEdges(graph_obj)
@@ -23,11 +23,15 @@ class QuiverWithPotential():
         else:
             self.incidence_matrix = graph_obj.incidence_matrix
             self.Q1 = graph_obj.Q1
+        self.positions=positions
         self.Q0 = range(self.incidence_matrix.shape[0])
 
         self.potential = {}
         if potential is not None:
-            self.potential = {cycleOrder(tuple(k)):v for k,v in potential.items()}
+            if isinstance(potential, dict):
+                self.potential = {cycleOrder(tuple(k)):v for k,v in potential.items()}
+            elif isinstance(potential, list) and (len(potential) == 2):
+                self.add_term_to_potential(potential[0], potential[1])
 
         self.arrows_with_head = [[] for x in range(len(self.Q0))]
         self.arrows_with_tail = [[] for x in range(len(self.Q0))]
@@ -59,7 +63,7 @@ class QuiverWithPotential():
                     try:
                         cycle.append(self.Q1.index([vi,vj]))
                     except:
-                        print("error in add_term_to_potential: there is no edge with endpoints (%d, %d). Ignoring term"%(vi,vj))
+                        print("\nError in add_term_to_potential: there is no edge with endpoints (%d, %d). Ignoring term\n"%(vi,vj))
                 cycle = cycleOrder(tuple(cycle))
                 self.potential[cycle] = coef[iec]
 
@@ -102,8 +106,11 @@ class QuiverWithPotential():
         #update the potential 
         p = {}
         for term, coef in self.potential.items():
-            new_term = tuple([new_edge_indices[x] for x in term])#if keep[x] > 0])
-            p[new_term] = coef
+            try:
+                new_term = tuple([new_edge_indices[x] for x in term])
+                p[new_term] = coef
+            except:
+                print("\nError in remove_edges: one of the edges to remove shows up in potential. Dropping that term\n")
         self.potential = p
 
 
@@ -163,6 +170,39 @@ class QuiverWithPotential():
         QP.potential = {**wprime, **delta}
 
         return reduce_QP(QP)
+
+
+    def draw(self, time=1, **kwargs):
+        g = nx.DiGraph()
+        for x in self.Q0:
+            g.add_node(str(x))
+        for e in self.Q1:
+            g.add_edge(str(e[0]), str(e[1]))
+        #g.add_edges_from(self.Q1)
+        pos = nx.spring_layout(g)
+        if self.positions is not None:
+            pos = {str(i):v for i,v in enumerate(self.positions)}
+
+        nx.draw_networkx(g, pos, with_labels=True, connectionstyle='arc3, rad=0.1', **kwargs)
+
+        txt = "W = " + self.print_potential()
+        plt.figtext(0.5, 0.01, txt, wrap=True, horizontalalignment='center')
+        plt.draw()
+        plt.pause(time)
+        plt.clf()
+
+
+    def mutate_in_sequence(self, vertex_sequence, draw=True):
+        for v in vertex_sequence:
+            QP = self.mutate(v)
+            vertex_colors = ['b' if i != v else 'r' for i in self.Q0]
+            if draw:
+                kw = {'node_color': vertex_colors}
+                self.draw(time=.75, **kw)
+                QP.draw(time=.75, **kw)
+            self=QP
+        return QP
+
 
 
 
@@ -341,6 +381,9 @@ def make_triangulation(edges):
 
 
 def path_derivative(potential, arrow):
+    """
+    take the path derivative of each term of the potential w.r.t. the arrow provided
+    """
     to_return = {}
     for term, coef in potential.items():
         if arrow in term:
@@ -351,10 +394,16 @@ def path_derivative(potential, arrow):
 
 
 def edgesFromMatrix(mat):
+    """
+    creates a list of edges from an incidence matrix
+    """
     return [[r.index(-1), r.index(1)] for r in np.matrix(mat).transpose().tolist()]
 
 
 def matrixFromEdges(edges, oriented=True):
+    """
+    create an incidence matrix from a list of edges
+    """
     nv = len(set(np.array(edges).flatten()))
     tail = -1 if oriented else 1
     m = np.matrix([[tail if x == e[0] else 1 if x == e[1] else 0 for x in range(nv)] for e in edges]).transpose()
@@ -365,6 +414,10 @@ def matrixFromEdges(edges, oriented=True):
 
 
 def reduce_QP(QP):
+    """
+        this routine takes a QP and "reduces" it by removing all 2-cycles that 
+        show up in the potential W, and also removing the assoicated edges in QP.Q1in QP.Q1
+    """
     # compute the partial derivative of QP's potential for every edge
     partials = [path_derivative(QP.potential, a) for a in range(len(QP.Q1))]
 
@@ -384,8 +437,10 @@ def reduce_QP(QP):
         terms_for_e = reduce_dict[tuple([e])]
 
         # now check if any of these monoids contains another edge that is going to be removed
+        ctr = 0
         found_replacement = False
-        while not found_replacement:
+        while (not found_replacement) and (ctr < len(edges_to_remove)):
+            ctr += 1
             current_list = []
             found_replacement = True
 
@@ -409,6 +464,8 @@ def reduce_QP(QP):
             if not found_replacement:
                 terms_for_e = current_list
             reduce_dict[tuple([e])] = terms_for_e
+        if not found_replacement:
+            print("problem in reducing QP: could not properly remove edge %d"%e)
 
     reduce_dict = {k:v[0] for k,v in reduce_dict.items() if len(list(k)) < 2}
 
@@ -430,6 +487,10 @@ def cycleOrder(cycle):
 
 
 def all_products_zipped(list1, list2):
+    """
+    takes two lists of lists (assumed to have same dimensions, or else returns error)
+    and returns the zip of the cartesian product of the first with the reduced product of the second
+    """
     if len(list1) != len(list2):
         return []
     for i, x in enumerate(list1):
