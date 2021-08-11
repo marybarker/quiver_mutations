@@ -37,11 +37,13 @@ class QuiverWithPotential():
                 self.loops_at[e[0]].append((i,e))
 
 
+    def print_potential(self):
+        return " + ".join(["%d X_"%v+".".join([str(self.Q1[x][0]) for x in k]) for k,v in self.potential.items()])
+
     def __repr__(self):
-        return "quiver with potential:\nincidence matrix: " \
-               +repr(self.incidence_matrix)+"\nedges: " \
+        return "quiver with potential:\nedges: " \
                +repr(self.Q1) \
-               +"\npotential:"+repr(self.potential)
+               +"\npotential:"+self.print_potential()
 
 
     def add_edges(self, edge):
