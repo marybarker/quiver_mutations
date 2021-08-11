@@ -13,7 +13,7 @@ def flattenList(l):
 
 class QuiverWithPotential():
 
-    def __init__(self, graph_obj, potential):
+    def __init__(self, graph_obj, potential=None):
         if isinstance(graph_obj, list): # if graph input is a list of edges
             self.Q1 = graph_obj
             self.incidence_matrix = matrixFromEdges(graph_obj)
@@ -25,7 +25,10 @@ class QuiverWithPotential():
             self.Q1 = graph_obj.Q1
         self.Q0 = range(self.incidence_matrix.shape[0])
 
-        self.potential = {cycleOrder(tuple(k)):v for k,v in potential.items()}
+        self.potential = {}
+        if potential is not None:
+            self.potential = {cycleOrder(tuple(k)):v for k,v in potential.items()}
+
         self.arrows_with_head = [[] for x in range(len(self.Q0))]
         self.arrows_with_tail = [[] for x in range(len(self.Q0))]
         self.loops_at = [[] for x in range(len(self.Q0))]
@@ -39,6 +42,27 @@ class QuiverWithPotential():
 
     def print_potential(self):
         return " + ".join(["%d X_"%v+".".join([str(self.Q1[x][0]) for x in k]) for k,v in self.potential.items()])
+
+
+    def add_term_to_potential(self, edge_cycle, coef=1, input_format="vertex_order"):
+        if input_format == "vertex_order":
+            if not isinstance(edge_cycle[0], tuple):
+                edge_cycle = [edge_cycle]
+
+            if coef == 1:
+                coef = [1 for e in edge_cycle]
+            for iec, ec in enumerate(edge_cycle):
+                c = coef[iec]
+                cycle=[]
+                for i,vi in enumerate(ec):
+                    vj = ec[(i+1)%len(ec)]
+                    try:
+                        cycle.append(self.Q1.index([vi,vj]))
+                    except:
+                        print("error in add_term_to_potential: there is no edge with endpoints (%d, %d). Ignoring term"%(vi,vj))
+                cycle = cycleOrder(tuple(cycle))
+                self.potential[cycle] = coef[iec]
+
 
     def __repr__(self):
         return "quiver with potential:\nedges: " \
@@ -341,8 +365,6 @@ def matrixFromEdges(edges, oriented=True):
 
 
 def reduce_QP(QP):
-    print("the new potential is ", QP.potential)
-
     # compute the partial derivative of QP's potential for every edge
     partials = [path_derivative(QP.potential, a) for a in range(len(QP.Q1))]
 
@@ -352,7 +374,6 @@ def reduce_QP(QP):
     # create a lookup of the replacements associated to each partial derivative
     reduce_dict = {}
     for term in partials:
-        #print("looking at partials. The current term is", term)
         for k,v in term.items():
             reduce_dict[k] = [(k1,v1*v) for k1,v1 in term.items() if k1 != k]
 
@@ -368,10 +389,8 @@ def reduce_QP(QP):
             current_list = []
             found_replacement = True
 
-            #print("e = %d"%e, terms_for_e)
             # unpack each monoid
             for term in terms_for_e:
-                #print("...currently, the term is: ", term)
                 list_per_term = []
                 coef_per_term = []
 
@@ -385,9 +404,7 @@ def reduce_QP(QP):
                         list_per_term.append([y])
                         coef_per_term.append([1])
                 producted_out = all_products_zipped(list_per_term, coef_per_term)
-                #print("....",producted_out)
                 current_list.extend([(tuple(flattenList(p[0])), term[1]*p[1]) for p in producted_out])
-                #print(".....currently, the term is: ", current_list)
 
             if not found_replacement:
                 terms_for_e = current_list
