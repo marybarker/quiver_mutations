@@ -257,6 +257,61 @@ class Resolution():
         plt.clf()
 
 
+    def can_flop(self, e):
+        """
+        check if an edge e (passed as either the tuple representation or its index in the resolution) can be flopped
+        """
+        if isinstance(e, list):
+            ei = self.edges.index(e)
+        else:
+            ei, e = e, self.edges[e]
+
+        e2t = sorted(self.edge_to_triangle[ei])
+        if len(e2t) < 2: # check if its an edge on the boundary
+            return False
+
+        # unpack the vertices on hte edge and those it would be flopped to 
+        vertices = set([self.vertex_positions[i] for q in e2t for e in self.triangle[q] for i in self.edges[e]])
+
+        # vertices of existing edge
+        e_verts = [self.vertex_positions[e[0]], self.vertex_positions[e[1]]]
+        segment1 = [e_verts[0][0] - e_verts[1][0], e_verts[0][1] - e_verts[1][1]]
+
+        # vertices of flopped edge
+        o_verts = [x for x in vertices if x not in e_verts]
+        segment2 = [o_verts[0][0] - o_verts[1][0], o_verts[0][1] - o_verts[1][1]]
+
+        """
+         e_verts[0]     o_verts[1]
+         *-------------------*
+         | \    t1v2         |
+         |   \               |
+         |     \             |
+         |       \           |
+         |         \ e       | t2v2
+         |t1v1       \       |
+         |             \     |
+         |               \   |
+         |      t2v1       \ |
+         *___________________*
+         o_verts[0]      e_verts[1]
+        """
+
+        t1v1 = [o_verts[0][0] - e_verts[0][0], o_verts[0][1] - e_verts[0][1]]
+        t1v2 = [o_verts[1][0] - e_verts[0][0], o_verts[1][1] - e_verts[0][1]]
+
+        t2v1 = [o_verts[0][0] - e_verts[1][0], o_verts[0][1] - e_verts[1][1]]
+        t2v2 = [o_verts[1][0] - e_verts[1][0], o_verts[1][1] - e_verts[1][1]]
+
+        angle1 = rotated_vector(basis=t1v1, hyp=segment1)
+        angle2 = rotated_vector(hyp=t1v2, basis=segment1)
+
+        if np.sign(np.atan2(angle1[1], angle1[0])) == np.sign(np.atan2(angle2[1], angle2[0])):
+            return True
+        return False
+
+
+
     def flop_in_sequence(self, edge_sequence, draw=True):
         for edge in edge_sequence:
             R = self.flop(edge)
@@ -502,3 +557,15 @@ def all_products_zipped(list1, list2):
             reduce(lambda x,y:x*y, [list2[ji][jv] for ji,jv in enumerate(i)])) \
             for i in indices]
 
+
+def rotated_vector(basis=[[0,0],[1,0]], hyp=[[0,0],[1,1]])
+    bb = np.array([basis[1][0]-basis[0][0], basis[1][1]-basis[0][1]])
+    hh = np.matrix([hyp[1][0]-hyp[0][0], hyp[1][1]-hyp[0][1]]).transpose()
+
+    # create matrix that translates bb to the line segment [0,1]
+    if bb[1] != 0:
+        matrix_of_transformation = np.matrix([[-bb[1],bb[0]], [-bb[1]+1/bb[1],bb[0]]])
+    else:
+        matrix_of_transformation = np.matrix([[-bb[1],bb[0]], [-bb[1],bb[0]+1/bb[0]]])
+
+    return (matrix_of_transformation*hh).transpose().tolist()[0]
