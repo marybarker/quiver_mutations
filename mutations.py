@@ -268,28 +268,26 @@ class Resolution():
 
         e2t = sorted(self.edge_to_triangle[ei])
         if len(e2t) < 2: # check if its an edge on the boundary
-            print("edge on edge")
             return False
-        print("the triangles are %d and %d"%(e2t[0], e2t[1]), e2t)
 
         # unpack the vertices on the edge and those it would be flopped to 
         vertices = set([tuple(self.vertex_positions[i]) for t in e2t for e in self.triangles[t] for i in self.edges[e]])
         # vertices of existing edge
         e_verts = [tuple(self.vertex_positions[e[0]]), tuple(self.vertex_positions[e[1]])]
-        segment1 = [e_verts[0][0] - e_verts[1][0], e_verts[0][1] - e_verts[1][1]]
 
         # vertices of flopped edge
         o_verts = [x for x in vertices if x not in e_verts]
-        segment2 = [o_verts[0][0] - o_verts[1][0], o_verts[0][1] - o_verts[1][1]]
+        alt_e = [o_verts[1][0] - o_verts[0][0], o_verts[1][1] - o_verts[0][1]]
+        ee = [e_verts[1][0] - e_verts[0][0], e_verts[1][1] - e_verts[0][1]]
 
         """
          e_verts[0]     o_verts[1]
          *-------------------*
-         | \    t1v2         |
+         | \                 |
          |   \               |
          |     \             |
          |       \           |
-         |         \ e       | t2v2
+         |         \ e       |
          |t1v1       \       |
          |             \     |
          |               \   |
@@ -298,22 +296,18 @@ class Resolution():
          o_verts[0]      e_verts[1]
         """
 
-        t1v1 = [o_verts[0][0] - e_verts[0][0], o_verts[0][1] - e_verts[0][1]]
-        t1v2 = [o_verts[1][0] - e_verts[0][0], o_verts[1][1] - e_verts[0][1]]
+        t1v1 = [e_verts[0][0] - o_verts[0][0], e_verts[0][1] - o_verts[0][1]]
+        t2v1 = [e_verts[1][0] - o_verts[0][0], e_verts[1][1] - o_verts[0][1]]
 
-        t2v1 = [o_verts[0][0] - e_verts[1][0], o_verts[0][1] - e_verts[1][1]]
-        t2v2 = [o_verts[1][0] - e_verts[1][0], o_verts[1][1] - e_verts[1][1]]
+        v1 = rotated_vector(basis=t1v1, hyp=alt_e)
+        v2 = rotated_vector(hyp=t2v1, basis=alt_e)
+        angle1 = np.arctan2(v1[1], v1[0])
+        angle2 = np.arctan2(v2[1], v2[0])
 
-        angle1 = rotated_vector(basis=t1v1, hyp=segment1)
-        angle2 = rotated_vector(hyp=t1v2, basis=segment1)
-        print("="*30)
-        print("vertices = ", vertices)
-        print(e_verts, o_verts)
-        print(segment1, segment2)
-        print("angle = %.3lf, %.3lf"%(np.arctan2(angle1[1], angle1[0]), np.arctan2(angle2[1], angle2[0])))
-
-        if np.sign(np.arctan2(angle1[1], angle1[0])) == np.sign(np.arctan2(angle2[1], angle2[0])):
-            return True
+        tol = 1.0e-6
+        if np.sign(angle1) == np.sign(angle2):
+            if (abs(angle1) > tol) and (abs(angle2) > tol):
+                return True
         return False
 
 
@@ -564,14 +558,14 @@ def all_products_zipped(list1, list2):
             for i in indices]
 
 
-def rotated_vector(basis=[0,1], hyp=[1,1]):
-    bb = np.array([basis[1], basis[0]])
-    hh = np.matrix([hyp[1], hyp[1]]).transpose()
+def rotated_vector(basis=[1,0], hyp=[1,1]):
+    bb = np.array([basis[0], basis[1]])
+    hh = np.matrix([hyp[0], hyp[1]]).transpose()
 
     # create matrix that translates bb to the line segment [0,1]
-    if bb[1] != 0:
-        matrix_of_transformation = np.matrix([[-bb[1],bb[0]], [-bb[1]+1/bb[1],bb[0]]])
+    if bb[0] != 0:
+        matrix_of_transformation = np.matrix([[-bb[1]+1/bb[0],bb[0]],[-bb[1],bb[0]]])
     else:
-        matrix_of_transformation = np.matrix([[-bb[1],bb[0]], [-bb[1],bb[0]+1/bb[0]]])
+        matrix_of_transformation = np.matrix([[-bb[1],bb[0]+1/bb[1]],[-bb[1],bb[0]]])
 
     return (matrix_of_transformation*hh).transpose().tolist()[0]
