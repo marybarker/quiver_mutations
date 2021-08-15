@@ -275,30 +275,40 @@ class Resolution():
         # vertices of existing edge
         e_verts = [tuple(self.vertex_positions[e[0]]), tuple(self.vertex_positions[e[1]])]
 
-        # vertices of flopped edge
+        # vertices and direction vector of flopped edge
         o_verts = [x for x in vertices if x not in e_verts]
         alt_e = [o_verts[1][0] - o_verts[0][0], o_verts[1][1] - o_verts[0][1]]
-        ee = [e_verts[1][0] - e_verts[0][0], e_verts[1][1] - e_verts[0][1]]
 
         """
          e_verts[0]     o_verts[1]
          *-------------------*
-         | \                 |
-         |   \               |
-         |     \             |
-         |       \           |
-         |         \ e       |
-         |t1v1       \       |
-         |             \     |
-         |               \   |
-         |      t2v1       \ |
+         | \              /  |
+         |   \     alt_e.    |
+         |     \      /      |
+         |       \  .        |
+         |         \         |
+         |t1v1   .   \       |
+         |     /      e\     |
+         |   .           \   |
+         | /    t2v1       \ |
          *___________________*
          o_verts[0]      e_verts[1]
+
+
+        Note that if e can be flopped(i.e. if the two triangles form a
+        convex 4-sided object), then the angles:
+          * angle1 (between t2v1 and alt_e)
+          * angle2 (between alt_e and t1v1)
+        will be both positive (if e_verts is oriented as in the
+        picture above), or both negative (if e_verts is reversed).
         """
 
         t1v1 = [e_verts[0][0] - o_verts[0][0], e_verts[0][1] - o_verts[0][1]]
         t2v1 = [e_verts[1][0] - o_verts[0][0], e_verts[1][1] - o_verts[0][1]]
 
+        # affine transformation so that arctan will avoid branch cuts
+        # when computing the angles between alt_e and the two sides
+        # t1v1 and t1v2.
         v1 = rotated_vector(basis=t1v1, hyp=alt_e)
         v2 = rotated_vector(hyp=t2v1, basis=alt_e)
         angle1 = np.arctan2(v1[1], v1[0])
@@ -559,10 +569,21 @@ def all_products_zipped(list1, list2):
 
 
 def rotated_vector(basis=[1,0], hyp=[1,1]):
+    """
+    Inputs:
+    This routine takes two vectors basis and hyp, both
+    of which are assumed to have tails at the origin,
+    so only the head is passed in each case.
+
+    Outputs:
+    The computes the affine transformation necessary to map
+    The input "basis" to <1,0>, and returns the image of "hyp"
+    under that transformation.
+    """
     bb = np.array([basis[0], basis[1]])
     hh = np.matrix([hyp[0], hyp[1]]).transpose()
 
-    # create matrix that translates bb to the line segment [0,1]
+    # create matrix that translates basis to the line segment [0,1]
     if bb[0] != 0:
         matrix_of_transformation = np.matrix([[-bb[1]+1/bb[0],bb[0]],[-bb[1],bb[0]]])
     else:
