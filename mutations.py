@@ -268,13 +268,14 @@ class Resolution():
 
         e2t = sorted(self.edge_to_triangle[ei])
         if len(e2t) < 2: # check if its an edge on the boundary
+            print("edge on edge")
             return False
+        print("the triangles are %d and %d"%(e2t[0], e2t[1]), e2t)
 
-        # unpack the vertices on hte edge and those it would be flopped to 
-        vertices = set([self.vertex_positions[i] for q in e2t for e in self.triangle[q] for i in self.edges[e]])
-
+        # unpack the vertices on the edge and those it would be flopped to 
+        vertices = set([tuple(self.vertex_positions[i]) for t in e2t for e in self.triangles[t] for i in self.edges[e]])
         # vertices of existing edge
-        e_verts = [self.vertex_positions[e[0]], self.vertex_positions[e[1]]]
+        e_verts = [tuple(self.vertex_positions[e[0]]), tuple(self.vertex_positions[e[1]])]
         segment1 = [e_verts[0][0] - e_verts[1][0], e_verts[0][1] - e_verts[1][1]]
 
         # vertices of flopped edge
@@ -305,8 +306,13 @@ class Resolution():
 
         angle1 = rotated_vector(basis=t1v1, hyp=segment1)
         angle2 = rotated_vector(hyp=t1v2, basis=segment1)
+        print("="*30)
+        print("vertices = ", vertices)
+        print(e_verts, o_verts)
+        print(segment1, segment2)
+        print("angle = %.3lf, %.3lf"%(np.arctan2(angle1[1], angle1[0]), np.arctan2(angle2[1], angle2[0])))
 
-        if np.sign(np.atan2(angle1[1], angle1[0])) == np.sign(np.atan2(angle2[1], angle2[0])):
+        if np.sign(np.arctan2(angle1[1], angle1[0])) == np.sign(np.arctan2(angle2[1], angle2[0])):
             return True
         return False
 
@@ -558,9 +564,9 @@ def all_products_zipped(list1, list2):
             for i in indices]
 
 
-def rotated_vector(basis=[[0,0],[1,0]], hyp=[[0,0],[1,1]])
-    bb = np.array([basis[1][0]-basis[0][0], basis[1][1]-basis[0][1]])
-    hh = np.matrix([hyp[1][0]-hyp[0][0], hyp[1][1]-hyp[0][1]]).transpose()
+def rotated_vector(basis=[0,1], hyp=[1,1]):
+    bb = np.array([basis[1], basis[0]])
+    hh = np.matrix([hyp[1], hyp[1]]).transpose()
 
     # create matrix that translates bb to the line segment [0,1]
     if bb[1] != 0:
