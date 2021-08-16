@@ -225,8 +225,19 @@ class Resolution():
 
     def QP(self):
         edges = [(t[i%3], t[(i+j)%3]) for j in [-1,1] for i in range(1, 4) for t in self.triangles]
+        for i, e in enumerate(self.edges):
+            if not self.can_flop(e):
+                edges.append((i,i))
+
         p = potential(edges, self.triangles)
-        return QuiverWithPotential(edges, p)
+
+        positions = None
+        if self.vertex_positions is not None:
+            positions = [[0.5*(self.vertex_positions[e[0]][0]
+                              +self.vertex_positions[e[1]][0]), 
+                          0.5*(self.vertex_positions[e[0]][1]
+                              +self.vertex_positions[e[1]][1])] for e in self.edges]
+        return QuiverWithPotential(edges, potential=p, positions=positions)
 
 
     def draw(self, time=0.5, **kwargs):
@@ -316,10 +327,10 @@ class Resolution():
 
         tol = 1.0e-6
         if np.sign(angle1) == np.sign(angle2):
+            # check that neither angle is zero
             if (abs(angle1) > tol) and (abs(angle2) > tol):
                 return True
         return False
-
 
 
     def flop_in_sequence(self, edge_sequence, draw=True):
@@ -342,11 +353,14 @@ class Resolution():
         # make a copy of self to return: 
         toRet = copy.deepcopy(self)
 
+        # check that this edge can be flopped 
+        # (i.e. it's not on a boundary, and the quadrilateral
+        # formed by the edge's neighboring triangles is convex)
+        if not self.can_flop(e):
+            return toRet
+
         # find the two triangles that share edge e
         nbrs = self.edge_to_triangle[e]
-        if len(nbrs) < 2:
-            print("error in flop: edge %d is on a boundary and cannot be flopped"%e)
-            return toRet 
         nbr1,nbr2 = nbrs[:2]
 
         # get the points p1, p2 'opposite' to edge e
