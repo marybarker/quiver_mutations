@@ -226,7 +226,10 @@ class Resolution():
     def QP(self):
         edges = [(t[i%3], t[(i+j)%3]) for j in [-1,1] for i in range(1, 4) for t in self.triangles]
         for i, e in enumerate(self.edges):
-            if not self.can_flop(e):
+            if self.curve_type(e) == (-2,0):
+                edges.append((i,i))
+            if self.curve_type(e) == (-3,0):
+                edges.append((i,i))
                 edges.append((i,i))
 
         p = potential(edges, self.triangles)
@@ -272,6 +275,10 @@ class Resolution():
         """
         check if an edge e (passed as either the tuple representation or its index in the resolution) can be flopped
         """
+        return self.curve_type(e) == (-1,-1)
+
+
+    def curve_type(self, e):
         if isinstance(e, list):
             ei = self.edges.index(e)
         else:
@@ -279,7 +286,7 @@ class Resolution():
 
         e2t = sorted(self.edge_to_triangle[ei])
         if len(e2t) < 2: # check if its an edge on the boundary
-            return False
+            return (0,0)
 
         # unpack the vertices on the edge and those it would be flopped to 
         vertices = set([tuple(self.vertex_positions[i]) for t in e2t for e in self.triangles[t] for i in self.edges[e]])
@@ -329,8 +336,9 @@ class Resolution():
         if np.sign(angle1) == np.sign(angle2):
             # check that neither angle is zero
             if (abs(angle1) > tol) and (abs(angle2) > tol):
-                return True
-        return False
+                return (-1,-1)
+            return (-2,0)
+        return (-3,0)
 
 
     def flop_in_sequence(self, edge_sequence, draw=True):
