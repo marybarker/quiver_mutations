@@ -55,17 +55,20 @@ class QuiverWithPotential():
 
             if coef == 1:
                 coef = [1 for e in edge_cycle]
-            for iec, ec in enumerate(edge_cycle):
-                c = coef[iec]
-                cycle=[]
-                for i,vi in enumerate(ec):
-                    vj = ec[(i+1)%len(ec)]
-                    try:
-                        cycle.append(self.Q1.index([vi,vj]))
-                    except:
-                        print("\nError in add_term_to_potential: there is no edge with endpoints (%d, %d). Ignoring term\n"%(vi,vj))
-                cycle = cycleOrder(tuple(cycle))
-                self.potential[cycle] = coef[iec]
+            if len(coef) != len(edge_cycle):
+                print("Error in adding cycle(s) to potential: #coefficients != #cycles\nFailed to add potential")
+            else:
+                for iec, ec in enumerate(edge_cycle):
+                    c = coef[iec]
+                    cycle=[]
+                    for i,vi in enumerate(ec):
+                        vj = ec[(i+1)%len(ec)]
+                        try:
+                            cycle.append(self.Q1.index([vi,vj]))
+                        except:
+                            print("\nError in add_term_to_potential: there is no edge with endpoints (%d, %d). Ignoring term\n"%(vi,vj))
+                    cycle = cycleOrder(tuple(cycle))
+                    self.potential[cycle] = coef[iec]
 
 
     def __repr__(self):
