@@ -506,7 +506,8 @@ def matrixFromEdges(edges, oriented=True):
 def reduce_QP(QP):
     """
         this routine takes a QP and "reduces" it by removing all 2-cycles that 
-        show up in the potential W, and also removing the assoicated edges in QP.Q1in QP.Q1
+        show up in the potential W (as long as each term in the 2-cycle can be 
+        removed, which depends on W), and also removing the assoicated edges in QP.Q1
     """
     # compute the partial derivative of QP's potential for every edge
     partials = [path_derivative(QP.potential, a) for a in range(len(QP.Q1))]
@@ -519,6 +520,12 @@ def reduce_QP(QP):
 
     # find out which edges show up in quadratic terms in the potential. 
     edges_to_remove = sorted([x for term in QP.potential.keys() for x in term if (len(list(term)) == 2) and (x in reduce_dict.keys())])
+
+    problem_edges = sorted([x for term in QP.potential.keys() for x in term if (len(list(term)) == 2) and (x not in reduce_dict.keys())])
+    if len(problem_edges) > 0:
+        print("Problem in reduce_QP: cannot remove some terms, as there is no " \
+                + "replacement term for the following terms:" \
+                + "\n\t%s\n resulting quiver will not be fully reduced"%str(["%d: %d->%d"%(e, QP.Q1[e][0],QP.Q1[e][1]) for e in problem_edges]))
 
     # now make sure that the replacement for each edge does not contain one of the edges to be removed
     for e in edges_to_remove:
