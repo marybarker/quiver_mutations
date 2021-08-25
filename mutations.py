@@ -508,14 +508,14 @@ def reduce_QP(QP):
     # compute the partial derivative of QP's potential for every edge
     partials = [path_derivative(QP.potential, a) for a in range(len(QP.Q1))]
 
-    # find out which edges show up in quadratic terms in the potential. 
-    edges_to_remove = sorted([x for term in QP.potential.keys() for x in term if len(list(term)) == 2])
-
     # create a lookup of the replacements associated to each partial derivative
     reduce_dict = {}
     for term in partials:
         for k,v in term.items():
             reduce_dict[k] = [(k1,v1*v) for k1,v1 in term.items() if k1 != k]
+
+    # find out which edges show up in quadratic terms in the potential. 
+    edges_to_remove = sorted([x for term in QP.potential.keys() for x in term if (len(list(term)) == 2) and (x in reduce_dict.keys())])
 
     # now make sure that the replacement for each edge does not contain one of the edges to be removed
     for e in edges_to_remove:
@@ -554,7 +554,7 @@ def reduce_QP(QP):
         if not found_replacement:
             print("problem in reducing QP: could not properly remove edge %d"%e)
 
-    reduce_dict = {k:v[0] for k,v in reduce_dict.items() if len(list(k)) < 2}
+    reduce_dict = {k:v[0] for k,v in reduce_dict.items() if (len(list(k)) < 2) and (len(v) > 0)}
 
     Wprime = {}
     for term, coef in QP.potential.items():
