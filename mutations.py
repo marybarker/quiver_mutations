@@ -526,6 +526,7 @@ def reduce_QP(QP):
         print("Problem in reduce_QP: cannot remove some terms, as there is no " \
                 + "replacement term for the following terms:" \
                 + "\n\t%s\n resulting quiver will not be fully reduced"%str(["%d: %d->%d"%(e, QP.Q1[e][0],QP.Q1[e][1]) for e in problem_edges]))
+        edges_to_remove = [x for x in edges_to_remove if tuple([x]) in reduce_dict.keys()]
 
     zero_terms = [k for (k,v) in reduce_dict.items() if len(v) < 1]
 
