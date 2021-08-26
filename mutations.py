@@ -150,7 +150,7 @@ class QuiverWithPotential():
 
                 # keep track of 3-cycle introduced by adding this edge
                 delta[cycleOrder((edgectr, e1i, e2i))] = 1
-                shortcuts[tuple(sorted([e1i,e2i]))] = edgectr
+                shortcuts[tuple([e1i,e2i])] = edgectr
                 edgectr += 1
         QP.add_edges(new_edges)
 
@@ -163,10 +163,10 @@ class QuiverWithPotential():
                 if (x1, self.Q1[x1]) in self.arrows_with_head[v]:
 
                     x2 = monoid[(i+1)%len(monoid)]
-                    pair = tuple(sorted([x1,x2]))
+                    pair = tuple([x1,x2])
 
                     if pair in shortcuts.keys():
-                        m.append(shortcuts[tuple(sorted([x2, x1]))])
+                        m.append(shortcuts[pair])
                     else:
                         m.append(x1)
                 else:
