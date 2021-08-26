@@ -511,16 +511,16 @@ def reduce_QP(QP):
     """
         this routine takes a QP and "reduces" it by removing all 2-cycles that 
         show up in the potential W (as long as each term in the 2-cycle can be 
-        removed, which depends on W), and also removing the assoicated edges in QP.Q1
+        removed, which depends on W), and also removing the associated edges in QP.Q1
     """
     # compute the partial derivative of QP's potential for every edge
     partials = [path_derivative(QP.potential, a) for a in range(len(QP.Q1))]
 
     # create a lookup of the replacements associated to each partial derivative
     reduce_dict = {}
-    for term in partials:
-        for k,v in term.items():
-            reduce_dict[k] = [(k1,v1*v) for k1,v1 in term.items() if k1 != k]
+    for pd in partials:
+        for k,v in pd.items():
+            reduce_dict[k] = [(k1,-v1/v) for k1,v1 in pd.items() if k1 != k]
 
     # find out which edges show up in quadratic terms in the potential. 
     edges_to_remove = sorted([x for term in QP.potential.keys() for x in term if (len(list(term)) == 2)])
