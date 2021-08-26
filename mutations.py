@@ -38,8 +38,8 @@ class QuiverWithPotential():
         self.loops_at = [[] for x in range(len(self.Q0))]
         for i, e in enumerate(self.Q1):
             if e[0] != e[1]:
-                self.arrows_with_head[e[0]].append((i,e))
-                self.arrows_with_tail[e[1]].append((i,e))
+                self.arrows_with_head[e[1]].append((i,e))
+                self.arrows_with_tail[e[0]].append((i,e))
             else:
                 self.loops_at[e[0]].append((i,e))
 
@@ -101,9 +101,9 @@ class QuiverWithPotential():
         k = [x for x in keep if x >= 0]
         new_edge_indices = dict(zip(k, range(len(k))))
         for v in self.Q0:
-            self.arrows_with_head[v] = [(new_edge_indices[x[0]], self.Q1[new_edge_indices[x[0]]]) for x in self.arrows_with_head[v] if keep[x[0]]>0]
-            self.arrows_with_tail[v] = [(new_edge_indices[x[0]], self.Q1[new_edge_indices[x[0]]]) for x in self.arrows_with_tail[v] if keep[x[0]]>0]
-            self.loops_at[v] = [(new_edge_indices[x[0]], self.Q1[new_edge_indices[x[0]]]) for x in self.loops_at[v] if keep[x[0]]>0]
+            self.arrows_with_head[v] = [(new_edge_indices[i], e) for (i,e) in self.arrows_with_head[v] if keep[i]>=0]
+            self.arrows_with_tail[v] = [(new_edge_indices[i], e) for (i,e) in self.arrows_with_tail[v] if keep[i]>=0]
+            self.loops_at[v] = [(new_edge_indices[i], self.Q1[new_edge_indices[i]]) for (i,e) in self.loops_at[v] if keep[i]>0]
         self.incidence_matrix = matrixFromEdges(self.Q1)
 
         #update the potential 
@@ -118,20 +118,22 @@ class QuiverWithPotential():
 
 
     def mutate(self, v):
-        # first check if there's a loop at v. 
-        if len(self.loops_at[v]) > 0:
-            print("Error in mutate routine: there's a loop at vertex %d. returning"%v)
-
         # make a copy of the original quiver to mutate
         QP = copy.deepcopy(self)
     
+        # first check if there's a loop at v. 
+        if len(self.loops_at[v]) > 0:
+            print("Error in mutate routine: there's a loop at vertex %d. returning"%v)
+            return QP
+
         # reverse all edges incident to v:
         for (i, e) in self.arrows_with_tail[v] + self.arrows_with_head[v]:
-            QP.Q1[i] = self.Q1[i][::-1]
+            QP.Q1[i] = [e[1],e[0]]
+
         # update connectivity info for quiver
-        QP.arrows_with_head[v] = list(self.arrows_with_tail[v])
-        QP.arrows_with_tail[v] = list(self.arrows_with_head[v])
-    
+        QP.arrows_with_head[v] = list([(i, QP.Q1[i]) for (i, e) in self.arrows_with_tail[v]])
+        QP.arrows_with_tail[v] = list([(i, QP.Q1[i]) for (i, e) in self.arrows_with_head[v]])
+
         delta = {}
         shortcuts = {}
         new_edges = []
@@ -139,9 +141,9 @@ class QuiverWithPotential():
         # add 'shortcuts' i->j for all 2-paths(which are then reversed): i->v->j 
         # and keep track of the 3-cycles that are produced (saved in list delta)
         for e1i, e1 in self.arrows_with_head[v]:
-            i = self.Q1[e1i][1]
+            i = e1[0]
             for e2i, e2 in self.arrows_with_tail[v]:
-                j = self.Q1[e2i][0]
+                j = e2[1]
 
                 # add the shortcut edge
                 new_edges.append([i,j])
@@ -158,14 +160,17 @@ class QuiverWithPotential():
         for monoid, coef in self.potential.items():
             m = []
             for i, x1 in enumerate(monoid):
-                if (x1, self.Q1[x1]) in self.arrows_with_tail[v]:
+                if (x1, self.Q1[x1]) in self.arrows_with_head[v]:
+
                     x2 = monoid[(i+1)%len(monoid)]
-                    if (x2, self.Q1[x2]) in self.arrows_with_head[v]:
-                        m.append(shortcuts[tuple(sorted([x1, x2]))])
+                    pair = tuple(sorted([x1,x2]))
+
+                    if pair in shortcuts.keys():
+                        m.append(shortcuts[tuple(sorted([x2, x1]))])
                     else:
                         m.append(x1)
                 else:
-                    if (x1, self.Q1[x1]) not in self.arrows_with_head[v]:
+                    if (x1, self.Q1[x1]) not in self.arrows_with_tail[v]:
                         m.append(x1)
             wprime[tuple(m)] = coef
 
@@ -181,7 +186,6 @@ class QuiverWithPotential():
             g.add_node(str(x))
         for e in self.Q1:
             g.add_edge(str(e[0]), str(e[1]))
-        #g.add_edges_from(self.Q1)
         pos = nx.spring_layout(g)
         if self.positions is not None:
             pos = {str(i):v for i,v in enumerate(self.positions)}
@@ -526,7 +530,6 @@ def reduce_QP(QP):
         print("Problem in reduce_QP: cannot remove some terms, as there is no " \
                 + "replacement term for the following terms:" \
                 + "\n\t%s\n resulting quiver will not be fully reduced"%str(["%d: %d->%d"%(e, QP.Q1[e][0],QP.Q1[e][1]) for e in problem_edges]))
-        edges_to_remove = [x for x in edges_to_remove if tuple([x]) in reduce_dict.keys()]
 
     zero_terms = [k for (k,v) in reduce_dict.items() if len(v) < 1]
 
@@ -568,15 +571,19 @@ def reduce_QP(QP):
                 print("problem in reducing QP: could not properly remove edge %d"%e)
 
     reduce_dict = {k:v for k,v in reduce_dict.items() if (len(list(k)) < 2)}
+    zero_terms = []
     for k,v in reduce_dict.items():
         if len(v) > 0:
             reduce_dict[k] = v[0]
+        else:
+            zero_terms.append(k)
 
     Wprime = {}
     for term, coef in QP.potential.items():
-        new_term = tuple(flattenList([reduce_dict[tuple([x])][0] if (x in edges_to_remove and tuple([x]) not in zero_terms) else x for x in term if (tuple([x]) not in zero_terms)]))
-        new_coef = coef * reduce(lambda a,b:a*b, [reduce_dict[tuple([x])][1] if x in edges_to_remove and tuple([x]) not in zero_terms else 1 for x in term])
-        Wprime[cycleOrder(new_term)] = new_coef
+        if not any([tuple([x]) in zero_terms for x in term]):
+            new_term = tuple(flattenList([reduce_dict[tuple([x])][0] if x in edges_to_remove else x for x in term]))
+            new_coef = coef * reduce(lambda a,b:a*b, [reduce_dict[tuple([x])][1] if x in edges_to_remove else 1 for x in term])
+            Wprime[cycleOrder(new_term)] = new_coef
 
     QP.potential = Wprime
     QP.remove_edges(sorted(edges_to_remove))
