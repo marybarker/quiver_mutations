@@ -582,12 +582,6 @@ def reduce_QP(QP):
         if len(v) < 1:
             zero_terms.append(k)
 
-    #for k in edges_to_remove:
-    #    if tuple([k]) not in zero_terms:
-    #        v = reduce_dict[tuple([k])]
-    #        print("reducing edge %d: %d->%d by replacing it with "%(k, QP.Q1[k][0], QP.Q1[k][1]), \
-    #                "+".join([".".join([str(QP.Q1[x]) for x in vv]) for (vv, c) in v]))
-
     # now update the potential by replacing all of the terms in edges_to_remove
     Wprime = {}
     for term, coef in QP.potential.items():
