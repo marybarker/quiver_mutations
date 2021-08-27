@@ -517,6 +517,8 @@ def reduce_QP(QP):
     partials = [path_derivative(QP.potential, a) for a in range(len(QP.Q1))]
 
     # create a lookup of the replacements associated to each partial derivative
+    # this is based on the fact that equivalent terms in the jacobian algebra can 
+    # be found by factoring the terms of dW/da for each arrow a. 
     reduce_dict = {}
     for pd in partials:
         for k,v in pd.items():
@@ -525,65 +527,79 @@ def reduce_QP(QP):
     # find out which edges show up in quadratic terms in the potential. 
     edges_to_remove = sorted([x for term in QP.potential.keys() for x in term if (len(list(term)) == 2)])
 
-    problem_edges = sorted([x for x in edges_to_remove if (tuple([x]) not in reduce_dict.keys())])
-    if len(problem_edges) > 0:
-        print("Problem in reduce_QP: cannot remove some terms, as there is no " \
-                + "replacement term for the following terms:" \
-                + "\n\t%s\n resulting quiver will not be fully reduced"%str(["%d: %d->%d"%(e, QP.Q1[e][0],QP.Q1[e][1]) for e in problem_edges]))
-
+    # find out which edges are equivalent to 0
     zero_terms = [k for (k,v) in reduce_dict.items() if len(v) < 1]
 
-    # now make sure that the replacement for each edge does not contain one of the edges to be removed
+    # now create a lookup table of replacements for each edge to be removed
+    # and each replacement term only contains edges that are NOT in edges_to_remove+zero_terms
     for e in edges_to_remove:
 
-        # unpack the list of monoids that sum up to replace e
+        # unpack the list of monoids that sum up to something equivalent to e in the jacobian algebra
         terms_for_e = reduce_dict[tuple([e])]
         if len(terms_for_e) > 0:
-            # now check if any of these monoids contains another edge that is going to be removed
-            ctr = 0
-            found_replacement = False
-            while (not found_replacement) and (ctr < len(edges_to_remove)):
-                ctr += 1
-                current_list = []
-                found_replacement = True
 
-                # unpack each monoid
-                for term in terms_for_e:
-                    list_per_term = []
-                    coef_per_term = []
+            found_replacement=False; ctr = 0 # stopping criterion
+            while not found_replacement and ctr < len(edges_to_remove):
+                found_replacement=True; ctr += 1 # update stopping criterion
 
-                    # check if an edge listed in this monoid is going to be removed
-                    for y in term[0]:
-                        if y in edges_to_remove:
-                            found_replacement=False
-                            list_per_term.append([z[0] for z in reduce_dict[tuple([y])]])
-                            coef_per_term.append([z[1] for z in reduce_dict[tuple([y])]])
-                        else:
-                            list_per_term.append([y])
-                            coef_per_term.append([1])
-                    producted_out = all_products_zipped(list_per_term, coef_per_term)
-                    current_list.extend([(tuple(flattenList(p[0])), term[1]*p[1]) for p in producted_out])
+                # placeholder for terms to be added
+                alt_terms_for_e = []
+                for (term, coef) in terms_for_e:
+                    alt_term = [(term, coef)]
 
-                if not found_replacement:
-                    terms_for_e = current_list
-                reduce_dict[tuple([e])] = terms_for_e
+                    # check if any of the terms in e's replacement terms 
+                    # also contains one of the edges_to_remove
+                    if any([x in edges_to_remove for x in term]):
+                        found_replacement=False
+
+                        # if so, then we need to replace that term. 
+                        new_term = [((),1)]
+                        for tti, tt in enumerate(term):
+                            if tt in edges_to_remove:
+                                new_term = [(a+b, c*d) for (a,c) in new_term \
+                                        for (b,d) in reduce_dict[tuple([tt])] \
+                                        if len(reduce_dict[tuple([tt])]) > 0]
+                            else:
+                                new_term = [(a+tuple([tt]), c) for (a,c) in new_term]
+                        alt_term = [(a, c*coef) for (a,c) in new_term]
+                    alt_terms_for_e.extend(alt_term)
+                terms_for_e = alt_terms_for_e
+
+            reduce_dict[tuple([e])] = terms_for_e
             if not found_replacement:
                 print("problem in reducing QP: could not properly remove edge %d"%e)
 
+    # now create a global lookup: each edge has a "replacement" 
+    # (identity or set of terms, depending on whether or not it's in edges_to_remove)
+    new_reduce_dict = {e: [(tuple([e]),1)] for e in range(len(QP.Q1))}
+    for e in edges_to_remove:
+        new_reduce_dict[e] = reduce_dict[tuple([e])]
+
+    # keep track of which edges are equivalent to 0. 
     reduce_dict = {k:v for k,v in reduce_dict.items() if (len(list(k)) < 2)}
     zero_terms = []
     for k,v in reduce_dict.items():
-        if len(v) > 0:
-            reduce_dict[k] = v[0]
-        else:
+        if len(v) < 1:
             zero_terms.append(k)
 
+    #for k in edges_to_remove:
+    #    if tuple([k]) not in zero_terms:
+    #        v = reduce_dict[tuple([k])]
+    #        print("reducing edge %d: %d->%d by replacing it with "%(k, QP.Q1[k][0], QP.Q1[k][1]), \
+    #                "+".join([".".join([str(QP.Q1[x]) for x in vv]) for (vv, c) in v]))
+
+    # now update the potential by replacing all of the terms in edges_to_remove
     Wprime = {}
     for term, coef in QP.potential.items():
         if not any([tuple([x]) in zero_terms for x in term]):
-            new_term = tuple(flattenList([reduce_dict[tuple([x])][0] if x in edges_to_remove else x for x in term]))
-            new_coef = coef * reduce(lambda a,b:a*b, [reduce_dict[tuple([x])][1] if x in edges_to_remove else 1 for x in term])
-            Wprime[cycleOrder(new_term)] = new_coef
+            new_terms = [((), 1)]
+            for tt in term:
+                new_terms = [(a+b, c*d) for (a,c) in new_terms \
+                        for (b,d) in new_reduce_dict[tt] \
+                        if len(new_reduce_dict[tt]) > 0]
+            new_terms = [(a, b*coef) for (a,b) in new_terms]
+            for (y,z) in new_terms:
+                Wprime[cycleOrder(y)] = z
 
     QP.potential = Wprime
     QP.remove_edges(sorted(edges_to_remove))
