@@ -2,8 +2,6 @@ import numpy as np
 import copy
 import networkx as nx
 import matplotlib.pyplot as plt
-from itertools import product as prod
-from functools import reduce
 
 def flattenList(l):
     if type(l) is list or type(l) is tuple:
@@ -604,23 +602,6 @@ def cycleOrder(cycle):
     cycle = tuple(cycle)
     minidx = cycle.index(min(cycle))
     return tuple(cycle[minidx:]+cycle[:minidx])
-
-
-def all_products_zipped(list1, list2):
-    """
-    takes two lists of lists (assumed to have same dimensions, or else returns error)
-    and returns the zip of the cartesian product of the first with the reduced product of the second
-    """
-    if len(list1) != len(list2):
-        return []
-    for i, x in enumerate(list1):
-        if len(x) != len(list2[i]):
-            return []
-    indices = prod(*[list(range(len(x))) for x in list1])
-
-    return [(tuple([list1[ji][jv] for ji,jv in enumerate(i)]), \
-            reduce(lambda x,y:x*y, [list2[ji][jv] for ji,jv in enumerate(i)])) \
-            for i in indices]
 
 
 def rotated_vector(basis=[1,0], hyp=[1,1]):
