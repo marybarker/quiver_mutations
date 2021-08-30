@@ -147,9 +147,14 @@ class QuiverWithPotential():
                 new_edges.append([i,j])
 
                 # keep track of 3-cycle introduced by adding this edge
-                delta[cycleOrder((edgectr, e1i, e2i))] = 1
+                delta[(e2i, e1i, edgectr)] = 1
                 shortcuts[tuple([e1i,e2i])] = edgectr
                 edgectr += 1
+
+        print("mutating at %d, we added edges:"%v)
+        for ie, e in enumerate(new_edges):
+            print("    %d: %d -> %d"%(len(QP.Q1)+ie, e[0], e[1]))
+
         QP.add_edges(new_edges)
 
         # update the potential
@@ -167,9 +172,8 @@ class QuiverWithPotential():
                         m.append(shortcuts[pair])
                     else:
                         m.append(x1)
-                else:
-                    if (x1, self.Q1[x1]) not in self.arrows_with_tail[v]:
-                        m.append(x1)
+                elif (x1, self.Q1[x1]) not in self.arrows_with_tail[v]:
+                    m.append(x1)
             wprime[tuple(m)] = coef
 
         # add the set of 3-cycles introduced with the shortcuts
@@ -522,11 +526,27 @@ def reduce_QP(QP):
         for k,v in pd.items():
             reduce_dict[k] = [(k1,-v1/v) for k1,v1 in pd.items() if k1 != k]
 
+    print("the terms of the (mu tilde) potential are now: ")
+    print([k for k,v in QP.potential.items()])
+
+    print("the partials of the potential are: ")
+    print([[k for k,v in p.items()] for p in partials])
+
+    print("equivalences from partial derivatives are as follows: ")
+    for k, v in reduce_dict.items():
+        if len(k) < 2:
+            print("  edge indices: ")
+            print("    %d = "%(k[0]) + "+".join([",".join(["(%d)"%(i) for i in vv[0]]) for vv in v]) + " or " \
+            +"    [%d, %d] = "%(QP.Q1[k[0]][0], QP.Q1[k[0]][1]) + "+".join(["".join(["[%d, %d]"%(QP.Q1[i][0], QP.Q1[i][1]) for i in vv[0]]) for vv in v]))
+
     # find out which edges show up in quadratic terms in the potential. 
     edges_to_remove = sorted([x for term in QP.potential.keys() for x in term if (len(list(term)) == 2)])
 
     # find out which edges are equivalent to 0
     zero_terms = [k for (k,v) in reduce_dict.items() if len(v) < 1]
+    print("removing edges: ")
+    for e in edges_to_remove:
+        print("    %d: %d -> %d"%(e, QP.Q1[e][0], QP.Q1[e][1]))
 
     # now create a lookup table of replacements for each edge to be removed
     # and each replacement term only contains edges that are NOT in edges_to_remove+zero_terms
@@ -579,6 +599,11 @@ def reduce_QP(QP):
     for k,v in reduce_dict.items():
         if len(v) < 1:
             zero_terms.append(k)
+
+    print("using the reduce_dictionary replacing each term as follows: ")
+    for k, v in reduce_dict.items():
+        print("edge %d: %d->%d with "%(k[0], QP.Q1[k[0]][0], QP.Q1[k[0]][1])+\
+                " + ".join(["".join(["[%d, %d]"%(QP.Q1[vvv][0], QP.Q1[vvv][1]) for vvv in vv[0]]) for vv in v]))
 
     # now update the potential by replacing all of the terms in edges_to_remove
     Wprime = {}
