@@ -166,14 +166,17 @@ class QuiverWithPotential():
                 if (x1, self.Q1[x1]) in self.arrows_with_head[v]:
 
                     x2 = monoid[(i+1)%len(monoid)]
-                    pair = tuple([x1,x2])
+                    pair = tuple([x1, x2])
 
                     if pair in shortcuts.keys():
                         m.append(shortcuts[pair])
                     else:
                         m.append(x1)
-                elif (x1, self.Q1[x1]) not in self.arrows_with_tail[v]:
-                    m.append(x1)
+                        m.append(x2)
+                else:
+                    x2 = monoid[(i+len(monoid)-1)%len(monoid)]
+                    if (x2, self.Q1[x2]) not in self.arrows_with_head[v]:
+                        m.append(x1)
             wprime[tuple(m)] = coef
 
         # add the set of 3-cycles introduced with the shortcuts
