@@ -597,16 +597,16 @@ def reduce_QP(QP):
         new_reduce_dict[e] = reduce_dict[tuple([e])]
 
     # keep track of which edges are equivalent to 0. 
-    reduce_dict = {k:v for k,v in reduce_dict.items() if (len(list(k)) < 2)}
     zero_terms = []
-    for k,v in reduce_dict.items():
+    for k,v in new_reduce_dict.items():
         if len(v) < 1:
             zero_terms.append(k)
 
     print("using the reduce_dictionary replacing each term as follows: ")
     for k, v in reduce_dict.items():
-        print("edge %d: %d->%d with "%(k[0], QP.Q1[k[0]][0], QP.Q1[k[0]][1])+\
-                " + ".join(["".join(["[%d, %d]"%(QP.Q1[vvv][0], QP.Q1[vvv][1]) for vvv in vv[0]]) for vv in v]))
+        if len(k) < 2:
+            print("edge %d: %d->%d with "%(k[0], QP.Q1[k[0]][0], QP.Q1[k[0]][1]) + \
+                    " + ".join(["".join(["[%d, %d]"%(QP.Q1[vvv][0], QP.Q1[vvv][1]) for vvv in vv[0]]) for vv in v]))
 
     # now update the potential by replacing all of the terms in edges_to_remove
     Wprime = {}
@@ -619,9 +619,12 @@ def reduce_QP(QP):
                         if len(new_reduce_dict[tt]) > 0]
             new_terms = [(a, b*coef) for (a,b) in new_terms]
             for (y,z) in new_terms:
-                Wprime[cycleOrder(y)] = z
+                if cycleOrder(y) in Wprime:
+                    Wprime[cycleOrder(y)] += z
+                else:
+                    Wprime[cycleOrder(y)] = z
 
-    QP.potential = Wprime
+    QP.potential = {k:v for k, v in Wprime.items() if v != 0}
     QP.remove_edges(sorted(edges_to_remove))
     return QP
 
