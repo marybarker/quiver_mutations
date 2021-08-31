@@ -539,8 +539,8 @@ def reduce_QP(QP):
     for k, v in reduce_dict.items():
         if len(k) < 2:
             print("  edge indices: ")
-            print("    %d = "%(k[0]) + "+".join([",".join(["(%d)"%(i) for i in vv[0]]) for vv in v]) + " or " \
-            +"    [%d, %d] = "%(QP.Q1[k[0]][0], QP.Q1[k[0]][1]) + "+".join(["".join(["[%d, %d]"%(QP.Q1[i][0], QP.Q1[i][1]) for i in vv[0]]) for vv in v]))
+            print("    %d = "%(k[0]) + "+".join(["%d"%vv[1]+",".join(["%d"%(i) for i in vv[0]]) for vv in v]) + " or " \
+            +"    [%d, %d] = "%(QP.Q1[k[0]][0], QP.Q1[k[0]][1]) + "+".join(["%d"%vv[1]+"".join(["[%d, %d]"%(QP.Q1[i][0], QP.Q1[i][1]) for i in vv[0]]) for vv in v]))
 
     # find out which edges show up in quadratic terms in the potential. 
     edges_to_remove = sorted([x for term in QP.potential.keys() for x in term if (len(list(term)) == 2)])
@@ -606,7 +606,7 @@ def reduce_QP(QP):
     for k, v in reduce_dict.items():
         if len(k) < 2:
             print("edge %d: %d->%d with "%(k[0], QP.Q1[k[0]][0], QP.Q1[k[0]][1]) + \
-                    " + ".join(["".join(["[%d, %d]"%(QP.Q1[vvv][0], QP.Q1[vvv][1]) for vvv in vv[0]]) for vv in v]))
+                    " + ".join(["%d"%vv[1]+"".join(["[%d, %d]"%(QP.Q1[vvv][0], QP.Q1[vvv][1]) for vvv in vv[0]]) for vv in v]))
 
     # now update the potential by replacing all of the terms in edges_to_remove
     Wprime = {}
