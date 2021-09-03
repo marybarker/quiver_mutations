@@ -660,3 +660,56 @@ def rotated_vector(basis=[1,0], hyp=[1,1]):
         matrix_of_transformation = np.matrix([[-bb[1],bb[0]+1/bb[1]],[-bb[1],bb[0]]])
 
     return (matrix_of_transformation*hh).transpose().tolist()[0]
+
+def current_QP(QP):
+    sorted_items = sorted(["%d_%d_"%(e[0],e[1]) for e in QP.Q1]) + ["|"] \
+                 + sorted([".%d_"%int(v)+"_".join(["%d"%tk for tk in k]) for k,v in QP.potential.items()])
+    return "".join(sorted_items)
+
+
+def calculate_all_mutations(Q, v=0, already_met=set(), saved = []):
+    met_the_end = True
+    mutation = Q.mutate(v)
+    cQ = current_QP(Q)
+    cm = current_QP(mutation)
+
+    if cQ[:cQ.index("|")] not in already_met:
+        saved.append(cQ)
+    if cm[:cm.index("|")] not in already_met:
+        saved.append(cm)
+
+    already_met.add(cQ[:cQ.index("|")])
+
+    # if we've already met this mutation or we can't mutate
+    if (cm[:cm.index("|")] in already_met) or (len(mutation.loops_at[v]) > 0):
+        already_met.add(cm[:cm.index("|")])
+        saved.append(cm)
+        return True, already_met, saved
+
+    # otherwise try mutating new QP at every other vertex
+    for other_v in mutation.Q0:
+        met_an_end, already_met, saved = calculate_all_mutations(mutation, other_v, already_met)
+        if not met_an_end:
+            met_the_end = False
+
+    return met_the_end, already_met, saved
+
+
+
+def get_all_mutations_from_quiver(QP):
+    tf, sms, ms = calculate_all_mutations(QP)
+
+    for m in ms:
+        e, p = m.split("|")
+        edges = e.split("_")
+        p = p.split(".")
+
+        edges = [[int(edges[2*i+j]) for j in [0,1]] for i in range(int(len(edges)/2))]
+
+        pot = {}
+        for v in p:
+            if len(v) > 0:
+                vs = v.split("_")
+                pot[(int(x) for x in vs[1:])] = int(v.split("_")[0])
+
+        yield QuiverWithPotential(edges, pot, QP.positions)
