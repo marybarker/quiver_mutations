@@ -190,12 +190,18 @@ class QuiverWithPotential():
         for x in self.Q0:
             g.add_node(str(x))
         for e in self.Q1:
-            g.add_edge(str(e[0]), str(e[1]))
+            if e[0] != e[1]:
+                g.add_edge(str(e[0]), str(e[1]))
         pos = nx.spring_layout(g)
         if self.positions is not None:
             pos = {str(i):v for i,v in enumerate(self.positions)}
 
-        nx.draw_networkx(g, pos, with_labels=True, connectionstyle='arc3, rad=0.1', **kwargs)
+        nx.draw_networkx(g, pos, with_labels=True, connectionstyle='arc3, rad=0.1', node_size=200, **kwargs)
+        for v in self.Q0:
+            for i in range(len(self.loops_at[v])):
+                new_edge = [(str(v), str(v))]
+                g.add_edges_from(new_edge)
+                nx.draw_networkx_edges(g, pos, edgelist=new_edge, connectionstyle='arc3, rad=0.1', node_size=(i+2)*200, **kwargs)
 
         txt = "W = " + self.print_potential()
         plt.figtext(0.5, 0.01, txt, wrap=True, horizontalalignment='center')
