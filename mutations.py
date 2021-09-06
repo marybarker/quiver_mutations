@@ -681,8 +681,6 @@ def calculate_all_mutations(Q, v=0, already_met=set(), saved = []):
 
     if cQ[:cQ.index("|")] not in already_met:
         saved.append(cQ)
-    if cm[:cm.index("|")] not in already_met:
-        saved.append(cm)
 
     already_met.add(cQ[:cQ.index("|")])
 
