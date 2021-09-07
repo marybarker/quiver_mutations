@@ -673,7 +673,7 @@ def current_QP(QP):
     return "".join(sorted_items)
 
 
-def calculate_all_mutations(Q, v=0, already_met=set(), saved = []):
+def calculate_all_mutations_from_vertex(Q, v=0, already_met=set(), saved = []):
     met_the_end = True
     mutation = Q.mutate(v)
     cQ = current_QP(Q)
@@ -681,18 +681,20 @@ def calculate_all_mutations(Q, v=0, already_met=set(), saved = []):
 
     if cQ[:cQ.index("|")] not in already_met:
         saved.append(cQ)
+    if cm[:cm.index("|")] not in already_met:
+        saved.append(cm)
 
     already_met.add(cQ[:cQ.index("|")])
 
     # if we've already met this mutation or we can't mutate
     if (cm[:cm.index("|")] in already_met) or (len(mutation.loops_at[v]) > 0):
         already_met.add(cm[:cm.index("|")])
-        saved.append(cm)
         return True, already_met, saved
 
     # otherwise try mutating new QP at every other vertex
+    already_met.add(cm[:cm.index("|")])
     for other_v in mutation.Q0:
-        met_an_end, already_met, saved = calculate_all_mutations(mutation, other_v, already_met)
+        met_an_end, already_met, saved = calculate_all_mutations_from_vertex(mutation, other_v, already_met)
         if not met_an_end:
             met_the_end = False
 
@@ -701,7 +703,11 @@ def calculate_all_mutations(Q, v=0, already_met=set(), saved = []):
 
 
 def get_all_mutations_from_quiver(QP):
-    tf, sms, ms = calculate_all_mutations(QP)
+    all_ms = set()
+    for v in QP.Q0:
+        tf, sms, ms = calculate_all_mutations_from_vertex(QP, v)
+        all_ms = all_ms.union(set(ms))
+    ms = list(all_ms)
 
     for m in ms:
         e, p = m.split("|")

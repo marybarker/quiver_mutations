@@ -23,4 +23,4 @@ QP.positions = [[-1,0], [0,1], [1,0], [1,-1], [0,-2], [-1,-1]]
 
 all_mutations = get_all_mutations_from_quiver(QP)
 for Q in all_mutations:
-    Q.draw()
+    Q.draw(time=5)
