@@ -150,11 +150,6 @@ class QuiverWithPotential():
                 delta[(e2i, e1i, edgectr)] = 1
                 shortcuts[tuple([e1i,e2i])] = edgectr
                 edgectr += 1
-
-        print("mutating at %d, we added edges:"%v)
-        for ie, e in enumerate(new_edges):
-            print("    %d: %d -> %d"%(len(QP.Q1)+ie, e[0], e[1]))
-
         QP.add_edges(new_edges)
 
         # update the potential
@@ -201,7 +196,7 @@ class QuiverWithPotential():
             for i in range(len(self.loops_at[v])):
                 new_edge = [(str(v), str(v))]
                 g.add_edges_from(new_edge)
-                nx.draw_networkx_edges(g, pos, edgelist=new_edge, connectionstyle='arc3, rad=0.1', node_size=(i+2)*200, **kwargs)
+                nx.draw_networkx_edges(g, pos, edgelist=new_edge, connectionstyle='arc3, rad=0.1', node_size=(i+2)*200)
 
         txt = "W = " + self.print_potential()
         plt.figtext(0.5, 0.01, txt, wrap=True, horizontalalignment='center')
@@ -211,15 +206,16 @@ class QuiverWithPotential():
 
 
     def mutate_in_sequence(self, vertex_sequence, draw=True):
+        other = copy.deepcopy(self)
         for v in vertex_sequence:
-            QP = self.mutate(v)
-            vertex_colors = ['b' if i != v else 'r' for i in self.Q0]
+            QP = other.mutate(v)
+            vertex_colors = ['b' if i != v else 'r' for i in other.Q0]
             if draw:
                 kw = {'node_color': vertex_colors}
-                self.draw(time=.75, **kw)
+                other.draw(time=.75, **kw)
                 QP.draw(time=.75, **kw)
-            self=QP
-        return QP
+            other=QP
+        return other
 
 
 
@@ -535,19 +531,6 @@ def reduce_QP(QP):
         for k,v in pd.items():
             reduce_dict[k] = [(k1,-v1/v) for k1,v1 in pd.items() if k1 != k]
 
-    print("the terms of the (mu tilde) potential are now: ")
-    print([k for k,v in QP.potential.items()])
-
-    print("the partials of the potential are: ")
-    print([[k for k,v in p.items()] for p in partials])
-
-    print("equivalences from partial derivatives are as follows: ")
-    for k, v in reduce_dict.items():
-        if len(k) < 2:
-            print("  edge indices: ")
-            print("    %d = "%(k[0]) + "+".join(["%d."%vv[1]+",".join(["%d"%(i) for i in vv[0]]) for vv in v]) + " or " \
-            +"    [%d, %d] = "%(QP.Q1[k[0]][0], QP.Q1[k[0]][1]) + "+".join(["%d"%vv[1]+"".join(["[%d, %d]"%(QP.Q1[i][0], QP.Q1[i][1]) for i in vv[0]]) for vv in v]))
-
     # find out which edges show up in quadratic terms in the potential. 
     edges_to_remove = sorted([x for term in QP.potential.keys() for x in term if (len(list(term)) == 2)])
     for e in range(len(QP.Q1)):
@@ -556,9 +539,6 @@ def reduce_QP(QP):
 
     # find out which edges are equivalent to 0
     zero_terms = [k for (k,v) in reduce_dict.items() if len(v) < 1]
-    print("removing edges: ")
-    for e in edges_to_remove:
-        print("    %d: %d -> %d"%(e, QP.Q1[e][0], QP.Q1[e][1]))
 
     # now create a lookup table of replacements for each edge to be removed
     # and each replacement term only contains edges that are NOT in edges_to_remove+zero_terms
@@ -610,12 +590,6 @@ def reduce_QP(QP):
     for k,v in new_reduce_dict.items():
         if len(v) < 1:
             zero_terms.append(k)
-
-    print("using the reduce_dictionary replacing each term as follows: ")
-    for k, v in new_reduce_dict.items():
-        if k in edges_to_remove:
-            print("edge %d: %d->%d with "%(k, QP.Q1[k][0], QP.Q1[k][1]) + \
-                    " + ".join(["%d"%(vv[1])+"".join(["[%d, %d]"%(QP.Q1[vvv][0], QP.Q1[vvv][1]) for vvv in vv[0]]) for vv in v]))
 
     # now update the potential by replacing all of the terms in edges_to_remove
     Wprime = {}
@@ -687,8 +661,7 @@ def calculate_all_mutations_from_vertex(Q, v=0, already_met=set(), saved = []):
     already_met.add(cQ[:cQ.index("|")])
 
     # if we've already met this mutation or we can't mutate
-    if (cm[:cm.index("|")] in already_met) or (len(mutation.loops_at[v]) > 0):
-        already_met.add(cm[:cm.index("|")])
+    if (cm[:cm.index("|")] in already_met) or (len(Q.loops_at[v]) > 0):
         return True, already_met, saved
 
     # otherwise try mutating new QP at every other vertex
@@ -723,3 +696,48 @@ def get_all_mutations_from_quiver(QP):
                 pot[(int(x) for x in vs[1:])] = int(v.split("_")[0])
 
         yield QuiverWithPotential(edges, pot, QP.positions)
+
+
+def calc_mutations_by_index_list(Q, v=0, already_met=set(), saved = [[]]):
+    if len(Q.loops_at[v]) > 0:
+        return True, already_met, saved
+
+    met_the_end = True
+    mutation = Q.mutate(v)
+    cQ = current_QP(Q)
+    cm = current_QP(mutation)
+
+    already_met.add(cQ[:cQ.index("|")])
+
+    # if we've already met this mutation or we can't mutate
+    if cm[:cm.index("|")] in already_met:
+        return True, already_met, saved
+
+    # otherwise try mutating new QP at every other vertex
+    already_met.add(cm[:cm.index("|")])
+    for other_v in mutation.Q0:
+        other_saved = [y+[v] for y in saved]
+        met_an_end, already_met, saved = calc_mutations_by_index_list(mutation, other_v, already_met, other_saved)
+        if not met_an_end:
+            met_the_end = False
+
+    return met_the_end, already_met, [y + [v] for y in saved]
+
+
+
+def all_mutation_sequences_for_quiver(Q):
+    all_ms = []
+    for v in Q.Q0:
+        tf, sms, ms = calc_mutations_by_index_list(Q, v)
+        all_ms = all_ms + ms
+
+    reduced_ms = []
+    already_met = set()
+    for m in all_ms:
+        if len(m) > 1:
+            qp = Q.mutate_in_sequence(m, draw=False)
+            cm = current_QP(qp)
+            if cm[:cm.index("|")] not in already_met:
+                already_met.add(cm[:cm.index("|")])
+                reduced_ms.append(m)
+    return reduced_ms
