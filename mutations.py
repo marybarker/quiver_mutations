@@ -641,13 +641,19 @@ def rotated_vector(basis=[1,0], hyp=[1,1]):
 
     return (matrix_of_transformation*hh).transpose().tolist()[0]
 
+
 def current_QP(QP):
+    """ return a string representation of the QP (used to check
+    uniqueness when calculating all possible mutations of a 
+    given QP. More efficient than built-in equality ftn) """
     sorted_items = sorted(["%d_%d_"%(e[0],e[1]) for e in QP.Q1]) + ["|"] \
                  + sorted([".%d_"%int(v)+"_".join(["%d"%tk for tk in k]) for k,v in QP.potential.items()])
     return "".join(sorted_items)
 
 
 def calculate_all_mutations_from_vertex(Q, v=0, already_met=set(), saved = []):
+    """calculates all of the unique Quivers obtained from the mutation of 
+    input quiver Q at the vertex v"""
     met_the_end = True
     mutation = Q.mutate(v)
     cQ = current_QP(Q)
@@ -676,6 +682,11 @@ def calculate_all_mutations_from_vertex(Q, v=0, already_met=set(), saved = []):
 
 
 def get_all_mutations_from_quiver(QP):
+    """This routine calculates all possible quivers that can be obtained 
+    by mutating any set of vertices of QP.
+        inputs: QP = Quiver with Potential
+        outputs: list of QPs (all possible unique quivers)
+    """
     all_ms = set()
     for v in QP.Q0:
         tf, sms, ms = calculate_all_mutations_from_vertex(QP, v)
@@ -699,6 +710,9 @@ def get_all_mutations_from_quiver(QP):
 
 
 def calc_mutations_by_index_list(Q, v=0, already_met=set(), saved = [[]]):
+    """calculates all of the unique quivers obtained from the mutation of 
+    input quiver Q at the vertex v but returns the (non unique) sequence
+    of vertices to mutate in order to obtain each unique quiver"""
     if len(Q.loops_at[v]) > 0:
         return True, already_met, saved
 
@@ -726,6 +740,11 @@ def calc_mutations_by_index_list(Q, v=0, already_met=set(), saved = [[]]):
 
 
 def all_mutation_sequences_for_quiver(Q):
+    """This routine calculates all possible quivers that can be obtained 
+    by mutating any set of vertices of QP.
+        inputs: QP = Quiver with Potential
+        outputs: list of (ordered) sequences of vertices to mutate in order to obtain all possible unique quivers
+    """
     all_ms = []
     for v in Q.Q0:
         tf, sms, ms = calc_mutations_by_index_list(Q, v)
