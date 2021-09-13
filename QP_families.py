@@ -1,12 +1,11 @@
 from mutations import *
+import numpy as np
 
 def D2n(n):
 
     # if n is odd
     if n%4 > 0:
         m = int((n-1)/2)
-        print("m is odd", m)
-        vertices = list(range(m+2))
 
         edges = [[0, 1],[1, 0],[1, 2],[2, 1],[2, 0],[0, 2]] \
               + [[i, i+1] for i in range(2, m+1)] \
@@ -39,8 +38,6 @@ def D2n(n):
         
     else:
         m = int(n/2)
-        print("m is even", m)
-        vertices = list(range(m+2))
         edges = [[0, 1],[1, 0],[1, 2],[2, 1],[2, 0],[0, 2]] \
               + [[i, i+1] for i in range(2, m)] \
               + [[i+1, i] for i in range(2, m)] \
@@ -63,3 +60,20 @@ def D2n(n):
     
 
         return QuiverWithPotential(edges, potential=[cycles, coefs], positions=positions)
+
+
+def cyclicQP(n):
+    edges = [[i, (i+1)%n] for i in range(n)] \
+          + [[i, (i+n-1)%n] for i in range(n)] \
+          + [[i, i] for i in range(n)]
+
+
+    cycles = [(i,(i+1)%n, i) for i in range(n)] \
+           + [(i,(i+n-1)%n, i) for i in range(n)]
+    coefs = [1 for i in range(n)] + [-1 for i in range(n)]
+
+    angle = 2*np.pi / n
+
+    positions = [(np.sin(angle*i), np.cos(angle*i)) for i in range(n)]
+
+    return QuiverWithPotential(edges, potential=[cycles, coefs], positions=positions)
