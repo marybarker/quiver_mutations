@@ -4,7 +4,7 @@ import numpy as np
 def D2n(n):
 
     # if n is odd
-    if n%4 > 0:
+    if n%2 > 0:
         m = int((n-1)/2)
 
         edges = [[0, 1],[1, 0],[1, 2],[2, 1],[2, 0],[0, 2]] \
@@ -37,7 +37,7 @@ def D2n(n):
         return QP
         
     else:
-        m = int(n/2)
+        m = int(n/2)+1
         edges = [[0, 1],[1, 0],[1, 2],[2, 1],[2, 0],[0, 2]] \
               + [[i, i+1] for i in range(2, m)] \
               + [[i+1, i] for i in range(2, m)] \
