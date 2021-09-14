@@ -22,11 +22,13 @@ QP = QuiverWithPotential(edges, [cycles, coefs])
 QP.positions = [[-1,0], [0,1], [1,0], [1,-1], [0,-2], [-1,-1]]
 
 all_mutations = get_all_mutations_from_quiver(QP)
+print(len(list(all_mutations)))
 for Q in all_mutations:
     Q.draw(time=1)
 
 print("and now we're doing it the other way!")
 sequences = all_mutation_sequences_for_quiver(QP)
+print(len(list(sequences)))
 for s in sequences:
     q = QP.mutate_in_sequence(s,draw=False)
     q.draw(time=1)

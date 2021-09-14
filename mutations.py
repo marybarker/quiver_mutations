@@ -207,14 +207,15 @@ class QuiverWithPotential():
 
     def mutate_in_sequence(self, vertex_sequence, draw=True):
         other = copy.deepcopy(self)
-        for v in vertex_sequence:
-            QP = other.mutate(v)
-            vertex_colors = ['b' if i != v else 'r' for i in other.Q0]
-            if draw:
-                kw = {'node_color': vertex_colors}
-                other.draw(time=.75, **kw)
-                QP.draw(time=.75, **kw)
-            other=QP
+        if len(vertex_sequence) > 0:
+            for v in vertex_sequence:
+                QP = other.mutate(v)
+                vertex_colors = ['b' if i != v else 'r' for i in other.Q0]
+                if draw:
+                    kw = {'node_color': vertex_colors}
+                    other.draw(time=.75, **kw)
+                    QP.draw(time=.75, **kw)
+                other=QP
         return other
 
 
@@ -709,34 +710,33 @@ def get_all_mutations_from_quiver(QP):
         yield QuiverWithPotential(edges, pot, QP.positions)
 
 
-def calc_mutations_by_index_list(Q, v=0, already_met=set(), saved = [[]]):
+def calc_mutations_by_index_list(Q, v=0, already_met=set(), current_path = [], saved_paths = []):
     """calculates all of the unique quivers obtained from the mutation of 
     input quiver Q at the vertex v but returns the (non unique) sequence
     of vertices to mutate in order to obtain each unique quiver"""
-    if len(Q.loops_at[v]) > 0:
-        return True, already_met, saved
-
     met_the_end = True
     mutation = Q.mutate(v)
     cQ = current_QP(Q)
     cm = current_QP(mutation)
 
     already_met.add(cQ[:cQ.index("|")])
+    saved_paths.append(list(current_path))
 
     # if we've already met this mutation or we can't mutate
-    if cm[:cm.index("|")] in already_met:
-        return True, already_met, saved
+    if (cm[:cm.index("|")] in already_met) or (len(Q.loops_at[v]) > 0):
+        return True, already_met, current_path, saved_paths
 
+    current_path = current_path + [v]
     # otherwise try mutating new QP at every other vertex
     already_met.add(cm[:cm.index("|")])
     for other_v in mutation.Q0:
-        other_saved = [y+[v] for y in saved]
-        met_an_end, already_met, saved = calc_mutations_by_index_list(mutation, other_v, already_met, other_saved)
+        this_path = list(current_path)
+        met_an_end, already_met, this_path, saved_paths = calc_mutations_by_index_list(mutation, other_v, already_met, this_path, saved_paths)
+
         if not met_an_end:
             met_the_end = False
 
-    return met_the_end, already_met, [y + [v] for y in saved]
-
+    return met_the_end, already_met, current_path, saved_paths
 
 
 def all_mutation_sequences_for_quiver(Q):
@@ -747,16 +747,17 @@ def all_mutation_sequences_for_quiver(Q):
     """
     all_ms = []
     for v in Q.Q0:
-        tf, sms, ms = calc_mutations_by_index_list(Q, v)
+        tf, sms, cms, ms = calc_mutations_by_index_list(Q, v)
         all_ms = all_ms + ms
 
     reduced_ms = []
     already_met = set()
+    print(len(all_ms))
     for m in all_ms:
-        if len(m) > 1:
-            qp = Q.mutate_in_sequence(m, draw=False)
-            cm = current_QP(qp)
-            if cm[:cm.index("|")] not in already_met:
-                already_met.add(cm[:cm.index("|")])
-                reduced_ms.append(m)
+        qp = Q.mutate_in_sequence(m, draw=False)
+        cm = current_QP(qp)
+        if cm[:cm.index("|")] not in already_met:
+            already_met.add(cm[:cm.index("|")])
+            reduced_ms.append(m)
+    print(len(reduced_ms))
     return reduced_ms
