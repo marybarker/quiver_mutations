@@ -34,6 +34,7 @@ def D2n(n):
     
         QP = QuiverWithPotential(edges, positions=positions)
         QP.add_term_to_potential(edges, coefs, input_format="edges")
+        QP.can_mutate[1] = False
         return QP
         
     else:
@@ -58,8 +59,9 @@ def D2n(n):
                   + [(x, 0) for x in range(1, m-1)] \
                   + [(m-1, 1), (m-1, -1)]
     
-
-        return QuiverWithPotential(edges, potential=[cycles, coefs], positions=positions)
+        QP = QuiverWithPotential(edges, potential=[cycles, coefs], positions=positions)
+        QP.can_mutate[1] = False
+        return QP
 
 
 def cyclicQP(n):

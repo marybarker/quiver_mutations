@@ -29,9 +29,6 @@ for m in all_mutations:
     q = a.mutate_in_sequence(m,draw=False)
     q.draw(time=1)
 
-all_mutations = list(get_all_mutations_from_quiver(a))
-print(len(all_mutations))
-
 print("the quiver is: ")
 print(a)
 print("and the sequences yielding distinct mutations are: ")

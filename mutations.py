@@ -31,15 +31,18 @@ class QuiverWithPotential():
             elif isinstance(potential, list) and (len(potential) == 2):
                 self.add_term_to_potential(potential[0], potential[1])
 
-        self.arrows_with_head = [[] for x in range(len(self.Q0))]
-        self.arrows_with_tail = [[] for x in range(len(self.Q0))]
-        self.loops_at = [[] for x in range(len(self.Q0))]
+        self.arrows_with_head = [[] for x in self.Q0]
+        self.arrows_with_tail = [[] for x in self.Q0]
+        self.loops_at = [[] for x in self.Q0]
+        self.can_mutate = [True for x in self.Q0]
+
         for i, e in enumerate(self.Q1):
             if e[0] != e[1]:
                 self.arrows_with_head[e[1]].append((i,e))
                 self.arrows_with_tail[e[0]].append((i,e))
             else:
                 self.loops_at[e[0]].append((i,e))
+                self.can_mutate[e[0]] = False
 
 
     def print_potential(self):
@@ -81,6 +84,7 @@ class QuiverWithPotential():
             self.Q1.append(e)
             if e[0] == e[1]:
                 self.loops_at[e[0]].append((ctr, [e[0],e[0]]))
+                self.can_mutate[e[0]] = False
             else:
                 self.arrows_with_head[e[1]].append((ctr,e))
                 self.arrows_with_tail[e[0]].append((ctr,e))
@@ -104,6 +108,7 @@ class QuiverWithPotential():
             self.loops_at[v] = [(new_edge_indices[i], self.Q1[new_edge_indices[i]]) for (i,e) in self.loops_at[v] if keep[i]>0]
         self.incidence_matrix = matrixFromEdges(self.Q1)
 
+        self.can_mutate = [True if len(self.loops_at[x]) < 1 else False for x in self.Q0]
         #update the potential 
         p = {}
         for term, coef in self.potential.items():
@@ -120,7 +125,7 @@ class QuiverWithPotential():
         QP = copy.deepcopy(self)
     
         # first check if there's a loop at v. 
-        if len(self.loops_at[v]) > 0:
+        if not self.can_mutate[v]:#len(self.loops_at[v]) > 0:
             if warnings:
                 print("Error in mutate routine: there's a loop at vertex %d. returning"%v)
             return QP
