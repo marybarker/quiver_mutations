@@ -115,13 +115,14 @@ class QuiverWithPotential():
         self.potential = p
 
 
-    def mutate(self, v):
+    def mutate(self, v, warnings=True):
         # make a copy of the original quiver to mutate
         QP = copy.deepcopy(self)
     
         # first check if there's a loop at v. 
         if len(self.loops_at[v]) > 0:
-            print("Error in mutate routine: there's a loop at vertex %d. returning"%v)
+            if warnings:
+                print("Error in mutate routine: there's a loop at vertex %d. returning"%v)
             return QP
 
         # reverse all edges incident to v:
@@ -177,7 +178,7 @@ class QuiverWithPotential():
         # add the set of 3-cycles introduced with the shortcuts
         QP.potential = {**wprime, **delta}
 
-        return reduce_QP(QP)
+        return reduce_QP(QP, warnings=warnings)
 
 
     def draw(self, time=1, **kwargs):
@@ -515,7 +516,7 @@ def matrixFromEdges(edges, oriented=True):
     return m
 
 
-def reduce_QP(QP):
+def reduce_QP(QP, warnings=True):
     """
         this routine takes a QP and "reduces" it by removing all 2-cycles that 
         show up in the potential W (as long as each term in the 2-cycle can be 
@@ -577,7 +578,7 @@ def reduce_QP(QP):
                 terms_for_e = alt_terms_for_e
 
             reduce_dict[tuple([e])] = terms_for_e
-            if not found_replacement:
+            if not found_replacement and warnings:
                 print("problem in reducing QP: could not properly remove edge %d"%e)
 
     # now create a global lookup: each edge has a "replacement" 
@@ -656,7 +657,7 @@ def calculate_all_mutations_from_vertex(Q, v=0, already_met=set(), saved = []):
     """calculates all of the unique Quivers obtained from the mutation of 
     input quiver Q at the vertex v"""
     met_the_end = True
-    mutation = Q.mutate(v)
+    mutation = Q.mutate(v, warnings=False)
     cQ = current_QP(Q)
     cm = current_QP(mutation)
 
@@ -715,7 +716,7 @@ def calc_mutations_by_index_list(Q, v=0, already_met=set(), current_path = [], s
     input quiver Q at the vertex v but returns the (non unique) sequence
     of vertices to mutate in order to obtain each unique quiver"""
     met_the_end = True
-    mutation = Q.mutate(v)
+    mutation = Q.mutate(v, warnings=False)
     cQ = current_QP(Q)
     cm = current_QP(mutation)
 
@@ -752,12 +753,10 @@ def all_mutation_sequences_for_quiver(Q):
 
     reduced_ms = []
     already_met = set()
-    print(len(all_ms))
     for m in all_ms:
         qp = Q.mutate_in_sequence(m, draw=False)
         cm = current_QP(qp)
         if cm[:cm.index("|")] not in already_met:
             already_met.add(cm[:cm.index("|")])
             reduced_ms.append(m)
-    print(len(reduced_ms))
     return reduced_ms
