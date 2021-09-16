@@ -125,9 +125,9 @@ class QuiverWithPotential():
         QP = copy.deepcopy(self)
     
         # first check if there's a loop at v. 
-        if not self.can_mutate[v]:#len(self.loops_at[v]) > 0:
+        if not self.can_mutate[v]:
             if warnings:
-                print("Error in mutate routine: there's a loop at vertex %d. returning"%v)
+                print("Error in mutate routine: cannot mutate at vertex %d. returning"%v)
             return QP
 
         # reverse all edges incident to v:
