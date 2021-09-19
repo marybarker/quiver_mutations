@@ -27,11 +27,13 @@ all_mutations = all_mutation_sequences_for_quiver(a)
 print(len(all_mutations))
 for m in all_mutations:
     q = a.mutate_in_sequence(m,draw=False)
-    q.draw(time=1)
+    #q.draw(time=1)
 
 print("the quiver is: ")
 print(a)
 print("and the sequences yielding distinct mutations are: ")
 for m in all_mutations:
-    print(m)
+    print("sequence = " + ", ".join([str(x) for x in m]))
+    q = a.mutate_in_sequence(m, draw=False)
+    print(str(q))
 
