@@ -11,7 +11,7 @@ def flattenList(l):
 
 class QuiverWithPotential():
 
-    def __init__(self, graph_obj, potential=None, positions=None):
+    def __init__(self, graph_obj, potential=None, positions=None, frozen_nodes=[]):
         if isinstance(graph_obj, list): # if graph input is a list of edges
             self.Q1 = graph_obj
             self.incidence_matrix = matrixFromEdges(graph_obj)
@@ -23,6 +23,7 @@ class QuiverWithPotential():
             self.Q1 = graph_obj.Q1
         self.positions=positions
         self.Q0 = range(self.incidence_matrix.shape[0])
+        self.frozen_nodes = frozen_nodes
 
         self.potential = {}
         if potential is not None:
@@ -43,6 +44,8 @@ class QuiverWithPotential():
             else:
                 self.loops_at[e[0]].append((i,e))
                 self.can_mutate[e[0]] = False
+        for n in frozen_nodes:
+            self.can_mutate[n] = False
 
 
     def print_potential(self):
@@ -86,8 +89,8 @@ class QuiverWithPotential():
                 self.loops_at[e[0]].append((ctr, [e[0],e[0]]))
                 self.can_mutate[e[0]] = False
             else:
-                self.arrows_with_head[e[1]].append((ctr,e))
-                self.arrows_with_tail[e[0]].append((ctr,e))
+                self.arrows_with_head[e[1]].append((ctr,[e[0],e[1]]))
+                self.arrows_with_tail[e[0]].append((ctr,[e[0],e[1]]))
             ctr += 1
         self.incidence_matrix = matrixFromEdges(self.Q1)
 
@@ -109,6 +112,9 @@ class QuiverWithPotential():
         self.incidence_matrix = matrixFromEdges(self.Q1)
 
         self.can_mutate = [True if len(self.loops_at[x]) < 1 else False for x in self.Q0]
+        for n in self.frozen_nodes:
+            self.can_mutate[n] = False
+
         #update the potential 
         p = {}
         for term, coef in self.potential.items():
@@ -153,18 +159,15 @@ class QuiverWithPotential():
                 print("Error in mutate routine: cannot mutate at vertex %d. returning"%v)
             return QP
 
+        saved_edges = [[e[0],e[1]] for e in QP.Q1]
         # reverse all edges incident to v:
         for (i, e) in self.arrows_with_tail[v] + self.arrows_with_head[v]:
-            QP.Q1[i] = [e[1],e[0]]
-
-        # update connectivity info for quiver
-        QP.arrows_with_head[v] = list([(i, QP.Q1[i]) for (i, e) in self.arrows_with_tail[v]])
-        QP.arrows_with_tail[v] = list([(i, QP.Q1[i]) for (i, e) in self.arrows_with_head[v]])
+            saved_edges[i] = [e[1],e[0]]
 
         delta = {}
         shortcuts = {}
         new_edges = []
-        edgectr = len(QP.Q1)
+        edgectr = len(self.Q1)
         # add 'shortcuts' i->j for all 2-paths(which are then reversed): i->v->j 
         # and keep track of the 3-cycles that are produced (saved in list delta)
         for e1i, e1 in self.arrows_with_head[v]:
@@ -179,7 +182,7 @@ class QuiverWithPotential():
                 delta[(e2i, e1i, edgectr)] = 1
                 shortcuts[tuple([e1i,e2i])] = edgectr
                 edgectr += 1
-        QP.add_edges(new_edges)
+        saved_edges.extend(new_edges)
 
         # update the potential
         wprime = {}
@@ -187,7 +190,7 @@ class QuiverWithPotential():
         for monoid, coef in self.potential.items():
             m = []
             for i, x1 in enumerate(monoid):
-                if (x1, self.Q1[x1]) in self.arrows_with_head[v]:
+                if saved_edges[x1][0] == v:
 
                     x2 = monoid[(i+1)%len(monoid)]
                     pair = tuple([x1, x2])
@@ -199,12 +202,14 @@ class QuiverWithPotential():
                         m.append(x2)
                 else:
                     x2 = monoid[(i+len(monoid)-1)%len(monoid)]
-                    if (x2, self.Q1[x2]) not in self.arrows_with_head[v]:
+                    if saved_edges[x2][0] != v:
                         m.append(x1)
             wprime[tuple(m)] = coef
 
         # add the set of 3-cycles introduced with the shortcuts
-        QP.potential = {**wprime, **delta}
+        saved_potential = {**wprime, **delta}
+        saved_positions = copy.deepcopy(self.positions)
+        QP = QuiverWithPotential(saved_edges, potential=saved_potential, positions=saved_positions, frozen_nodes = [x for x in self.frozen_nodes])
         return reduce_QP(QP, warnings=warnings)
 
 
@@ -238,7 +243,6 @@ class QuiverWithPotential():
         if len(vertex_sequence) > 0:
             for v in vertex_sequence:
                 QP = other.mutate(v)
-                #QP.remove_nonloop_multiedges()
                 vertex_colors = ['b' if i != v else 'r' for i in other.Q0]
                 if draw:
                     kw = {'node_color': vertex_colors}
