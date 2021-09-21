@@ -120,6 +120,29 @@ class QuiverWithPotential():
         self.potential = p
 
 
+    def remove_nonloop_multiedges(self):
+        # first group edges by which vertices they adjoin
+        replacing = [[i for i,v in self.arrows_with_head[e[1]] \
+                        if v[0] == e[0]] \
+                      for e in self.Q1 if e[0] != e[1]]
+        # create a lookup: replace_with[y] = x means that y gets replaced with x
+        replace_with = {y: min(x) for x in replacing for y in x}
+        for ei in range(len(self.Q1)):
+            if ei not in replace_with.keys():
+                replace_with[ei] = ei
+
+        # now update the potential
+        new_potential = {}
+        for k,v in self.potential.items():
+            new_term = tuple([replace_with[x] for x in k])
+            new_potential[new_term] = v
+        self.potential = new_potential
+        remove_edges = sorted([y for y,r in replace_with.items() if ((y!=r) and (self.Q1[y][0] != self.Q1[y][1]))])
+
+        # finally, remove the edges that have been replaced
+        self.remove_edges(remove_edges)
+
+
     def mutate(self, v, warnings=True):
         # make a copy of the original quiver to mutate
         QP = copy.deepcopy(self)
@@ -182,7 +205,6 @@ class QuiverWithPotential():
 
         # add the set of 3-cycles introduced with the shortcuts
         QP.potential = {**wprime, **delta}
-
         return reduce_QP(QP, warnings=warnings)
 
 
@@ -216,6 +238,7 @@ class QuiverWithPotential():
         if len(vertex_sequence) > 0:
             for v in vertex_sequence:
                 QP = other.mutate(v)
+                #QP.remove_nonloop_multiedges()
                 vertex_colors = ['b' if i != v else 'r' for i in other.Q0]
                 if draw:
                     kw = {'node_color': vertex_colors}
