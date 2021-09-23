@@ -39,8 +39,8 @@ def D2n(n):
     else:
         m = int(n/2)+1
         edges = [[0, 1],[1, 0],[1, 2],[2, 1],[2, 0],[0, 2]] \
-              + [[i, i+1] for i in range(2, m)] \
-              + [[i+1, i] for i in range(2, m)] \
+              + [[i, i+1] for i in range(2, m-1)] \
+              + [[i+1, i] for i in range(2, m-1)] \
               + [[i, i] for i in range(2, m)] \
               + [[m-1, m],[m, m-1],[m, m+1],[m+1, m],[m+1, m-1],[m-1, m+1]]
     
