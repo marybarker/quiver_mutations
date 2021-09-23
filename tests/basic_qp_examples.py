@@ -1,3 +1,5 @@
+import sys
+sys.path.append('../')
 from mutations import *
 
 # dummy QP to test mutations
