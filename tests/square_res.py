@@ -1,3 +1,7 @@
+"""
+This file was used to debug the triangulation routine and check can_flop routines for resolutions. 
+It creates a triangulated square  with numRows x numColumns and runs through which edges can be flopped. 
+"""
 import sys
 sys.path.append('../')
 from mutations import *

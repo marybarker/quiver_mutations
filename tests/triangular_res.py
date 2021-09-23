@@ -1,3 +1,8 @@
+"""
+This file creates the 1/6(1,2,3) resolution (modulo I've got vertex positions off)
+and runs through which edges can be flopped, before performing the sequence of 
+flops as in page 3 of Tom Ducat's 'Examples of mutating quivers with potential'
+"""
 import sys
 sys.path.append('../')
 from mutations import *
