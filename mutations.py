@@ -174,7 +174,6 @@ class QuiverWithPotential():
             i = e1[0]
             for e2i, e2 in self.arrows_with_tail[v]:
                 j = e2[1]
-
                 # add the shortcut edge
                 new_edges.append([i,j])
 
@@ -749,6 +748,7 @@ def calc_mutations_by_index_list(Q, v=0, already_met=set(), current_path = [], s
     of vertices to mutate in order to obtain each unique quiver"""
     met_the_end = True
     mutation = Q.mutate(v, warnings=False)
+
     cQ = current_QP(Q)
     cm = current_QP(mutation)
 
@@ -763,7 +763,7 @@ def calc_mutations_by_index_list(Q, v=0, already_met=set(), current_path = [], s
     # otherwise try mutating new QP at every other vertex
     already_met.add(cm[:cm.index("|")])
     for other_v in mutation.Q0:
-        this_path = list(current_path)
+        this_path = copy.deepcopy(current_path)
         met_an_end, already_met, this_path, saved_paths = calc_mutations_by_index_list(mutation, other_v, already_met, this_path, saved_paths)
 
         if not met_an_end:
