@@ -32,7 +32,7 @@ def D2n(n):
                   + [(x, 0) for x in range(1, m+1)]
     
         QP = QuiverWithPotential(edges, positions=positions, frozen_nodes=[1])
-        QP.add_term_to_potential(edges, coefs, input_format="edges")
+        QP.add_term_to_potential(cycles, coefs, input_format="edges")
         return QP
         
     else:
@@ -58,7 +58,6 @@ def D2n(n):
                   + [(m-1, 1), (m-1, -1)]
     
         QP = QuiverWithPotential(edges, potential=[cycles, coefs], positions=positions, frozen_nodes=[1])
-        QP.can_mutate[1] = False
         return QP
 
 
@@ -78,6 +77,7 @@ def cyclicQP(n):
 
     return QuiverWithPotential(edges, potential=[cycles, coefs], positions=positions)
 
+
 def favorite_example():
     # this is the 1/6(1,2,3) singularity quiver. It's used so frequently I don't want to keep typing it. 
     edges = [[0,1],[1,0],
@@ -96,3 +96,27 @@ def favorite_example():
     positions = [[-1,0], [0,1], [1,0], [1,-1], [0,-2], [-1,-1]]
 
     return QuiverWithPotential(edges, [cycles, coefs], positions=positions)
+
+
+def tetrahedralQP(w=1):
+    edges = [[0,3],[3,0],[1,3],[3,1],[2,3],[3,2],[3,3],[3,3]]
+    cycles = [(6,1,0), (6,3,2), (6,5,4), (6,6,6), (7,1,0), (7,3,2), (7,5,4), (7,7,7)]
+    coefs = [1,w,w**2,-1/3,-1,-w**2,-w,1/3]
+    positions = [[0,-2],[-1,1],[1,1],[0,0]]
+
+    QP = QuiverWithPotential(edges, positions=positions, frozen_nodes=[0])
+    QP.add_term_to_potential(cycles, coefs, input_format="edge_order")
+    return QP
+
+
+def octahedralQP(w):
+    edges = [[0,3],[3,0],
+             [3,2],[2,3],
+             [2,4],[4,2],
+             [3,4],[4,3],
+             [1,4],[4,1],
+             [3,3],[4,4]]
+    cycles = [(3,3,0),(3,3,2),(3,3,4),(3,3,3),(4,4,1),(4,4,2),(4,4,3),(4,4,4),(3,4,2),(4,3,2)]
+    coefs = [1,-1,-1,-1/3,1,-1,-1,1/3,w**2-w,w**2-w]
+    positions = [[-2,0],[2,0],[0,2],[-1,0],[1,0]]
+    return QuiverWithPotential(edges, [cycles,coefs], positions=positions)

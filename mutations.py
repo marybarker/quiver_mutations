@@ -53,26 +53,30 @@ class QuiverWithPotential():
 
 
     def add_term_to_potential(self, edge_cycle, coef=1, input_format="vertex_order"):
-        if input_format == "vertex_order":
-            if not isinstance(edge_cycle[0], tuple):
-                edge_cycle = [edge_cycle]
+        if not isinstance(edge_cycle[0], tuple):
+            edge_cycle = [edge_cycle]
 
-            if coef == 1:
-                coef = [1 for e in edge_cycle]
-            if len(coef) != len(edge_cycle):
-                print("Error in adding cycle(s) to potential: #coefficients != #cycles\nFailed to add potential")
-            else:
-                for iec, ec in enumerate(edge_cycle):
-                    c = coef[iec]
-                    cycle=[]
-                    for i,vi in enumerate(ec):
-                        vj = ec[(i+1)%len(ec)]
-                        try:
-                            cycle.append(self.Q1.index([vi,vj]))
-                        except:
-                            print("\nError in add_term_to_potential: there is no edge with endpoints (%d, %d). Ignoring term\n"%(vi,vj))
-                    cycle = cycleOrder(tuple(cycle))
-                    self.potential[cycle] = coef[iec]
+        if coef == 1:
+            coef = [1 for e in edge_cycle]
+        if len(coef) != len(edge_cycle):
+            print("Error in adding cycle(s) to potential: #coefficients != #cycles\nFailed to add potential")
+
+        cycles=[]
+        if input_format == "vertex_order":
+            for ec in edge_cycle:
+                cycle=[]
+                for i,vi in enumerate(ec):
+                    vj = ec[(i+1)%len(ec)]
+                    try:
+                        cycle.append(self.Q1.index([vi,vj]))
+                    except:
+                        print("\nError in add_term_to_potential: there is no edge with endpoints (%d, %d). Ignoring term\n"%(vi,vj))
+                cycle = cycleOrder(tuple(cycle))
+                cycles.append(cycle)
+            edge_cycle=cycles
+
+        for i, e in enumerate(edge_cycle):
+            self.potential[cycleOrder(e)] = coef[i]
 
 
     def __repr__(self):
@@ -237,11 +241,11 @@ class QuiverWithPotential():
         plt.clf()
 
 
-    def mutate_in_sequence(self, vertex_sequence, draw=True):
+    def mutate_in_sequence(self, vertex_sequence, draw=True, warnings=True):
         other = copy.deepcopy(self)
         if len(vertex_sequence) > 0:
             for v in vertex_sequence:
-                QP = other.mutate(v)
+                QP = other.mutate(v, warnings=warnings)
                 vertex_colors = ['b' if i != v else 'r' for i in other.Q0]
                 if draw:
                     kw = {'node_color': vertex_colors}
@@ -786,7 +790,7 @@ def all_mutation_sequences_for_quiver(Q):
     reduced_ms = []
     already_met = set()
     for m in all_ms:
-        qp = Q.mutate_in_sequence(m, draw=False)
+        qp = Q.mutate_in_sequence(m, draw=False, warnings=False)
         cm = current_QP(qp)
         if cm[:cm.index("|")] not in already_met:
             already_met.add(cm[:cm.index("|")])

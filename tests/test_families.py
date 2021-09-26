@@ -33,3 +33,15 @@ print(a)
 a = favorite_example()
 a.draw(time=1)
 print(a)
+
+
+a = tetrahedralQP(1)
+a.draw(time=1)
+print(a)
+all_mutations = all_mutation_sequences_for_quiver(a)
+print(len(all_mutations))
+
+
+a = octahedralQP(1)
+a.draw(time=1)
+print(a)
