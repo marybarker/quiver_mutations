@@ -31,13 +31,13 @@ for s in sequences:
     q = QP.mutate_in_sequence(s,draw=False)
     q.draw(time=1)
 
-print("and now looking at the D_12 case")
 
-a = D2n(6)
+n = 6
+print("and now looking at the D_%d case"%(2*n))
+a = D2n(n)
 all_mutations = all_mutation_sequences_for_quiver(a)
 
-print("There are %d distinct quivers for D_12"%(len(all_mutations)))
-
+print("There are %d distinct quivers for D_%d"%(len(all_mutations), 2*n))
 print("and the sequences yielding distinct mutations are: ")
 for m in all_mutations:
     print("sequence = " + ", ".join([str(x) for x in m]))
