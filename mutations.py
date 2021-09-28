@@ -49,7 +49,7 @@ class QuiverWithPotential():
 
 
     def print_potential(self):
-        return " + ".join(["%d X_"%v+".".join([str(self.Q1[x][0]) for x in k]) for k,v in self.potential.items()])
+        return " + ".join(["%.3lf X_"%v+".".join([str(self.Q1[x][0]) for x in k]) for k,v in self.potential.items()])
 
 
     def add_term_to_potential(self, edge_cycle, coef=1, input_format="vertex_order"):
@@ -551,6 +551,17 @@ def matrixFromEdges(edges, oriented=True):
     return m
 
 
+def find_dependencies(current_item, met, lookups):
+    if current_item in met:
+        return True, met
+
+    met = met + [current_item]
+    for item in lookups[current_item]:
+        return find_dependencies(item, met, lookups)
+    return False, met
+
+
+
 def reduce_QP(QP, warnings=True):
     """
         this routine takes a QP and "reduces" it by removing all 2-cycles that 
@@ -569,7 +580,24 @@ def reduce_QP(QP, warnings=True):
             reduce_dict[k] = [(k1,-v1/v) for k1,v1 in pd.items() if k1 != k]
 
     # find out which edges show up in quadratic terms in the potential. 
-    edges_to_remove = sorted([x for term in QP.potential.keys() for x in term if (len(list(term)) == 2)])
+    edges_to_remove = sorted(list(set([x for term in QP.potential.keys() for x in term if (len(list(term)) == 2)])))
+
+    # check if there is a circular dependency between any of the quadratic terms 
+    # (this makes it so that one edge at least cannot be deleted in the reduction process)
+    lookups = {x:[z \
+            for y in reduce_dict[tuple([x])] for z in y[0] \
+            if (z in edges_to_remove) \
+            ] for x in edges_to_remove
+            }
+    loops = set()
+    for e in edges_to_remove:
+        in_a_loop, loop = find_dependencies(e, [], lookups)
+        if in_a_loop:
+            loops.add(tuple(sorted(loop)))
+    if len(loops) > 0:
+        quad_edges_to_keep = [x[0] for x in loops]
+        edges_to_remove = [x for x in edges_to_remove if x not in quad_edges_to_keep]
+
     for e in range(len(QP.Q1)):
         if e not in edges_to_remove:
             reduce_dict[tuple([e])] = [(e,1)]
