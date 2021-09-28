@@ -584,19 +584,20 @@ def reduce_QP(QP, warnings=True):
 
     # check if there is a circular dependency between any of the quadratic terms 
     # (this makes it so that one edge at least cannot be deleted in the reduction process)
-    lookups = {x:[z \
-            for y in reduce_dict[tuple([x])] for z in y[0] \
-            if (z in edges_to_remove) \
-            ] for x in edges_to_remove
-            }
-    loops = set()
-    for e in edges_to_remove:
-        in_a_loop, loop = find_dependencies(e, [], lookups)
-        if in_a_loop:
-            loops.add(tuple(sorted(loop)))
-    if len(loops) > 0:
-        quad_edges_to_keep = [x[0] for x in loops]
-        edges_to_remove = [x for x in edges_to_remove if x not in quad_edges_to_keep]
+    if len(edges_to_remove)%2 > 0:
+        lookups = {x:[z \
+                for y in reduce_dict[tuple([x])] for z in y[0] \
+                if (z in edges_to_remove) \
+                ] for x in edges_to_remove
+                }
+        loops = set()
+        for e in edges_to_remove:
+            in_a_loop, loop = find_dependencies(e, [], lookups)
+            if in_a_loop:
+                loops.add(tuple(sorted(loop)))
+        if len(loops) > 0:
+            quad_edges_to_keep = [x[0] for x in loops]
+            edges_to_remove = [x for x in edges_to_remove if x not in quad_edges_to_keep]
 
     for e in range(len(QP.Q1)):
         if e not in edges_to_remove:
