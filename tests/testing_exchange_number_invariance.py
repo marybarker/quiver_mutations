@@ -5,7 +5,7 @@ from mutations import *
 from QP_families import *
 
 
-def try_adding_edges(QP, max_num=5):
+def try_adding_edges(QP, max_num=3):
     edges = [[x[0], x[1]] for x in QP.Q1]
     p = list(zip(*QP.potential.items()))
     frozen_nodes = QP.frozen_nodes
@@ -56,5 +56,5 @@ n = 6
 print("looking at the D_%d case"%(2*n))
 a = D2n(n)
 
-#try_adding_edges(a)
+try_adding_edges(a)
 try_perturbing_potential(a)
