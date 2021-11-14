@@ -60,18 +60,33 @@
         </style>
 
         <script
-          type="text/javascript"
-          src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"
+            type="text/javascript"
+            src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"
         ></script>
 
         <script 
-          type="text/javascript"
-          src="./quiverFtns.js">
+            type="text/javascript"
+            src="./quiverFtns.js">
         </script>
+
+        <script 
+            type="text/javascript"
+            src="./IO_stuff.js">
+        </script>
+
+	<script 
+	    type="text/javascript"
+	    src="https://cdn.jsdelivr.net/npm/brython@3.10.1/brython.min.js">
+	</script>
+
+	<script 
+	    type="text/javascript"
+	    src="https://cdn.jsdelivr.net/npm/brython@3.10.1/brython_stdlib.js">
+	</script>
 
     </head>
 
-    <body onload="draw();">
+    <body onload="draw(); brython()">
         <h2>
            Manipulate QPs interactively
         </h2>
@@ -83,10 +98,6 @@
                     <div id="mynetwork"></div>
   	        </td>
   	        <td width="40%" id="menuBar">
-		<!-- <h3>Select Edit mode </h3> --> 
-		<!-- <input type="radio" name="editMode" id="editQuiver" value="Quiver" onclick="updateEditMode(this);" checked> -->
-		<!--<label for="editQuiver">Edit Quiver</label> -->
-                <!-- <br> -->
 		    <h3>Edit Quiver</h3>
                     <label for="editQuiverMenu">Options:</label>
                     <select id="edit-quiver-type" name="editQuiverMenu"> 
@@ -96,13 +107,9 @@
                         <option value="remove-edge">Remove Edges</option>
                         <option value="freeze-node">Freeze Nodes</option>
                         <option value="unfreeze-node">Unfreeze Nodes</option>
+                        <option value="mutate">Mutate</option>
                     </select>
-                    <br>
-                    <br>
-		    <!--
-		    <input type="radio" name="editMode" id="editPotential" value="Potential" onclick="updateEditMode(this);">
-		    <label for="editPotential">Edit Potential</label><br>
-		    -->
+                    <br><br>
 		    <h3>Edit Potential</h3>
 		    <label for="coefficient-input">Coefficient for term:</label>
 		    <input id="coefficient-input" type="text" size=3 value=1>
