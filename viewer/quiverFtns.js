@@ -287,7 +287,7 @@ function mutateQP(vertex, QP) {
             let ei1 = QP.arrowsWithHead[v][ei1i];
             var i = QP.edges[parseInt(ei1)][0];
             for (let ei2i in QP.arrowsWithTail[v]) {
-                let ei2 = QP.arrowsWithTail[v][ei1i];
+                let ei2 = QP.arrowsWithTail[v][ei2i];
                 var j = QP.edges[ei2][1];
 
                 shortcuts.push([ei1,ei2]);
@@ -465,14 +465,6 @@ function reduce(QP) {//, reduce_potential=true) {
         }
 
         return removeEdges(edgesToRemove, QP);
-
-	//newEdges = _.range(QP.edges.length).map(
-        //        function(x) {
-        //            if (x not in edgesToRemove) {
-	//		return QP.edges[x];
-	//	    }
-	//	});
-	//makeQP(newEdges, QP.nodes, QP.frozenNodes, newPotential);
     } else {
         return deepCopy(QP);
     }
