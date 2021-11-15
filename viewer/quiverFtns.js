@@ -44,16 +44,22 @@ function resolve_click_event(n, p) {
         if (p.nodes.length > 0) {
             let current_node = p.nodes[0].toString();
             var mQP = makeQP(edges, nodes, frozen_nodes, potential);
+
             mQP = mutateQP(current_node, mQP);
+            var outputs = [];
             for (let i = 0; i < mQP.edges.length; i++) {
-                let o = {id: i.toString(), to: mQP.edges[i][1].toString(), from: mQP.edges[i][0].toString(), arrows: "to"};
-                if (i.toString() in edges.getIds()) {
-                    edges.update(o);
-                } else {
-                    edges.add(o);
-                }
+                outputs.push({id: i.toString(), to: mQP.edges[i][1].toString(), from: mQP.edges[i][0].toString(), arrows: "to"});
             }
-	    //potential.update(mQP.ps);
+            edges.clear();
+            edges.add(outputs);
+
+	    potential.clear();
+            potential.add(mQP.potential.filter(x => (x[1] != ",")).map(function(x) {
+                return {
+                    id: x[1],
+                    coef: x[0].toString(),
+                };
+            }));
         }
     }
 }
@@ -143,6 +149,14 @@ function draw() {
           output_fields,
 	  4);
     });
+    potential.add([
+        { id: "0,2,5", coef: "1"},
+        { id: "4,3,1", coef: "1"},
+        { id: "8,9,10", coef: "1"},
+        { id: "2,6,7,3", coef: "1"},
+        { id: "17,16,0,1", coef: "1"},
+        { id: "6,8,7", coef: "1"},
+    ]);
 
     // create a network
     var container = document.getElementById("mynetwork");
@@ -208,15 +222,18 @@ function makeQP(es, ns, fn, p, inputType="fromVisDataSet") {
     var fns = [];
     var theseNodes = [];
     var theseEdges = [];
+    var thisPotential = [];
 
     if (inputType == "fromVisDataSet") {
         fns = fn.getIds().map(x => parseInt(x));
         theseNodes = ns.getIds().map(x => parseInt(x));
         theseEdges = es.getIds().map(x => [parseInt(es.get(x).from), parseInt(es.get(x).to)]);
+        thisPotential = p.getIds().map(x => [parseInt(p.get(x).coef), x]);
     } else {
         fns = Array.from(fns, x => parseInt(x));
         theseNodes = Array.from(ns, x => parseInt(x));
-        theseEdges = deepCopy(es).map(x => [parseInt(x[0]), parseInt(x[1])]);
+        theseEdges = deepCopy(es.filter(x => (x != null))).map(x => [parseInt(x[0]), parseInt(x[1])]);
+        thisPotential = p;
     }
 
     for (let ei = 0; ei < theseEdges.length; ei++) {
@@ -237,11 +254,11 @@ function makeQP(es, ns, fn, p, inputType="fromVisDataSet") {
         arrowsWithHead: awh,
         arrowsWithTail: awt,
         canMutate: cm,
-        edges: deepCopy(theseEdges),
+        edges: theseEdges,
         frozenNodes: deepCopy(fns),
         loopsAt: la,
-        nodes: deepCopy(theseNodes),
-        potential: deepCopy(p)
+        nodes: theseNodes,
+        potential: thisPotential
     }
 }
 
@@ -251,11 +268,13 @@ function mutateQP(vertex, QP) {
     if (QP.canMutate[v]) {
         // reverse the arrows incident to vertex
         var savedEdges = deepCopy(QP.edges);
-        for (let i in QP.arrowsWithHead[v]) {
+        for (let ii in QP.arrowsWithHead[v]) {
+            let i = QP.arrowsWithHead[v][ii];
             let e = savedEdges[i];
             savedEdges[parseInt(i)] = [e[1],e[0]];
         }
-        for (let i in QP.arrowsWithTail[v]) {
+        for (let ii in QP.arrowsWithTail[v]) {
+            let i = QP.arrowsWithTail[v][ii];
             let e = savedEdges[i];
             savedEdges[parseInt(i)] = [e[1],e[0]];
         }
@@ -264,9 +283,11 @@ function mutateQP(vertex, QP) {
         var edgeCtr = QP.edges.length;
         var shortcuts = [];
         // now add 'shortcuts'
-        for (let ei1 in QP.arrowsWithHead[v]) {
+        for (let ei1i in QP.arrowsWithHead[v]) {
+            let ei1 = QP.arrowsWithHead[v][ei1i];
             var i = QP.edges[parseInt(ei1)][0];
-            for (let ei2 in QP.arrowsWithTail[v]) {
+            for (let ei2i in QP.arrowsWithTail[v]) {
+                let ei2 = QP.arrowsWithTail[v][ei1i];
                 var j = QP.edges[ei2][1];
 
                 shortcuts.push([ei1,ei2]);
@@ -277,33 +298,182 @@ function mutateQP(vertex, QP) {
         }
 
         // update the potential
-        for (let mc in QP.potential) {
-            var coef = mc[0];
-            var monoid = mc[1];
-
-            var m = " ";
+        for (let mci = 0; mci < QP.potential.length; mci++) {
+            var coef = QP.potential[mci][0];
+            var monoid = QP.potential[mci][1].split(',');
+            var m = "";
             var foundMatch = false;
             for (let i = 0; i < monoid.length; i++) {
                m1 = parseInt(monoid[i]);
                m2 = parseInt(monoid[(i+1)%monoid.length]);
 
-               const isIn = shortcuts.findIndex(e => e == [m1,m2]);
-               if((isIn > 0) && !foundMatch) {
+               const isIn = shortcuts.findIndex(e => arrayEquals(e, [m2, m1]));
+               if((isIn >= 0) && !foundMatch) {
                    var val = QP.edges.length + parseInt(isIn);
-                   m = m + val.toString();
+                   m = m + val.toString()+",";
                    foundMatch = true;
                } else {
-                   m = m + m1.toString();
+                   if (!foundMatch) {
+                       m = m + m1.toString()+",";
+                   }
                    foundMatch = false;
                }
             }
-            wPrime.push([coef, m]);
+            wPrime.push([coef, m.slice(0, -1)]);
         }
         // reduce the resulting quiver
-        //return reduce(makeQP(savedEdges, QP.nodes, QP.frozenNodes, wPrime, inputType="fromQP"));
-        var retVal = makeQP(savedEdges, QP.nodes, QP.frozenNodes, wPrime, inputType="fromQP");
-        return retVal;
+        return reduce(makeQP(savedEdges, QP.nodes, QP.frozenNodes, wPrime, inputType="fromQP"));
     } else {
         return makeQP(QP.edges, QP.nodes, QP.frozenNodes, QP.potential, inputType="fromQP");
+    }
+}
+
+function removeEdges(edgeIndices, QP) {
+    var edgesToKeep = [...Array(QP.edges.length).keys()].map(
+        function(x) {
+            if (edgeIndices.includes(parseInt(x))) {
+                return -(parseInt(x)+1);
+            } else {
+                return parseInt(x);
+            }
+        });
+    var edgeIndexLookup = edgesToKeep.map(function(x) {if (x >= 0) {return x;}});
+    var edgeIndexLookupBackwards = edgesToKeep.map(function(x) {if (x >= 0) {return edgeIndexLookup.indexOf(x);}});
+    var newEdges = edgeIndexLookup.map(x => QP.edges[x]);
+    var newPotential = QP.potential.map(
+	    function(x){
+                let y = x[1].split(",").map(y => edgeIndexLookupBackwards[parseInt(y)])
+		return [x[0], y.toString()];
+	    });
+    return makeQP(newEdges, QP.nodes, QP.frozenNodes, newPotential, "fromQP");
+}
+
+function pathDerivative(thisPotential, edgeIndex) {
+    return thisPotential.map(
+	function(x) {
+            const inTerm = x[1].indexOf(edgeIndex.toString());
+            if (inTerm >= 0) {
+                const partial = x[1].split(',').map(
+                    function(y) {
+			if (y != edgeIndex.toString()) {
+			    return parseInt(y);
+			}
+		    });
+                return [x[0], partial];
+	    }
+	}).filter(y => (y != null));
+}
+
+function arrayEquals(a, b) {
+    return JSON.stringify(a) == JSON.stringify(b);
+}
+
+function reduce(QP) {//, reduce_potential=true) {
+    var reduce_potential = true;
+    // extract list of unique entries all edges that occur in quadratic terms in the potential
+    var squareTerms = QP.potential.filter(x => x[1].split(",").length == 2).map(y => y[1]);
+    var squareCoefs = QP.potential.filter(x => x[1].split(",").length == 2).map(y => y[0]);
+
+    // if there are enough quadratic terms to cancel them
+    if (squareTerms.length > 0) {
+        var edgesToRemove = new Array();
+        var reduceDict = [...Array(QP.edges.length).keys()].map(x => [[1, x.toString()]]);
+        for (let ti = 0; ti < squareTerms.length; ti++) {
+            let t = squareTerms[ti];
+            let e1 = parseInt(t.slice(0, t.indexOf(',')));
+            let e2 = parseInt(t.slice(t.indexOf(',')+1));
+            let c = parseInt(squareCoefs[ti]);
+            if (!edgesToRemove.includes(e1)) { edgesToRemove.push(e1); }
+            if (!edgesToRemove.includes(e2)) { edgesToRemove.push(e2); }
+
+            reduceDict[e1] = pathDerivative(QP.potential, parseInt(e2)).map(
+                function(x) {
+                    if ((x[1].length > 1) || !x[1].includes(e2.toString())) {
+                        return [-parseInt(x[0])/c, x[1]];
+                    }
+                }).filter(y => (y != null));
+            reduceDict[e2] = pathDerivative(QP.potential, parseInt(e1)).map(
+                function(x) {
+                    if ((x[1].length > 1) || !x[1].includes(e1.toString())) {
+                        return [-parseInt(x[0])/c, x[1]];
+                    }
+                }).filter(y => (y != null));
+        }
+
+        // update lookup table of replacements for each edge to be removed so that
+        // each replacement term only contains edges that are not in edgesToRemove
+        for (let etri in edgesToRemove) {
+            let e = parseInt(edgesToRemove[etri]);
+            var termsForE = deepCopy(reduceDict[e]);
+            var foundReplacement = true;
+            var ctr = 0;
+
+            do {
+		// stopping criteria
+                foundReplacement = true; ctr++;
+
+                //placeholder for holding non-edgesToRemove lookup values for edge e
+                var altTermsForE = []
+                for (let cti = 0; cti < termsForE.length; cti++) {
+                    let currentTerm = termsForE[cti];
+		    var altTerm = [[currentTerm[0], currentTerm[1]]];
+
+                    // check if any of the terms in e's replacement
+                    // terms also contains one of the edges to remove
+                    if (currentTerm[1] != null) {
+                        if (currentTerm[1].some(x => (edgesToRemove.includes(parseInt(x))))) {
+                        foundReplacement = false
+
+                        // if so, then we need to replace that term
+                        var newTerm = [[1, []]];
+                        for (let ttt = 0; ttt < currentTerm[1].length; ttt++) {
+                            let tt = currentTerm[1][ttt];
+		            if (edgesToRemove.includes(tt)) {
+		        	var nt = [];
+		                for (let rdi = 0; rdi < reduceDict[tt].length; rdi++) {
+                                    let rd = reduceDict[tt][rdi];
+		                    for (let nt1i in newTerm) {
+                                        let nt1 = newTerm[nt1i];
+                                        nt.push([nt1[0]*parseInt(rd[0]), nt1[1].push(rd[1])]);
+		        	    }
+		        	}
+                                newTerm = nt;
+                            } else {
+		        	newTerm = newTerm.map(
+                                    function(x) {
+                                        if (x[1].length > 0) {
+                                            return [x[0], x[1].push(tt)];
+                                        } else {
+                                            return [x[0], [tt]];
+                                        }
+                                    });
+		            }
+                        }
+                        if (newTerm[0][1].length > 0) {
+		            altTerm = newTerm.map(x => [x[0]*currentTerm[0], x[1]]);
+                        }
+                    }}
+		    altTermsForE.push(altTerm);
+                }
+		termsForE = altTermsForE;
+            } while (!foundReplacement && (ctr < edgesToRemove.length));
+	    reduceDict[e] = termsForE;
+        }
+        // sometimes we only care about reducing quivers up-to-potential. 
+        // keeping the potential reduction optional speeds things up
+        if (reduce_potential) {
+        }
+
+        return removeEdges(edgesToRemove, QP);
+
+	//newEdges = _.range(QP.edges.length).map(
+        //        function(x) {
+        //            if (x not in edgesToRemove) {
+	//		return QP.edges[x];
+	//	    }
+	//	});
+	//makeQP(newEdges, QP.nodes, QP.frozenNodes, newPotential);
+    } else {
+        return deepCopy(QP);
     }
 }
