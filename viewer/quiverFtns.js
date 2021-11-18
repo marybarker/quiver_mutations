@@ -379,6 +379,13 @@ function arrayEquals(a, b) {
     return JSON.stringify(a) == JSON.stringify(b);
 }
 
+function cycleOrder(cycle) {
+    let thisCycle = cycle.filter(y => y != null);
+    let minVal = Math.min(...thisCycle);
+    let minIdx = thisCycle.indexOf(minVal);
+    return thisCycle.slice(minIdx).concat(thisCycle.slice(0, minIdx));
+}
+
 function reduce(QP) {
     // remove extraneous commas from potential
     var thePotential = QP.potential.map(
@@ -455,7 +462,7 @@ function reduce(QP) {
                                         let nt1 = newTerm[nt1i];
                                         var nt11 = [rd[1]];
                                         if (nt1[1].length > 0) { 
-                                            nt11 = nt1[1].push(rd[1]);
+                                            nt11 = nt1[1].concat(rd[1]);
                                         }
                                         nt.push([nt1[0]*parseInt(rd[0]), nt11]);
 		        	    }
@@ -465,7 +472,7 @@ function reduce(QP) {
 		        	newTerm = newTerm.map(
                                     function(x) {
                                         if (x[1].length > 0) {
-                                            return [x[0], x[1].push(tt)];
+                                            return [x[0], x[1].concat(tt)];
                                         } else {
                                             return [x[0], [tt]];
                                         }
@@ -483,7 +490,8 @@ function reduce(QP) {
             } while (!foundReplacement && (ctr < edgesToRemove.length));
 	    reduceDict[e] = termsForE;
         }
-        // now reduce the potential by replacing each of the terms with its 
+
+        // reduce the potential by replacing each of the terms with its 
         // image in the replacement dictionary.
         var wPrime = [];
         for (let tci = 0; tci < thePotential.length; tci++) {
@@ -501,7 +509,6 @@ function reduce(QP) {
 
                     for (let rdi = 0; rdi < reduceDict[tt].length; rdi++) {
                         var rd = reduceDict[tt][rdi];
-                        var rdnt = nt1[1];
                         thisLevel.push([parseInt(nt1[0])*parseInt(rd[0]),
                                         nt1[1].concat(rd[1])]);
                     }
@@ -510,9 +517,27 @@ function reduce(QP) {
             }
             wPrime.push(...newTerm);
         }
-        wPrime = wPrime.map(function(x) {
-            return [x[0], x[1].filter(y => y != null).toString()];
+        wp = wPrime.map(function(x) {
+            return [x[0], x[1].filter(y => y != null)];
         });
+
+	//  make sure all terms are uniquely represented
+        // (cycles are written with minimal element first)
+	wPrime = [];
+	for (let i = 0; i < wp.length; i++) {
+            let x = wp[i];
+	    let c = x[0];
+	    let t = cycleOrder(x[1]).toString();
+
+	    if (wPrime.some(y => y[1] == t)) {
+                let idx = wPrime.findIndex(x => (x[1] == t));
+                wPrime[idx] = [wPrime[idx][0] + c, t];
+            } else if (c != 0) {
+                wPrime.push([c, t]);
+            }
+	}
+	// remove all terms with 0 coefficient
+	wPrime = wPrime.filter(y => (y[0] != 0));
 
         return removeEdges(edgesToRemove, QP, altPotential=wPrime);
     } else {
