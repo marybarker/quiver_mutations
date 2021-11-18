@@ -279,7 +279,7 @@ function mutateQP(vertex, QP) {
             savedEdges[parseInt(i)] = [e[1],e[0]];
         }
 
-        var wPrime = [];
+        var delta = [];
         var edgeCtr = QP.edges.length;
         var shortcuts = [];
         // now add 'shortcuts'
@@ -292,35 +292,43 @@ function mutateQP(vertex, QP) {
 
                 shortcuts.push([ei1,ei2]);
                 savedEdges.push([i,j]);
-                wPrime.push([1, ei2.toString()+","+ei1.toString()+","+edgeCtr.toString()]);
+                delta.push([1, ei1.toString()+","+ei2.toString()+","+edgeCtr.toString()]);
                 edgeCtr++;
             }
         }
 
+        var wPrime = [];
         // update the potential
         for (let mci = 0; mci < QP.potential.length; mci++) {
             var coef = QP.potential[mci][0];
             var monoid = QP.potential[mci][1].split(',');
+            let ml = monoid.length;
             var m = "";
             var foundMatch = false;
             for (let i = 0; i < monoid.length; i++) {
                m1 = parseInt(monoid[i]);
-               m2 = parseInt(monoid[(i+1)%monoid.length]);
+               m2 = parseInt(monoid[(i+1)%ml]);
+               m0 = parseInt(monoid[(i+ml-1)%ml]);
 
-               const isIn = shortcuts.findIndex(e => arrayEquals(e, [m2, m1]));
-               if((isIn >= 0) && !foundMatch) {
-                   var val = QP.edges.length + parseInt(isIn);
-                   m = m + val.toString()+",";
-                   foundMatch = true;
-               } else {
-                   if (!foundMatch) {
-                       m = m + m1.toString()+",";
+               const isIn = shortcuts.findIndex(e => arrayEquals(e, [m1, m2]));
+               const wasIn = shortcuts.findIndex(e => arrayEquals(e, [m0, m1]));
+               if ((i > 0) || (wasIn < 0)) {
+                   if((isIn >= 0) && !foundMatch) {
+                       var val = QP.edges.length + parseInt(isIn);
+                       m = m + val.toString()+",";
+                       foundMatch = true;
+                   } else {
+                       if (!foundMatch) {
+                           m = m + m1.toString()+",";
+                       }
+                       foundMatch = false;
                    }
-                   foundMatch = false;
-               }
+                }
             }
             wPrime.push([coef, m.slice(0, -1)]);
         }
+
+        wPrime.push(...delta);
         // reduce the resulting quiver
         return reduce(makeQP(savedEdges, QP.nodes, QP.frozenNodes, wPrime, inputType="fromQP"));
     } else {
@@ -368,11 +376,22 @@ function arrayEquals(a, b) {
     return JSON.stringify(a) == JSON.stringify(b);
 }
 
-function reduce(QP) {//, reduce_potential=true) {
-    var reduce_potential = true;
+function reduce(QP) {
+    // remove extraneous commas from potential
+    var thePotential = QP.potential.map(
+        function(x) {
+            var y = x[1];
+            if (y[0] == ",") {
+                y = y.slice(1);
+            }
+            if (y[-1] == ",") {
+                y = y.slice(0,-1);
+            }
+            return [x[0], y];
+        });
     // extract list of unique entries all edges that occur in quadratic terms in the potential
-    var squareTerms = QP.potential.filter(x => x[1].split(",").length == 2).map(y => y[1]);
-    var squareCoefs = QP.potential.filter(x => x[1].split(",").length == 2).map(y => y[0]);
+    var squareTerms = thePotential.filter(x => x[1].split(",").length == 2).map(y => y[1]);
+    var squareCoefs = thePotential.filter(x => x[1].split(",").length == 2).map(y => y[0]);
 
     // if there are enough quadratic terms to cancel them
     if (squareTerms.length > 0) {
@@ -386,13 +405,13 @@ function reduce(QP) {//, reduce_potential=true) {
             if (!edgesToRemove.includes(e1)) { edgesToRemove.push(e1); }
             if (!edgesToRemove.includes(e2)) { edgesToRemove.push(e2); }
 
-            reduceDict[e1] = pathDerivative(QP.potential, parseInt(e2)).map(
+            reduceDict[e1] = pathDerivative(thePotential, parseInt(e2)).map(
                 function(x) {
                     if ((x[1].length > 1) || !x[1].includes(e2.toString())) {
                         return [-parseInt(x[0])/c, x[1]];
                     }
                 }).filter(y => (y != null));
-            reduceDict[e2] = pathDerivative(QP.potential, parseInt(e1)).map(
+            reduceDict[e2] = pathDerivative(thePotential, parseInt(e1)).map(
                 function(x) {
                     if ((x[1].length > 1) || !x[1].includes(e1.toString())) {
                         return [-parseInt(x[0])/c, x[1]];
@@ -434,10 +453,16 @@ function reduce(QP) {//, reduce_potential=true) {
                                     let rd = reduceDict[tt][rdi];
 		                    for (let nt1i in newTerm) {
                                         let nt1 = newTerm[nt1i];
-                                        nt.push([nt1[0]*parseInt(rd[0]), nt1[1].push(rd[1])]);
+                                        var nt11 = [rd[1]];
+                                        if (nt1[1].length > 0) { 
+                                            nt11 = nt1[1].push(rd[1]);
+                                        }
+                                        nt.push([nt1[0]*parseInt(rd[0]), nt11]);
 		        	    }
 		        	}
-                                newTerm = nt;
+                                if (nt.length > 0) {
+                                    newTerm = nt;
+                                }
                             } else {
 		        	newTerm = newTerm.map(
                                     function(x) {
@@ -461,8 +486,6 @@ function reduce(QP) {//, reduce_potential=true) {
         }
         // sometimes we only care about reducing quivers up-to-potential. 
         // keeping the potential reduction optional speeds things up
-        if (reduce_potential) {
-        }
 
         return removeEdges(edgesToRemove, QP);
     } else {
