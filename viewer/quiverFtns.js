@@ -54,7 +54,7 @@ function resolve_click_event(n, p) {
             edges.add(outputs);
 
 	    potential.clear();
-            potential.add(mQP.potential.filter(x => (x[1] != ",")).map(function(x) {
+            potential.update(mQP.potential.filter(x => (x[1] != ",")).map(function(x) {
                 return {
                     id: x[1],
                     coef: x[0].toString(),
