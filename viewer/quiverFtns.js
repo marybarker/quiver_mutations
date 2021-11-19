@@ -63,6 +63,17 @@ function resolve_click_event(n, p) {
         }
     }
 }
+
+function clearPotential() {
+    potential.clear();
+}
+
+function clearQP() {
+    edges.clear();
+    nodes.clear();
+    potential.clear();
+}
+
 function updatePotential() {
     var t = document.getElementById("term-input").value;
     var c1 = parseInt(document.getElementById("coefficient-input").value);
@@ -72,21 +83,25 @@ function updatePotential() {
     } catch(err) {
     }
     if (c2 == null) {
-        potential.add({id: t, coef: c1});
+        potential.add({id: t, coef: c1.toString()});
     } else {
-        potential.update({id: t, coef: c1+c2.coef});
+	let c3 = c1 + c2.coef;
+        potential.update({id: t, coef: c3.toString()});
     }
 }
+
 function getUniqueEdgeId() { /* create a string value that is not currently in ids for edges */
     var ne = edges.getIds();
     ne = ne.map(function(x) {return parseInt(x);});
     return ne.reduce(function(a, b) {return Math.max(a, b) + 1;}, 0).toString();
 }
+
 function getUniqueNodeId() { /* create a string value that is not currently in ids for nodes */
     var nv = nodes.getIds();
     nv = nv.map(function(x) {return parseInt(x);});
     return nv.reduce(function(a, b) {return Math.max(a, b) + 1;}, 0).toString();
 }
+
 function draw() {
     // create an array with nodes
     nodes = new vis.DataSet();
@@ -208,11 +223,25 @@ function draw() {
      });
 }
 
-// QP FUNCTIONS
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+/*        Begin QP manipulation functions (no global variables)          */
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+function arrayEquals(a, b) {
+    return JSON.stringify(a) == JSON.stringify(b);
+}
+
+function cycleOrder(cycle) {
+    // order a list of integers with minimal element first 
+    // (note: need to fix this for multiple instances of min element)
+    let thisCycle = cycle.filter(y => y != null);
+    let minVal = Math.min(...thisCycle);
+    let minIdx = thisCycle.indexOf(minVal);
+    return thisCycle.slice(minIdx).concat(thisCycle.slice(0, minIdx));
+}
+
 function deepCopy(A) {
     return JSON.parse(JSON.stringify(A));
 }
-
 
 function makeQP(es, ns, fn, p, inputType="fromVisDataSet") {
     // create graph info (arrow to node structures)
@@ -262,7 +291,6 @@ function makeQP(es, ns, fn, p, inputType="fromVisDataSet") {
     }
 }
 
-
 function mutateQP(vertex, QP) {
     const v = parseInt(vertex);
     if (QP.canMutate[v]) {
@@ -306,23 +334,23 @@ function mutateQP(vertex, QP) {
             var m = "";
             var foundMatch = false;
             for (let i = 0; i < monoid.length; i++) {
-               m1 = parseInt(monoid[i]);
-               m2 = parseInt(monoid[(i+1)%ml]);
-               m0 = parseInt(monoid[(i+ml-1)%ml]);
+                m1 = parseInt(monoid[i]);
+                m2 = parseInt(monoid[(i+1)%ml]);
+                m0 = parseInt(monoid[(i+ml-1)%ml]);
 
-               const isIn = shortcuts.findIndex(e => arrayEquals(e, [m1, m2]));
-               const wasIn = shortcuts.findIndex(e => arrayEquals(e, [m0, m1]));
-               if ((i > 0) || (wasIn < 0)) {
-                   if((isIn >= 0) && !foundMatch) {
-                       var val = QP.edges.length + parseInt(isIn);
-                       m = m + val.toString()+",";
-                       foundMatch = true;
-                   } else {
-                       if (!foundMatch) {
-                           m = m + m1.toString()+",";
-                       }
-                       foundMatch = false;
-                   }
+                const isIn = shortcuts.findIndex(e => arrayEquals(e, [m1, m2]));
+                const wasIn = shortcuts.findIndex(e => arrayEquals(e, [m0, m1]));
+                if ((i > 0) || (wasIn < 0)) {
+                    if((isIn >= 0) && !foundMatch) {
+                        var val = QP.edges.length + parseInt(isIn);
+                        m = m + val.toString()+",";
+                        foundMatch = true;
+                    } else {
+                        if (!foundMatch) {
+                            m = m + m1.toString()+",";
+                        }
+                        foundMatch = false;
+                    }
                 }
             }
             wPrime.push([coef, m.slice(0, -1)]);
@@ -334,29 +362,6 @@ function mutateQP(vertex, QP) {
     } else {
         return makeQP(QP.edges, QP.nodes, QP.frozenNodes, QP.potential, inputType="fromQP");
     }
-}
-
-function removeEdges(edgeIndices, QP, altPotential="None") {
-    var edgesToKeep = [...Array(QP.edges.length).keys()].map(
-        function(x) {
-            if (edgeIndices.includes(parseInt(x))) {
-                return -(parseInt(x)+1);
-            } else {
-                return parseInt(x);
-            }
-        });
-    var edgeIndexLookup = edgesToKeep.map(function(x) {if (x >= 0) {return x;}});
-    var edgeIndexLookupBackwards = edgesToKeep.map(function(x) {if (x >= 0) {return edgeIndexLookup.indexOf(x);}});
-    var newEdges = edgeIndexLookup.map(x => QP.edges[x]);
-    var newPotential = altPotential;
-    if (newPotential == "None") {
-        newPotential = QP.potential.map(
-	    function(x){
-                let y = x[1].split(",").map(y => edgeIndexLookupBackwards[parseInt(y)])
-		return [x[0], y.toString()];
-	    });
-    }
-    return makeQP(newEdges, QP.nodes, QP.frozenNodes, newPotential, "fromQP");
 }
 
 function pathDerivative(thisPotential, edgeIndex) {
@@ -375,17 +380,6 @@ function pathDerivative(thisPotential, edgeIndex) {
 	}).filter(y => (y != null));
 }
 
-function arrayEquals(a, b) {
-    return JSON.stringify(a) == JSON.stringify(b);
-}
-
-function cycleOrder(cycle) {
-    let thisCycle = cycle.filter(y => y != null);
-    let minVal = Math.min(...thisCycle);
-    let minIdx = thisCycle.indexOf(minVal);
-    return thisCycle.slice(minIdx).concat(thisCycle.slice(0, minIdx));
-}
-
 function reduce(QP) {
     // remove extraneous commas from potential
     var thePotential = QP.potential.map(
@@ -398,6 +392,7 @@ function reduce(QP) {
     // extract list of unique entries all edges that occur in quadratic terms in the potential
     var squareTerms = thePotential.filter(x => x[1].split(",").length == 2).map(y => y[1]);
     var squareCoefs = thePotential.filter(x => x[1].split(",").length == 2).map(y => y[0]);
+    var zeroTerms = thePotential.filter(x => x[1].split().filter().length );
 
     // if there are enough quadratic terms to cancel them
     if (squareTerms.length > 0) {
@@ -543,4 +538,27 @@ function reduce(QP) {
     } else {
         return deepCopy(QP);
     }
+}
+
+function removeEdges(edgeIndices, QP, altPotential="None") {
+    var edgesToKeep = [...Array(QP.edges.length).keys()].map(
+        function(x) {
+            if (edgeIndices.includes(parseInt(x))) {
+                return -(parseInt(x)+1);
+            } else {
+                return parseInt(x);
+            }
+        });
+    var edgeIndexLookup = edgesToKeep.map(function(x) {if (x >= 0) {return x;}});
+    var edgeIndexLookupBackwards = edgesToKeep.map(function(x) {if (x >= 0) {return edgeIndexLookup.indexOf(x);}});
+    var newEdges = edgeIndexLookup.map(x => QP.edges[x]);
+    var newPotential = altPotential;
+    if (newPotential == "None") {
+        newPotential = QP.potential.map(
+	    function(x){
+                let y = x[1].split(",").map(y => edgeIndexLookupBackwards[parseInt(y)])
+		return [x[0], y.toString()];
+	    });
+    }
+    return makeQP(newEdges, QP.nodes, QP.frozenNodes, newPotential, "fromQP");
 }

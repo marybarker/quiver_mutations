@@ -69,24 +69,9 @@
             src="./quiverFtns.js">
         </script>
 
-        <script 
-            type="text/javascript"
-            src="./IO_stuff.js">
-        </script>
-
-	<script 
-	    type="text/javascript"
-	    src="https://cdn.jsdelivr.net/npm/brython@3.10.1/brython.min.js">
-	</script>
-
-	<script 
-	    type="text/javascript"
-	    src="https://cdn.jsdelivr.net/npm/brython@3.10.1/brython_stdlib.js">
-	</script>
-
     </head>
 
-    <body onload="draw(); brython()">
+    <body onload="draw()">
         <h2>
            Manipulate QPs interactively
         </h2>
@@ -111,11 +96,14 @@
                     </select>
                     <br><br>
 		    <h3>Edit Potential</h3>
-		    <label for="coefficient-input">Coefficient for term:</label>
+		    <label for="coefficient-input">Coefficient:</label>
 		    <input id="coefficient-input" type="text" size=3 value=1>
 		    <label for="term-input"> Edges in cycle:</label>
-		    <input id="term-input" type="text" size=10 value="0,1,0">
+		    <input id="term-input" type="text" size=10 value="0,1">
 		    <button onclick="updatePotential()">Add Term</button>
+		    <br><br>
+		    <button onclick="clearQP()">Clear Quiver</button>
+		    <button onclick="clearPotential()">Clear Potential</button>
                 </td>
             </tr>
 	</table>
