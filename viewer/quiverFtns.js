@@ -1,7 +1,6 @@
 var nodes, edges, network;
 var frozen_nodes;
 var potential;
-var editMode = "Quiver"
 var output_fields = ["id", "from", "to", "coef"] // which data objects to print to screen
 
 function resolve_click_event(n, p) {
@@ -70,6 +69,7 @@ function clearPotential() {
 
 function clearQP() {
     edges.clear();
+    frozen_nodes.clear();
     nodes.clear();
     potential.clear();
 }
@@ -243,6 +243,23 @@ function deepCopy(A) {
     return JSON.parse(JSON.stringify(A));
 }
 
+function findDependencies(currentItem, met, lookups) {
+    /* find the items that currentItem depends on in the lookup table 
+     * (this is recursively done, so the tree of dependencies is listed exhaustively)
+     * stopping criterion: no new dependencies found. 
+     * circularity is dealt with by only adding new dependants */
+    if ( met.includes(currentItem) ) {
+        return (true, met);
+    } else {
+        var newMet = met.concat(currentItem);
+        for (let i = 0; i < lookups[currentItem].length; i++) {
+	    let item = lookups[currentItem][i];
+	    return findDependencies(item, newMet, lookups)
+        }
+        return findDependencies(false, met);
+    }
+}
+
 function makeQP(es, ns, fn, p, inputType="fromVisDataSet") {
     // create graph info (arrow to node structures)
     var awh = Array.from(Array(ns.length), x => []);
@@ -257,7 +274,10 @@ function makeQP(es, ns, fn, p, inputType="fromVisDataSet") {
         fns = fn.getIds().map(x => parseInt(x));
         theseNodes = ns.getIds().map(x => parseInt(x));
         theseEdges = es.getIds().map(x => [parseInt(es.get(x).from), parseInt(es.get(x).to)]);
-        thisPotential = p.getIds().map(x => [parseInt(p.get(x).coef), x]);
+        // make sure that the edges in each cycle of the potential are now listed by their index,
+        // rather than id, since adding/subtracting edges can leave gaps in the id#s 
+	var edgeIDMap = es.getIds();
+        thisPotential = p.getIds().map(x => [parseInt(p.get(x).coef), x.split(",").map(y => edgeIDMap.indexOf(y)).toString()]);
     } else {
         fns = Array.from(fns, x => parseInt(x));
         theseNodes = Array.from(ns, x => parseInt(x));
@@ -392,12 +412,11 @@ function reduce(QP) {
     // extract list of unique entries all edges that occur in quadratic terms in the potential
     var squareTerms = thePotential.filter(x => x[1].split(",").length == 2).map(y => y[1]);
     var squareCoefs = thePotential.filter(x => x[1].split(",").length == 2).map(y => y[0]);
-    var zeroTerms = thePotential.filter(x => x[1].split().filter().length );
 
     // if there are enough quadratic terms to cancel them
     if (squareTerms.length > 0) {
         var edgesToRemove = new Array();
-        var reduceDict = [...Array(QP.edges.length).keys()].map(x => [[1, [x]]]);
+        var reduceDict = [...Array(QP.edges.length).keys()].map(x => [[1, [parseInt(x)]]]);
         for (let ti = 0; ti < squareTerms.length; ti++) {
             let t = squareTerms[ti];
             let e1 = parseInt(t.slice(0, t.indexOf(',')));
@@ -419,6 +438,42 @@ function reduce(QP) {
                     }
                 }).filter(y => (y != null));
         }
+	// check if there is a circular dependency between any of the quadratic terms 
+        // (this makes it so that one edge at least cannot be deleted in the reduction process)
+        if (edgesToRemove.length%2 > 0) {
+            let lookups = edgesToRemove.map(function(x) {
+                var toRet = [];
+                for (let yi = 0; yi < reduceDict[x]; yi++) {
+                    let y = reduceDict[yi][1];
+                    toRet = toRet.concat(y.filter(z => edgesToRemove.includes(z)));
+                }
+                return toRet;
+	    });
+	    var loopStarts = [];
+	    var added = [];
+            for (let ei = 0; ei < edgesToRemove.length; ei++) {
+                let e = edgesToRemove[ei];
+	        var opt = [];
+	        let outcomes = findDependencies(ei, opt, lookups);
+                if (outcomes[0]) {
+	            var o1 = outcomes[1];
+		    o1.sort();
+		    let c1 = o1[0];
+		    o1 = o1.toString();
+                    if (!added.includes(o1)) {
+                        loopStarts.push(parseInt(c1));
+			added.push(o1);
+	            }
+	        }
+	    }
+	    if (loops.length > 0) {
+                edgesToRemove = edgesToRemove.filter(x => !loopStarts.includes(x));
+
+	        for (let i = 0; i < loopStarts.length; i++) {
+                    reduceDict[loopStarts[i]] = [[1, [loopStarts[i]]]];
+	        }
+	    }
+	}
 
         // update lookup table of replacements for each edge to be removed so that
         // each replacement term only contains edges that are not in edgesToRemove
@@ -437,50 +492,50 @@ function reduce(QP) {
                 for (let cti = 0; cti < termsForE.length; cti++) {
                     let currentTerm = termsForE[cti];
                     if (currentTerm.length > 0) {
-		    var altTerm = [[currentTerm[0], currentTerm[1]]];
-
-                    // check if any of the terms in e's replacement
-                    // terms also contains one of the edges to remove
-                    if (currentTerm[1] != null) {
-                        if (currentTerm[1].some(x => (edgesToRemove.includes(parseInt(x))))) {
-                        foundReplacement = false
-
-                        // if so, then we need to replace that term
-                        var newTerm = [[1, []]];
-                        for (let ttt = 0; ttt < currentTerm[1].length; ttt++) {
-                            let tt = currentTerm[1][ttt];
-		            if (edgesToRemove.includes(tt)) {
-		        	var nt = [];
-		                for (let rdi = 0; rdi < reduceDict[tt].length; rdi++) {
-                                    let rd = reduceDict[tt][rdi];
-		                    for (let nt1i = 0; nt1i < newTerm.length; nt1i++) {
-                                        let nt1 = newTerm[nt1i];
-                                        var nt11 = [rd[1]];
-                                        if (nt1[1].length > 0) { 
-                                            nt11 = nt1[1].concat(rd[1]);
-                                        }
-                                        nt.push([nt1[0]*parseInt(rd[0]), nt11]);
-		        	    }
-		        	}
-                                if (nt.length > 0) { newTerm = nt; }
-                            } else {
-		        	newTerm = newTerm.map(
-                                    function(x) {
-                                        if (x[1].length > 0) {
-                                            return [x[0], x[1].concat(tt)];
-                                        } else {
-                                            return [x[0], [tt]];
-                                        }
+                        var altTerm = [[currentTerm[0], currentTerm[1]]];
+                      
+                        // check if any of the terms in e's replacement
+                        // terms also contains one of the edges to remove
+                        if (currentTerm[1] != null) {
+                            if (currentTerm[1].some(x => (edgesToRemove.includes(parseInt(x))))) {
+                            foundReplacement = false
+                      
+                            // if so, then we need to replace that term
+                            var newTerm = [[1, []]];
+                            for (let ttt = 0; ttt < currentTerm[1].length; ttt++) {
+                                let tt = currentTerm[1][ttt];
+                                if (edgesToRemove.includes(tt)) {
+                                    var nt = [];
+                                    for (let rdi = 0; rdi < reduceDict[tt].length; rdi++) {
+                                        let rd = reduceDict[tt][rdi];
+		                        for (let nt1i = 0; nt1i < newTerm.length; nt1i++) {
+                                            let nt1 = newTerm[nt1i];
+                                            var nt11 = [rd[1]];
+                                            if (nt1[1].length > 0) { 
+                                                nt11 = nt1[1].concat(rd[1]);
+                                            }
+                                            nt.push([parseInt(nt1[0])*parseInt(rd[0]), nt11]);
+		            	      }
+		            	  }
+                                    if (nt.length > 0) { newTerm = nt; }
+                                } else {
+                                    newTerm = newTerm.map(
+                                        function(x) {
+                                            if (x[1].length > 0) {
+                                                return [x[0], x[1].concat(tt)];
+                                            } else {
+                                                return [x[0], [tt]];
+                                            }
                                     });
-		            }
-                        }
-                        if (newTerm[0][1].length > 0) {
-		            altTerm = newTerm.map(x => [x[0]*currentTerm[0], x[1]]);
-                        }
-                    }}
-		    altTermsForE.push(...altTerm);
-                }
-		termsForE = altTermsForE;
+		                }
+                            }
+                            if (newTerm[0][1].length > 0) {
+		                altTerm = newTerm.map(x => [x[0]*currentTerm[0], x[1]]);
+                            }
+                        }}
+		        altTermsForE.push(...altTerm);
+                    }
+		    termsForE = altTermsForE;
                 }
             } while (!foundReplacement && (ctr < edgesToRemove.length));
 	    reduceDict[e] = termsForE;
@@ -508,7 +563,7 @@ function reduce(QP) {
                                         nt1[1].concat(rd[1])]);
                     }
                 }
-                if (thisLevel.length > 0) { newTerm = thisLevel; }
+                if (thisLevel.length > 0) { newTerm = deepCopy(thisLevel); }
             }
             wPrime.push(...newTerm);
         }
@@ -544,21 +599,26 @@ function removeEdges(edgeIndices, QP, altPotential="None") {
     var edgesToKeep = [...Array(QP.edges.length).keys()].map(
         function(x) {
             if (edgeIndices.includes(parseInt(x))) {
-                return -(parseInt(x)+1);
+                return -1;
             } else {
                 return parseInt(x);
             }
         });
-    var edgeIndexLookup = edgesToKeep.map(function(x) {if (x >= 0) {return x;}});
+    var edgeIndexLookup = edgesToKeep.filter(x => x >= 0);
     var edgeIndexLookupBackwards = edgesToKeep.map(function(x) {if (x >= 0) {return edgeIndexLookup.indexOf(x);}});
+
+    // re-index the edges to delete those that are no longer included
     var newEdges = edgeIndexLookup.map(x => QP.edges[x]);
+
+    // update the terms in the potential to use the new edge indexing
     var newPotential = altPotential;
     if (newPotential == "None") {
-        newPotential = QP.potential.map(
-	    function(x){
-                let y = x[1].split(",").map(y => edgeIndexLookupBackwards[parseInt(y)])
-		return [x[0], y.toString()];
-	    });
+        newPotential = QP.potential.map(x => [...x]);
     }
+    newPotential = newPotential.map(
+        function(x){
+            let y = x[1].split(",").map(y => edgeIndexLookupBackwards[parseInt(y)]);
+	    return [parseInt(x[0]), y.filter(x => x != null).toString()];
+        });
     return makeQP(newEdges, QP.nodes, QP.frozenNodes, newPotential, "fromQP");
 }

@@ -5,18 +5,17 @@
 
         <style>
              html, body{/* whole page: fills browser window */
-                 width: 99%; 
-                 height: 100%; 
+                 width:100%; 
+                 height:100%; 
                  margin:1px;
-                 border: 0;
-                 overflow-y: scroll;
+                 border:0;
+                 overflow-y:scroll;
 		 padding:5px;
              }
              #mynetwork {/* quiver: width, side of page, color of border*/
-                 float:left;
                  width:100%;
                  height:400px;
-                 border:2px;
+                 margin:1px;
                  border-style:outset;
                  border-color:gray;
              }
@@ -26,36 +25,36 @@
                  height:400px;
                  margin-top:5px;
                  margin-right:5px;
-                 padding-left:20px;
+                 padding-left:10px;
              }
              pre {
-                 margin: 0;
-                 padding: 5px;
-                 font-size: 10pt;
+                 margin:0;
+                 padding:5px;
+                 font-size:10pt;
              }
 	     #view_json {
-		 width: 100%;
+		 width:100%;
                  color:gray;
-                 margin:1px;
+                 margin:5px;
 		 padding:10px;
                  border-style:outset;
                  border-color:gray;
 	     }
              #potential {
-                 height: 170px;
-                 overflow-y: scroll;
+                 height:170px;
+                 overflow-y:scroll;
              }
              #frozen_nodes {
-                 height: 170px;
-                 overflow-y: scroll;
+                 height:170px;
+                 overflow-y:scroll;
              }
              #nodes {
-                 height: 400px;
-    	         overflow-y: scroll;
+                 height:400px;
+    	         overflow-y:scroll;
              }
              #edges {
-                 height: 400px;
-    	         overflow-y: scroll;
+                 height:400px;
+    	         overflow-y:scroll;
              }
         </style>
 
@@ -79,10 +78,10 @@
 
 	    <! ROW 1: VIS OF QUIVER AND EDITING OPTIONS>
   	    <tr>
-  	        <td width="60%">
+  	        <td width="50%">
                     <div id="mynetwork"></div>
   	        </td>
-  	        <td width="40%" id="menuBar">
+  	        <td width="50%" id="menuBar">
 		    <h3>Edit Quiver</h3>
                     <label for="editQuiverMenu">Options:</label>
                     <select id="edit-quiver-type" name="editQuiverMenu"> 
