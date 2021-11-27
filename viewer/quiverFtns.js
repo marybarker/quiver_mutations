@@ -53,7 +53,7 @@ function resolve_click_event(n, p) {
             edges.add(outputs);
 
 	    potential.clear();
-            potential.update(mQP.potential.filter(x => (x[1] != ",")).map(function(x) {
+            potential.add(mQP.potential.filter(x => (x[1] != ",")).map(function(x) {
                 return {
                     id: x[1],
                     coef: x[0].toString(),
@@ -85,9 +85,21 @@ function updatePotential() {
     if (c2 == null) {
         potential.add({id: t, coef: c1.toString()});
     } else {
-	let c3 = c1 + c2.coef;
+	let c3 = c1 + parseInt(c2.coef);
         potential.update({id: t, coef: c3.toString()});
     }
+}
+
+function generateRandomPotential() {
+    var np = randomPotential(nodes, edges);
+
+    potential.clear();
+    potential.add(np.filter(x => (x[1] != ",")).map(function(x) {
+    return {
+        id: x[1],
+        coef: x[0].toString(),
+        };
+    }));
 }
 
 function getUniqueEdgeId() { /* create a string value that is not currently in ids for edges */
@@ -241,6 +253,27 @@ function cycleOrder(cycle) {
 
 function deepCopy(A) {
     return JSON.parse(JSON.stringify(A));
+}
+
+function edgesOutOf(vertex, edge_list) {
+    return Array.from(Array(edge_list.length).keys()).map(x => parseInt(x)).filter(x => edge_list[x][0] == vertex);
+}
+
+function findCycleDFS(begin_vertex, at_vertex, edge_list, edges_so_far, min_length=0) {
+    let edgesOut = edgesOutOf(at_vertex, edge_list).filter(y => !edges_so_far.includes(y));
+
+    for (let ei = 0; ei < edgesOut.length; ei++) {
+        let e = edge_list[edgesOut[ei]];
+	let esMet = edges_so_far.slice();
+        esMet.push(edgesOut[ei]);
+	let currentAt = e[1];
+	              
+        if ((begin_vertex == currentAt) && (esMet.length >= min_length)) {
+            return [true, esMet];
+	}
+	return findCycleDFS(begin_vertex, currentAt, edge_list, esMet, min_length);
+    }
+    return [false, esMet];
 }
 
 function findDependencies(currentItem, met, lookups) {
@@ -398,6 +431,30 @@ function pathDerivative(thisPotential, edgeIndex) {
                 return [x[0], partial];
 	    }
 	}).filter(y => (y != null));
+}
+
+function randInt(range) {
+    let sign = Math.random() > 0.5 ? 1 : -1;
+    return sign * Math.floor(Math.random() * range);
+}
+
+function randomPotential(ns, es, coefficient_range=100) {
+    theseNodes = ns.getIds().map(x => parseInt(x));
+    theseEdges = es.getIds().map(x => [parseInt(es.get(x).from), parseInt(es.get(x).to)]);
+    var cycles = [];
+
+    // find n-cycles containing each node, where n is the
+    // smallest number >=3 that admits a cycle
+    for (let i = 0; i < theseNodes.length; i++) {
+        var output = findCycleDFS(i, i, theseEdges, [], min_lenth=3);
+	if (output[0]) {
+            let cycle = cycleOrder(output[1]).toString();
+            if (!cycles.includes(cycle)) {
+                cycles.push(cycle);
+            }
+	}
+    }
+    return cycles.map(x => [randInt(coefficient_range), x]);
 }
 
 function reduce(QP) {
