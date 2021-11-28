@@ -264,7 +264,7 @@ function findCycleDFS(begin_vertex, at_vertex, edge_list, edges_so_far, min_leng
 
     for (let ei = 0; ei < edgesOut.length; ei++) {
         let e = edge_list[edgesOut[ei]];
-	let esMet = edges_so_far.slice();
+	let esMet = deepCopy(edges_so_far).map(y => parseInt(y));
         esMet.push(edgesOut[ei]);
 	let currentAt = e[1];
 	              
@@ -442,11 +442,12 @@ function randomPotential(ns, es, coefficient_range=100) {
     theseNodes = ns.getIds().map(x => parseInt(x));
     theseEdges = es.getIds().map(x => [parseInt(es.get(x).from), parseInt(es.get(x).to)]);
     var cycles = [];
+    var currentPath = [];
 
     // find n-cycles containing each node, where n is the
     // smallest number >=3 that admits a cycle
     for (let i = 0; i < theseNodes.length; i++) {
-        var output = findCycleDFS(i, i, theseEdges, [], min_lenth=3);
+        var output = findCycleDFS(i, i, theseEdges, currentPath, min_lenth=3);
 	if (output[0]) {
             let cycle = cycleOrder(output[1]).toString();
             if (!cycles.includes(cycle)) {
