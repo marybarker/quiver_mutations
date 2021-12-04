@@ -238,6 +238,47 @@ function draw() {
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 /*        Begin QP manipulation functions (no global variables)          */
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+function allThreeCycles (QP) {
+    var triples = [];
+    for (let v1 in QP.nodes) {
+        let arrowsOut1 = QP.arrowsWithTail[v1];
+
+        for (let e1ii = 0; e1ii < arrowsOut1.length; e1ii++) {
+            let e1i = arrowsOut1[e1ii];
+            let e1 = QP.edges[e1i];
+            let v2 = e1[1];
+            let arrowsOut2 = QP.arrowsWithTail[v2];
+
+            for (let e2ii = 0; e2ii < arrowsOut2.length; e2ii++) {
+                let e2i = arrowsOut2[e2ii];
+
+                if (e2i != e1i) {
+                    let e2 = QP.edges[e2i];
+                    let v3 = e2[1];
+                    let arrowsOut3 = QP.arrowsWithTail[v3];
+
+                    for (let e3ii = 0; e3ii < arrowsOut3.length; e3ii++) {
+                        let e3i = arrowsOut3[e3ii];
+
+                        if ((e3i != e1i) && (e3i != e2i)) {
+                            let e3 = QP.edges[e3i];
+                            let v4 = e3[1];
+
+                            if (v4 == v1) {
+                                let triple = cycleOrder([e1i, e2i, e3i]).toString();
+                                if (!triples.includes(triple)) {
+                                    triples.push([e1i,e2i,e3i]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return triples;
+}
+
 function arrayEquals(a, b) {
     return JSON.stringify(a) == JSON.stringify(b);
 }
@@ -441,6 +482,44 @@ function randInt(range) {
 function randomPotential(ns, es, coefficient_range=100) {
     theseNodes = ns.getIds().map(x => parseInt(x));
     theseEdges = es.getIds().map(x => [parseInt(es.get(x).from), parseInt(es.get(x).to)]);
+    let thisQP = makeQP(theseEdges, theseNodes, [0], [[0,"0"]], "fromThing");
+    let allTriples = allThreeCycles(thisQP);
+
+    var currentlyMetNodes = [];
+    var metAllNodes = false;
+    var cycles = [];
+    var metCycles = [];
+    do {
+        let randomCycle = randInt(allTriples.length);
+        randomCycle = randomCycle >= 0 ? randomCycle : -randomCycle;
+        let theCycle = allTriples[randomCycle];
+
+        if (!metCycles.includes(randomCycle)) {
+            for (let tci = 0; tci < 3; tci++) {
+                let e = theseEdges[theCycle[tci]];
+                if (!currentlyMetNodes.includes(e[0])) {
+                    currentlyMetNodes.push(e[0]);
+                }
+                if (!currentlyMetNodes.includes(e[1])) {
+                    currentlyMetNodes.push(e[1]);
+                }
+            }
+            metCycles.push(randomCycle);
+            cycles.push(theCycle.toString());
+        }
+
+        if ((currentlyMetNodes.length >= ns.length) || (metCycles.length >= allTriples.length)){
+            metAllNodes = true;
+        }
+    } while(!metAllNodes);
+
+    return cycles.map(x => [randInt(coefficient_range), x]);
+}
+
+/*
+function randomPotential(ns, es, coefficient_range=100) {
+    theseNodes = ns.getIds().map(x => parseInt(x));
+    theseEdges = es.getIds().map(x => [parseInt(es.get(x).from), parseInt(es.get(x).to)]);
     var cycles = [];
     var currentPath = [];
 
@@ -457,6 +536,7 @@ function randomPotential(ns, es, coefficient_range=100) {
     }
     return cycles.map(x => [randInt(coefficient_range), x]);
 }
+*/
 
 function reduce(QP) {
     // remove extraneous commas from potential
