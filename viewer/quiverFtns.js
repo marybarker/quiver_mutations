@@ -3,6 +3,24 @@ var frozen_nodes;
 var potential;
 var output_fields = ["id", "from", "to", "coef"] // which data objects to print to screen
 
+function updateInstructions() {
+    let click_mode = document.getElementById("edit-quiver-type").value;
+    var textOutput = "Click on canvas to add a node";
+
+    if (click_mode == "add-edge") {
+	textOutput = "Select a pair of nodes to add an edge between them: control + click to select two nodes";
+    } else if (click_mode == "add-loop") {
+	textOutput = "Click on a node to add a loop";
+    } else if (click_mode == "remove-edge") {
+	textOutput = "Click on an edge to remove it";
+    } else if (click_mode == "add-node") {
+	textOutput = "Click on the canvas to create a node";
+    } else {
+        textOutput = "Select a node to perform action";
+    }
+    document.getElementById("instructions").innerText = textOutput;
+}
+
 function resolve_click_event(n, p) {
     var click_mode = "NONE";
     try {
@@ -30,6 +48,12 @@ function resolve_click_event(n, p) {
     } else if (click_mode == "remove-edge") {
         if (p.edges.length > 0) {
             edges.remove({id: p.edges[0].toString()});
+        }
+    } else if (click_mode == "add-loop") {
+        var ne = getUniqueEdgeId();
+        if (p.nodes.length > 0) {
+	    let v = p.nodes[0].toString();
+            edges.add({id: ne, from: v, to: v});
         }
     } else if (click_mode == "freeze-node") {
         if (p.nodes.length > 0) {

@@ -82,12 +82,14 @@
                     <div id="mynetwork"></div>
   	        </td>
   	        <td width="50%" id="menuBar">
+		    <div id="instructions">Click on the canvas to add a node</div>
 		    <h3>Edit Quiver</h3>
                     <label for="editQuiverMenu">Options:</label>
-                    <select id="edit-quiver-type" name="editQuiverMenu"> 
+                    <select id="edit-quiver-type" name="editQuiverMenu" onchange="updateInstructions()">
                         <option value="add-node">Add Nodes</option>
                         <option value="remove-node">Remove Nodes</option>
-                        <option value="add-edge">Add Edges</option>
+                        <option value="add-edge">Add Edges(nonloops)</option>
+                        <option value="add-loop">Add Edges(loops)</option>
                         <option value="remove-edge">Remove Edges</option>
                         <option value="freeze-node">Freeze Nodes</option>
                         <option value="unfreeze-node">Unfreeze Nodes</option>
