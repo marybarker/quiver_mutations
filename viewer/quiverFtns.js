@@ -202,10 +202,10 @@ function draw() {
     });
     potential.add([
         { id: "0,2,5", coef: "1"},
-        { id: "4,3,1", coef: "1"},
+        { id: "1,4,3", coef: "1"},
         { id: "8,9,10", coef: "1"},
         { id: "2,6,7,3", coef: "1"},
-        { id: "17,16,0,1", coef: "1"},
+        { id: "0,1,17,16", coef: "1"},
         { id: "6,8,7", coef: "1"},
     ]);
 
@@ -310,7 +310,7 @@ function arrayEquals(a, b) {
 function cycleOrder(cycle) {
     // order a list of integers with minimal element first 
     // (note: need to fix this for multiple instances of min element)
-    let thisCycle = cycle.filter(y => y != null);
+    let thisCycle = cycle.filter(y => y != null).map(x => parseInt(x));
     let minVal = Math.min(...thisCycle);
     let minIdx = thisCycle.indexOf(minVal);
     return thisCycle.slice(minIdx).concat(thisCycle.slice(0, minIdx));
@@ -438,7 +438,7 @@ function mutateQP(vertex, QP) {
 
                 shortcuts.push([ei1,ei2]);
                 savedEdges.push([i,j]);
-                delta.push([1, ei1.toString()+","+ei2.toString()+","+edgeCtr.toString()]);
+                delta.push([1, ei2.toString()+","+ei1.toString()+","+edgeCtr.toString()]);
                 edgeCtr++;
             }
         }
@@ -607,7 +607,7 @@ function reduce(QP) {
                 var toRet = [];
                 for (let yi = 0; yi < reduceDict[x]; yi++) {
                     let y = reduceDict[yi][1];
-                    toRet = toRet.concat(y.filter(z => edgesToRemove.includes(z)));
+                    toRet.push(y.filter(z => edgesToRemove.includes(z)));
                 }
                 return toRet;
 	    });
@@ -672,7 +672,7 @@ function reduce(QP) {
                                         let rd = reduceDict[tt][rdi];
 		                        for (let nt1i = 0; nt1i < newTerm.length; nt1i++) {
                                             let nt1 = newTerm[nt1i];
-                                            var nt11 = [rd[1]];
+                                            var nt11 = rd[1];
                                             if (nt1[1].length > 0) { 
                                                 nt11 = nt1[1].concat(rd[1]);
                                             }
