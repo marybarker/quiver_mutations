@@ -43,7 +43,7 @@ function resolve_click_event(n, p) {
 	if (p.nodes.length > 1) {
 	    let n1 = p.nodes[0].toString();
 	    let n2 = p.nodes[1].toString();
-            edges.add({id: ne, from: n1, to: n2, arrows: "to"});
+            edges.add({id: ne, from: n1, to: n2, arrows: "to", title: "edge "+ne});
         }
     } else if (click_mode == "remove-edge") {
         if (p.edges.length > 0) {
@@ -167,24 +167,24 @@ function draw() {
         );
     });
     edges.add([
-        { id: "0", from: "0", to: "1", arrows: "to"},
-        { id: "1", from: "1", to: "0", arrows: "to"},
-        { id: "2", from: "1", to: "2", arrows: "to"},
-        { id: "3", from: "2", to: "1", arrows: "to"},
-        { id: "4", from: "0", to: "2", arrows: "to"},
-        { id: "5", from: "2", to: "0", arrows: "to"},
-        { id: "6", from: "2", to: "3", arrows: "to"},
-        { id: "7", from: "3", to: "2", arrows: "to"},
-        { id: "8", from: "3", to: "3", arrows: "to"},
-        { id: "9", from: "3", to: "4", arrows: "to"},
-        { id: "10", from: "4", to: "3", arrows: "to"},
-        { id: "11", from: "4", to: "4", arrows: "to"},
-        { id: "12", from: "4", to: "5", arrows: "to"},
-        { id: "13", from: "5", to: "4", arrows: "to"},
-        { id: "14", from: "5", to: "5", arrows: "to"},
-        { id: "15", from: "5", to: "5", arrows: "to"},
-        { id: "16", from: "5", to: "0", arrows: "to"},
-        { id: "17", from: "0", to: "5", arrows: "to"},
+        { id:  "0", from: "0", to: "1", arrows: "to", title: "edge 0"},
+        { id:  "1", from: "1", to: "0", arrows: "to", title: "edge 1"},
+        { id:  "2", from: "1", to: "2", arrows: "to", title: "edge 2"},
+        { id:  "3", from: "2", to: "1", arrows: "to", title: "edge 3"},
+        { id:  "4", from: "0", to: "2", arrows: "to", title: "edge 4"},
+        { id:  "5", from: "2", to: "0", arrows: "to", title: "edge 5"},
+        { id:  "6", from: "2", to: "3", arrows: "to", title: "edge 6"},
+        { id:  "7", from: "3", to: "2", arrows: "to", title: "edge 7"},
+        { id:  "8", from: "3", to: "3", arrows: "to", title: "edge 8"},
+        { id:  "9", from: "3", to: "4", arrows: "to", title: "edge 9"},
+        { id: "10", from: "4", to: "3", arrows: "to", title: "edge 10"},
+        { id: "11", from: "4", to: "4", arrows: "to", title: "edge 11"},
+        { id: "12", from: "4", to: "5", arrows: "to", title: "edge 12"},
+        { id: "13", from: "5", to: "4", arrows: "to", title: "edge 13"},
+        { id: "14", from: "5", to: "5", arrows: "to", title: "edge 14"},
+        { id: "15", from: "5", to: "5", arrows: "to", title: "edge 15"},
+        { id: "16", from: "5", to: "0", arrows: "to", title: "edge 16"},
+        { id: "17", from: "0", to: "5", arrows: "to", title: "edge 17"},
     ]);
     frozen_nodes = new vis.DataSet();
     frozen_nodes.on("*", function () {
@@ -216,6 +216,7 @@ function draw() {
         edges: edges,
     };
     var options = {
+	interaction: { hover: true },
         nodes: {
             borderWidth:1,
             size:45,
