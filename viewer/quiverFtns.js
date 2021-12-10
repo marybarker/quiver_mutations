@@ -100,7 +100,7 @@ function clearQP() {
 
 function updatePotential() {
     var t = document.getElementById("term-input").value;
-    var c1 = parseInt(document.getElementById("coefficient-input").value);
+    var c1 = parseFloat(document.getElementById("coefficient-input").value);
     var c2 = 0;
     try {
         c2 = potential.get(t);
@@ -109,8 +109,12 @@ function updatePotential() {
     if (c2 == null) {
         potential.add({id: t, coef: c1.toString()});
     } else {
-	let c3 = c1 + parseInt(c2.coef);
-        potential.update({id: t, coef: c3.toString()});
+	let c3 = c1 + parseFloat(c2.coef);
+	if (c3 > 0 || c3 < 0) {
+            potential.update({id: t, coef: c3.toString()});
+	} else {
+            potential.remove({id: t});
+	}
     }
 }
 
@@ -128,13 +132,13 @@ function generateRandomPotential() {
 
 function getUniqueEdgeId() { /* create a string value that is not currently in ids for edges */
     var ne = edges.getIds();
-    ne = ne.map(function(x) {return parseInt(x);});
+    ne = ne.map(function(x) {return parseFloat(x);});
     return ne.reduce(function(a, b) {return Math.max(a, b) + 1;}, 0).toString();
 }
 
 function getUniqueNodeId() { /* create a string value that is not currently in ids for nodes */
     var nv = nodes.getIds();
-    nv = nv.map(function(x) {return parseInt(x);});
+    nv = nv.map(function(x) {return parseFloat(x);});
     return nv.reduce(function(a, b) {return Math.max(a, b) + 1;}, 0).toString();
 }
 
@@ -311,7 +315,7 @@ function arrayEquals(a, b) {
 function cycleOrder(cycle) {
     // order a list of integers with minimal element first 
     // (note: need to fix this for multiple instances of min element)
-    let thisCycle = cycle.filter(y => y != null).map(x => parseInt(x));
+    let thisCycle = cycle.filter(y => y != null).map(x => parseFloat(x));
     let minVal = Math.min(...thisCycle);
     let minIdx = thisCycle.indexOf(minVal);
     return thisCycle.slice(minIdx).concat(thisCycle.slice(0, minIdx));
@@ -322,7 +326,7 @@ function deepCopy(A) {
 }
 
 function edgesOutOf(vertex, edge_list) {
-    return Array.from(Array(edge_list.length).keys()).map(x => parseInt(x)).filter(x => edge_list[x][0] == vertex);
+    return Array.from(Array(edge_list.length).keys()).map(x => parseFloat(x)).filter(x => edge_list[x][0] == vertex);
 }
 
 function findCycleDFS(begin_vertex, at_vertex, edge_list, edges_so_far, min_length=0) {
@@ -330,7 +334,7 @@ function findCycleDFS(begin_vertex, at_vertex, edge_list, edges_so_far, min_leng
 
     for (let ei = 0; ei < edgesOut.length; ei++) {
         let e = edge_list[edgesOut[ei]];
-	let esMet = deepCopy(edges_so_far).map(y => parseInt(y));
+	let esMet = deepCopy(edges_so_far).map(y => parseFloat(y));
         esMet.push(edgesOut[ei]);
 	let currentAt = e[1];
 	              
@@ -370,17 +374,17 @@ function makeQP(es, ns, fn, p, inputType="fromVisDataSet") {
     var thisPotential = [];
 
     if (inputType == "fromVisDataSet") {
-        fns = fn.getIds().map(x => parseInt(x));
-        theseNodes = ns.getIds().map(x => parseInt(x));
-        theseEdges = es.getIds().map(x => [parseInt(es.get(x).from), parseInt(es.get(x).to)]);
+        fns = fn.getIds().map(x => parseFloat(x));
+        theseNodes = ns.getIds().map(x => parseFloat(x));
+        theseEdges = es.getIds().map(x => [parseFloat(es.get(x).from), parseFloat(es.get(x).to)]);
         // make sure that the edges in each cycle of the potential are now listed by their index,
         // rather than id, since adding/subtracting edges can leave gaps in the id#s 
 	var edgeIDMap = es.getIds();
-        thisPotential = p.getIds().map(x => [parseInt(p.get(x).coef), x.split(",").map(y => edgeIDMap.indexOf(y)).toString()]);
+        thisPotential = p.getIds().map(x => [parseFloat(p.get(x).coef), x.split(",").map(y => edgeIDMap.indexOf(y)).toString()]);
     } else {
-        fns = Array.from(fns, x => parseInt(x));
-        theseNodes = Array.from(ns, x => parseInt(x));
-        theseEdges = deepCopy(es.filter(x => (x != null))).map(x => [parseInt(x[0]), parseInt(x[1])]);
+        fns = Array.from(fns, x => parseFloat(x));
+        theseNodes = Array.from(ns, x => parseFloat(x));
+        theseEdges = deepCopy(es.filter(x => (x != null))).map(x => [parseFloat(x[0]), parseFloat(x[1])]);
         thisPotential = p;
     }
 
@@ -411,19 +415,19 @@ function makeQP(es, ns, fn, p, inputType="fromVisDataSet") {
 }
 
 function mutateQP(vertex, QP) {
-    const v = parseInt(vertex);
+    const v = parseFloat(vertex);
     if (QP.canMutate[v]) {
         // reverse the arrows incident to vertex
         var savedEdges = deepCopy(QP.edges);
         for (let ii in QP.arrowsWithHead[v]) {
             let i = QP.arrowsWithHead[v][ii];
             let e = savedEdges[i];
-            savedEdges[parseInt(i)] = [e[1],e[0]];
+            savedEdges[parseFloat(i)] = [e[1],e[0]];
         }
         for (let ii in QP.arrowsWithTail[v]) {
             let i = QP.arrowsWithTail[v][ii];
             let e = savedEdges[i];
-            savedEdges[parseInt(i)] = [e[1],e[0]];
+            savedEdges[parseFloat(i)] = [e[1],e[0]];
         }
 
         var delta = [];
@@ -432,7 +436,7 @@ function mutateQP(vertex, QP) {
         // now add 'shortcuts'
         for (let ei1i in QP.arrowsWithHead[v]) {
             let ei1 = QP.arrowsWithHead[v][ei1i];
-            var i = QP.edges[parseInt(ei1)][0];
+            var i = QP.edges[parseFloat(ei1)][0];
             for (let ei2i in QP.arrowsWithTail[v]) {
                 let ei2 = QP.arrowsWithTail[v][ei2i];
                 var j = QP.edges[ei2][1];
@@ -453,15 +457,15 @@ function mutateQP(vertex, QP) {
             var m = "";
             var foundMatch = false;
             for (let i = 0; i < monoid.length; i++) {
-                m1 = parseInt(monoid[i]);
-                m2 = parseInt(monoid[(i+1)%ml]);
-                m0 = parseInt(monoid[(i+ml-1)%ml]);
+                m1 = parseFloat(monoid[i]);
+                m2 = parseFloat(monoid[(i+1)%ml]);
+                m0 = parseFloat(monoid[(i+ml-1)%ml]);
 
                 const isIn = shortcuts.findIndex(e => arrayEquals(e, [m1, m2]));
                 const wasIn = shortcuts.findIndex(e => arrayEquals(e, [m0, m1]));
                 if ((i > 0) || (wasIn < 0)) {
                     if((isIn >= 0) && !foundMatch) {
-                        var val = QP.edges.length + parseInt(isIn);
+                        var val = QP.edges.length + parseFloat(isIn);
                         m = m + val.toString()+",";
                         foundMatch = true;
                     } else {
@@ -491,7 +495,7 @@ function pathDerivative(thisPotential, edgeIndex) {
                 const partial = x[1].split(',').map(
                     function(y) {
 			if (y != edgeIndex.toString()) {
-			    return parseInt(y);
+			    return parseFloat(y);
 			}
 		    });
                 return [x[0], partial];
@@ -505,8 +509,8 @@ function randInt(range) {
 }
 
 function randomPotential(ns, es, coefficient_range=100) {
-    theseNodes = ns.getIds().map(x => parseInt(x));
-    theseEdges = es.getIds().map(x => [parseInt(es.get(x).from), parseInt(es.get(x).to)]);
+    theseNodes = ns.getIds().map(x => parseFloat(x));
+    theseEdges = es.getIds().map(x => [parseFloat(es.get(x).from), parseFloat(es.get(x).to)]);
     let thisQP = makeQP(theseEdges, theseNodes, [0], [[0,"0"]], "fromThing");
     let allTriples = allThreeCycles(thisQP);
 
@@ -543,8 +547,8 @@ function randomPotential(ns, es, coefficient_range=100) {
 
 /*
 function randomPotential(ns, es, coefficient_range=100) {
-    theseNodes = ns.getIds().map(x => parseInt(x));
-    theseEdges = es.getIds().map(x => [parseInt(es.get(x).from), parseInt(es.get(x).to)]);
+    theseNodes = ns.getIds().map(x => parseFloat(x));
+    theseEdges = es.getIds().map(x => [parseFloat(es.get(x).from), parseFloat(es.get(x).to)]);
     var cycles = [];
     var currentPath = [];
 
@@ -579,25 +583,25 @@ function reduce(QP) {
     // if there are enough quadratic terms to cancel them
     if (squareTerms.length > 0) {
         var edgesToRemove = new Array();
-        var reduceDict = [...Array(QP.edges.length).keys()].map(x => [[1, [parseInt(x)]]]);
+        var reduceDict = [...Array(QP.edges.length).keys()].map(x => [[1, [parseFloat(x)]]]);
         for (let ti = 0; ti < squareTerms.length; ti++) {
             let t = squareTerms[ti];
-            let e1 = parseInt(t.slice(0, t.indexOf(',')));
-            let e2 = parseInt(t.slice(t.indexOf(',')+1));
-            let c = parseInt(squareCoefs[ti]);
+            let e1 = parseFloat(t.slice(0, t.indexOf(',')));
+            let e2 = parseFloat(t.slice(t.indexOf(',')+1));
+            let c = parseFloat(squareCoefs[ti]);
             if (!edgesToRemove.includes(e1)) { edgesToRemove.push(e1); }
             if (!edgesToRemove.includes(e2)) { edgesToRemove.push(e2); }
 
-            reduceDict[e1] = pathDerivative(thePotential, parseInt(e2)).map(
+            reduceDict[e1] = pathDerivative(thePotential, parseFloat(e2)).map(
                 function(x) {
                     if ((x[1].filter(y => y!=null).length > 1) || !x[1].includes(e1)) {
-                        return [-parseInt(x[0])/c, x[1]];
+                        return [-parseFloat(x[0])/c, x[1]];
                     }
                 }).filter(y => (y != null));
-            reduceDict[e2] = pathDerivative(thePotential, parseInt(e1)).map(
+            reduceDict[e2] = pathDerivative(thePotential, parseFloat(e1)).map(
                 function(x) {
                     if ((x[1].filter(y => y!=null).length > 1) || !x[1].includes(e2)) {
-                        return [-parseInt(x[0])/c, x[1]];
+                        return [-parseFloat(x[0])/c, x[1]];
                     }
                 }).filter(y => (y != null));
         }
@@ -624,7 +628,7 @@ function reduce(QP) {
 		    let c1 = o1[0];
 		    o1 = o1.toString();
                     if (!added.includes(o1)) {
-                        loopStarts.push(parseInt(c1));
+                        loopStarts.push(parseFloat(c1));
 			added.push(o1);
 	            }
 	        }
@@ -641,7 +645,7 @@ function reduce(QP) {
         // update lookup table of replacements for each edge to be removed so that
         // each replacement term only contains edges that are not in edgesToRemove
         for (let etri = 0; etri < edgesToRemove.length; etri++) {
-            let e = parseInt(edgesToRemove[etri]);
+            let e = parseFloat(edgesToRemove[etri]);
             var termsForE = deepCopy(reduceDict[e]);
             var foundReplacement = true;
             var ctr = 0;
@@ -660,7 +664,7 @@ function reduce(QP) {
                         // check if any of the terms in e's replacement
                         // terms also contains one of the edges to remove
                         if (currentTerm[1] != null) {
-                            if (currentTerm[1].some(x => (edgesToRemove.includes(parseInt(x))))) {
+                            if (currentTerm[1].some(x => (edgesToRemove.includes(parseFloat(x))))) {
                             foundReplacement = false
                       
                             // if so, then we need to replace that term
@@ -677,7 +681,7 @@ function reduce(QP) {
                                             if (nt1[1].length > 0) { 
                                                 nt11 = nt1[1].concat(rd[1]);
                                             }
-                                            nt.push([parseInt(nt1[0])*parseInt(rd[0]), nt11]);
+                                            nt.push([parseFloat(nt1[0])*parseFloat(rd[0]), nt11]);
 		            	      }
 		            	  }
                                     if (nt.length > 0) { newTerm = nt; }
@@ -710,7 +714,7 @@ function reduce(QP) {
         for (let tci = 0; tci < thePotential.length; tci++) {
 
             let coef = thePotential[tci][0];
-            let term = thePotential[tci][1].split(",").map(x => parseInt(x));
+            let term = thePotential[tci][1].split(",").map(x => parseFloat(x));
 
             var newTerm = [[coef, []]];
             for (let tti = 0; tti < term.length; tti++) {
@@ -722,7 +726,7 @@ function reduce(QP) {
 
                     for (let rdi = 0; rdi < reduceDict[tt].length; rdi++) {
                         var rd = reduceDict[tt][rdi];
-                        thisLevel.push([parseInt(nt1[0])*parseInt(rd[0]),
+                        thisLevel.push([parseFloat(nt1[0])*parseFloat(rd[0]),
                                         nt1[1].concat(rd[1])]);
                     }
                 }
@@ -761,10 +765,10 @@ function reduce(QP) {
 function removeEdges(edgeIndices, QP, altPotential="None") {
     var edgesToKeep = [...Array(QP.edges.length).keys()].map(
         function(x) {
-            if (edgeIndices.includes(parseInt(x))) {
+            if (edgeIndices.includes(parseFloat(x))) {
                 return -1;
             } else {
-                return parseInt(x);
+                return parseFloat(x);
             }
         });
     var edgeIndexLookup = edgesToKeep.filter(x => x >= 0);
@@ -780,8 +784,8 @@ function removeEdges(edgeIndices, QP, altPotential="None") {
     }
     newPotential = newPotential.map(
         function(x){
-            let y = x[1].split(",").map(y => edgeIndexLookupBackwards[parseInt(y)]);
-	    return [parseInt(x[0]), y.filter(x => x != null).toString()];
+            let y = x[1].split(",").map(y => edgeIndexLookupBackwards[parseFloat(y)]);
+	    return [parseFloat(x[0]), y.filter(x => x != null).toString()];
         });
     return makeQP(newEdges, QP.nodes, QP.frozenNodes, newPotential, "fromQP");
 }
