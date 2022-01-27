@@ -102,7 +102,7 @@ function clearQP() {
 function potentialTermIsSubsetOfEdges(term) {
     var esInTerm = term.split(",");
     var currentEdges = edges.getIds();
-    return (esInTerm.filter(x => !currentEdges.includes(x)).legnth < 1);
+    return (esInTerm.filter(x => !currentEdges.includes(x)).length < 1);
 }
 
 function updatePotential() {
