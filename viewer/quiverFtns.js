@@ -48,6 +48,7 @@ function resolve_click_event(n, p) {
     } else if (click_mode == "remove-edge") {
         if (p.edges.length > 0) {
             edges.remove({id: p.edges[0].toString()});
+            
         }
     } else if (click_mode == "add-loop") {
         var ne = getUniqueEdgeId();
@@ -98,6 +99,12 @@ function clearQP() {
     potential.clear();
 }
 
+function potentialTermIsSubsetOfEdges(term) {
+    var esInTerm = term.split(",");
+    var currentEdges = edges.getIds();
+    return (esInTerm.filter(x => !currentEdges.includes(x)).legnth < 1);
+}
+
 function updatePotential() {
     var t = document.getElementById("term-input").value;
     var c1 = parseFloat(document.getElementById("coefficient-input").value);
@@ -106,15 +113,19 @@ function updatePotential() {
         c2 = potential.get(t);
     } catch(err) {
     }
-    if (c2 == null) {
-        potential.add({id: t, coef: c1.toString()});
+    if(potentialTermIsSubsetOfEdges(t)) {
+        if (c2 == null) {
+            potential.add({id: t, coef: c1.toString()});
+        } else {
+            let c3 = c1 + parseFloat(c2.coef);
+            if (c3 > 0 || c3 < 0) {
+                potential.update({id: t, coef: c3.toString()});
+            } else {
+                potential.remove({id: t});
+            }
+        }
     } else {
-	let c3 = c1 + parseFloat(c2.coef);
-	if (c3 > 0 || c3 < 0) {
-            potential.update({id: t, coef: c3.toString()});
-	} else {
-            potential.remove({id: t});
-	}
+        alert("Error updating potential: term "+t+" contains an invalid edge");
     }
 }
 
