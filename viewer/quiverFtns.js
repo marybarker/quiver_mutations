@@ -36,7 +36,18 @@ function resolve_click_event(n, p) {
         }
     } else if (click_mode == "remove-node") {
         if (p.nodes.length > 0) {
+            var n = p.nodes[0].toString();
+            var edgesToRemove = edges.getIds().filter(x => ((edges.get(x).to == n) || (edges.get(x).from == n))); 
+
             nodes.remove({id: p.nodes[0].toString()});
+            for (let e in edgesToRemove) {
+                edges.remove({id:e});
+	    }
+
+            var potentialTermsToRemove = potential.getIds().filter(x => !potentialTermIsSubsetOfEdges(x));
+	    for (let pt = 0; pt < potentialTermsToRemove.length; pt++) {
+                potential.remove({id:potentialTermsToRemove[pt].toString()});
+	    }
         }
     } else if (click_mode == "add-edge") {
         var ne = getUniqueEdgeId();
@@ -48,7 +59,11 @@ function resolve_click_event(n, p) {
     } else if (click_mode == "remove-edge") {
         if (p.edges.length > 0) {
             edges.remove({id: p.edges[0].toString()});
-            
+
+            var potentialTermsToRemove = potential.getIds().filter(x => !potentialTermIsSubsetOfEdges(x));
+	    for (let pt = 0; pt < potentialTermsToRemove.length; pt++) {
+                potential.remove({id:potentialTermsToRemove[pt].toString()});
+	    }
         }
     } else if (click_mode == "add-loop") {
         var ne = getUniqueEdgeId();
@@ -70,22 +85,33 @@ function resolve_click_event(n, p) {
             var mQP = makeQP(edges, nodes, frozen_nodes, potential);
 
             mQP = mutateQP(current_node, mQP);
-            var outputs = [];
-            for (let i = 0; i < mQP.edges.length; i++) {
-                outputs.push({id: i.toString(), to: mQP.edges[i][1].toString(), from: mQP.edges[i][0].toString(), arrows: "to"});
-            }
-            edges.clear();
-            edges.add(outputs);
-
-	    potential.clear();
-            potential.add(mQP.potential.filter(x => (x[1] != ",")).map(function(x) {
-                return {
-                    id: x[1],
-                    coef: x[0].toString(),
-                };
-            }));
+	    updateGlobalsFromQP(mQP);
         }
     }
+}
+
+function updateGlobalsFromQP(QP) {
+    // NOTE: this routine does not update nodes global. 
+    var outputs = [];
+    for (let i = 0; i < QP.edges.length; i++) {
+        outputs.push({
+	    id: i.toString(), 
+	    to: QP.edges[i][1].toString(), 
+	    from: QP.edges[i][0].toString(), 
+	    arrows: "to",
+	    title: "edge "+i.toString()
+	});
+    }
+    edges.clear();
+    edges.add(outputs);
+
+    potential.clear();
+    potential.add(QP.potential.filter(x => (x[1] != ",")).map(function(x) {
+        return {
+            id: x[1],
+            coef: x[0].toString(),
+        };
+    }));
 }
 
 function clearPotential() {
@@ -102,7 +128,7 @@ function clearQP() {
 function potentialTermIsSubsetOfEdges(term) {
     var esInTerm = term.split(",");
     var currentEdges = edges.getIds();
-    return (esInTerm.filter(x => !currentEdges.includes(x)).length < 1);
+    return (esInTerm.filter(x => !currentEdges.includes(x.toString())).length < 1);
 }
 
 function updatePotential() {
@@ -668,7 +694,7 @@ function reduce(QP) {
 		// stopping criteria
                 foundReplacement = true; ctr++;
 
-                //placeholder for holding non-edgesToRemove lookup values for edge e
+                // placeholder for holding non-edgesToRemove lookup values for edge e
                 var altTermsForE = []
                 for (let cti = 0; cti < termsForE.length; cti++) {
                     let currentTerm = termsForE[cti];
@@ -798,8 +824,10 @@ function removeEdges(edgeIndices, QP, altPotential="None") {
     }
     newPotential = newPotential.map(
         function(x){
-            let y = x[1].split(",").map(y => edgeIndexLookupBackwards[parseInt(y)]);
-	    return [parseFloat(x[0]), y.filter(x => x != null).toString()];
+	    if (x[1].split(",").filter(y => edgeIndices.includes(parseInt(y))).length < 1) {
+                let y = x[1].split(",").map(y => edgeIndexLookupBackwards[parseInt(y)]);
+	        return [parseFloat(x[0]), y.filter(x => x != null).toString()];
+            }
         });
     return makeQP(newEdges, QP.nodes, QP.frozenNodes, newPotential, "fromQP");
 }
