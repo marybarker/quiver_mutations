@@ -37,17 +37,7 @@ function resolve_click_event(n, p) {
     } else if (click_mode == "remove-node") {
         if (p.nodes.length > 0) {
             var n = p.nodes[0].toString();
-            var edgesToRemove = edges.getIds().filter(x => ((edges.get(x).to == n) || (edges.get(x).from == n))); 
-
-            nodes.remove({id: p.nodes[0].toString()});
-            for (let e in edgesToRemove) {
-                edges.remove({id:e});
-	    }
-
-            var potentialTermsToRemove = potential.getIds().filter(x => !potentialTermIsSubsetOfEdges(x));
-	    for (let pt = 0; pt < potentialTermsToRemove.length; pt++) {
-                potential.remove({id:potentialTermsToRemove[pt].toString()});
-	    }
+	    removeGlobalTerms(nodeIdsToRemove=[n], edgeIdsToRemove=[], potentialIdsToRemove=[]);
         }
     } else if (click_mode == "add-edge") {
         var ne = getUniqueEdgeId();
@@ -58,12 +48,8 @@ function resolve_click_event(n, p) {
         }
     } else if (click_mode == "remove-edge") {
         if (p.edges.length > 0) {
-            edges.remove({id: p.edges[0].toString()});
-
-            var potentialTermsToRemove = potential.getIds().filter(x => !potentialTermIsSubsetOfEdges(x));
-	    for (let pt = 0; pt < potentialTermsToRemove.length; pt++) {
-                potential.remove({id:potentialTermsToRemove[pt].toString()});
-	    }
+	    var e = p.edges[0].toString();
+	    removeGlobalTerms([], [e], []);
         }
     } else if (click_mode == "add-loop") {
         var ne = getUniqueEdgeId();
@@ -112,6 +98,90 @@ function updateGlobalsFromQP(QP) {
             coef: x[0].toString(),
         };
     }));
+}
+
+function removeGlobalTerms(nodeIdsToRemove=[], edgeIdsToRemove=[], potentialIdsToRemove=[]) {
+    // removes nodes, edges, and potential terms and updates the index/label ordering on edges and nodes
+
+    var oldNodeIds = nodes.getIds();
+    var newNodeIndexing = [];
+
+    if (nodeIdsToRemove.length > 0) {
+        for (let ni = 0; ni < nodeIdsToRemove.length; ni++) {
+	    let n = nodeIdsToRemove[ni].toString();
+            var extraEdgesToRemove = edges.getIds().filter(x => ((edges.get(x).to == n) || (edges.get(x).from == n))); 
+            for (let ei = 0; ei < extraEdgesToRemove.length; ei++) {
+	        let e = extraEdgesToRemove[ei].toString();
+                if (!edgeIdsToRemove.includes(e)) {
+                    edgeIdsToRemove.push(e);
+                }
+            }
+	}
+	// reindex/relabel nodes
+        oldNodeIds = nodes.getIds().filter(x => !nodeIdsToRemove.includes(x));
+        newNodeIndexing = oldNodeIds.map(function(i) {
+            return {
+                id: oldNodeIds.indexOf(i).toString(), 
+                label: oldNodeIds.indexOf(i).toString(), 
+                x: nodes.get(i).x, 
+                y: nodes.get(i).y
+            };
+	});
+    }
+
+    var oldEdgeIds = edges.getIds();
+    var newEdgeIndexing = [];
+    var newPotentialTerms = [];
+    if (edgeIdsToRemove.length > 0) {
+        for (let ei = 0; ei < edgeIdsToRemove.length; ei++) {
+	    let e = edgeIdsToRemove[ei].toString();
+            edges.remove({id:e});
+        }
+	// reindex/relabel edges
+        oldEdgeIds = edges.getIds();
+        newEdgeIndexing = oldEdgeIds.map(function(i) {
+	    return {
+		    id:     oldEdgeIds.indexOf(i).toString(), 
+	            from:   oldNodeIds.indexOf(edges.get(i).from).toString(),
+	            to:     oldNodeIds.indexOf(edges.get(i).to).toString(),
+	            arrows: "to",
+	            title:  "edge "+oldEdgeIds.indexOf(i).toString()
+	        };
+	    });
+
+        var potentialTermsToRemove = potential.getIds().filter(x => !potentialTermIsSubsetOfEdges(x));
+        // remove terms from potential
+        for (let pt = 0; pt < potentialTermsToRemove.length; pt++) {
+            potential.remove({id:potentialTermsToRemove[pt].toString()});
+        }
+
+    }
+    for (let pt = 0; pt < potentialIdsToRemove.length; pt++) {
+        potential.remove({id:potentialIdsToRemove[pt].toString()});
+    }
+
+    // relabel edges in potential by their new numbering
+    for (let pt = 0; pt < potential.getIds().length; pt++) {
+        let t = potential.getIds()[pt];
+        newPotentialTerms.push({id: t.split(",").map(x => oldEdgeIds.indexOf(x.toString())).toString(), coef: potential.get(t).coef});
+    }
+    var newFn = frozen_nodes.getIds().filter(x => oldNodeIds.includes(x)).map(x => {id: oldNodeIds.indexOf(x).toString()});
+    if (newNodeIndexing.length > 0) {
+	nodes.clear();
+        nodes.add(newNodeIndexing);
+    }
+    if (newEdgeIndexing.length > 0) {
+	edges.clear();
+        edges.add(newEdgeIndexing);
+    }
+    if (newPotentialTerms.length > 0) {
+	potential.clear();
+        potential.add(newPotentialTerms);
+    }
+    if (newFn.legnth > 0) {
+	frozen_nodes.clear();
+        frozen_nodes.add(newFn);
+    }
 }
 
 function clearPotential() {
