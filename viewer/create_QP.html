@@ -68,6 +68,33 @@
             src="./quiverFtns.js">
         </script>
 
+	<script>
+            let saveFile = () => {
+                let data = JSON.stringify({
+                    "nodes": nodes.get(),
+                    "edges": edges.get(),
+                    "frozenNodes": frozen_nodes.get(),
+                    "potential": potential.get()
+                });
+
+                const textToBLOB = new Blob([data], {type: "text/plain"});
+                const sFileName = "outputs.JSON";
+
+                let newLink = document.createElement("a");
+                newLink.download = sFileName;
+
+                if (window.webkitURL != null) {
+                	   newLink.href = window.webkitURL.createObjectURL(textToBLOB);
+                }
+                else {
+                    newLink.href = window.URL.createObjectURL(textToBLOB);
+                    newLink.style.display = "none";
+                    document.body.appendChild(newLink);
+                }
+                newLink.click();
+            };
+	</script>
+
     </head>
 
     <body onload="draw()">
@@ -109,6 +136,26 @@
                 </td>
             </tr>
 	</table>
+
+	<table>
+	    <tr>
+		<td width="50%">
+                    <label for="jsonupload">Upload QP from JSON format file</label>
+                    <input type="file"
+                           accept=".json, .JSON"
+                           id="jsonupload"
+                           value="Import"/>
+                    <div>
+                        <button id="import" onclick="uploadFile()">Import</button>
+                    </div>
+	        </td>
+
+	        <td width="50%">
+		    <input type="button" id="jsondwnload" value="Download QP to file" onclick="saveFile()"/>
+		</td>
+	    </tr>
+	</table>
+
 
 	<table class="view" id="view_json">
             <! ROW 2: DISPLAY JSON DATA OF QP>
