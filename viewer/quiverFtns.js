@@ -525,7 +525,7 @@ function makeQP(es, ns, fn, p, inputType="fromVisDataSet") {
 	var edgeIDMap = es.getIds();
         thisPotential = p.getIds().map(x => [parseFloat(p.get(x).coef), x.split(",").map(y => edgeIDMap.indexOf(y)).toString()]);
     } else {
-        fns = Array.from(fns, x => parseInt(x));
+        fns = Array.from(fn, x => parseInt(x));
         theseNodes = Array.from(ns, x => parseInt(x));
         theseEdges = deepCopy(es.filter(x => (x != null))).map(x => [parseInt(x[0]), parseInt(x[1])]);
         thisPotential = p;
