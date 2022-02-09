@@ -742,13 +742,13 @@ function reduce(QP) {
             reduceDict[e1] = pathDerivative(thePotential, parseInt(e2)).map(
                 function(x) {
                     if (!((x[1].filter(y => y != null).length < 2) && x[1].includes(e1))) {
-                        return [-parseInt(x[0])/c, x[1]];
+                        return [-parseFloat(x[0])/c, x[1]];
                     }
                 }).filter(y => (y != null));
             reduceDict[e2] = pathDerivative(thePotential, parseInt(e1)).map(
                 function(x) {
                     if (!((x[1].filter(y => y != null).length < 2) && x[1].includes(e2))) {
-                        return [-parseInt(x[0])/c, x[1]];
+                        return [-parseFloat(x[0])/c, x[1]];
                     }
                 }).filter(y => (y != null));
         }
