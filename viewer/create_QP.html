@@ -93,6 +93,18 @@
                 }
                 newLink.click();
             };
+	    let uploadFile = () => {
+                var files = document.getElementById("jsonupload").files;
+                if (files.length <= 0) {
+                    return false;
+                }
+                var fr = new FileReader();
+                    fr.onload = function(e) { 
+                    var result = JSON.parse(e.target.result);
+		    updateQPFromJSON(result);
+                }
+                fr.readAsText(files.item(0));
+	    };
 	</script>
 
     </head>

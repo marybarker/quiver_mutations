@@ -100,6 +100,41 @@ function updateGlobalsFromQP(QP) {
     }));
 }
 
+function updateQPFromJSON(JSONData) {
+    clearQP();
+    edges.add(JSONData.edges.map(function(x){
+        const i = x.id;
+        const f = x.from;
+        const t = x.to;
+        return {
+    	    "id": i.toString(),
+            "from": f.toString(), "to": t.toString(),
+            "arrows": "to", "title": "edge "+i.toString()
+        }
+    }));
+    nodes.add(JSONData.nodes.map(function(x){
+        const i = x.id;
+        return {
+    	    "id": i.toString(), "label": i.toString(),
+            "x": parseFloat(x.x), "y": parseFloat(x.y)
+        }
+    }));
+    potential.add(JSONData.potential.map(function(x){
+        const i = x.id;
+        const c = x.coef;
+        return {
+    	"id": i.toString(),
+    	"coef": c.toString()
+        }
+    }));
+    frozen_nodes.add(JSONData.frozen_nodes.map(function(x){
+        const i = x.id;
+        return {
+    	"id": i.toString()
+        }
+    }));
+}
+
 function removeGlobalTerms(nodeIdsToRemove=[], edgeIdsToRemove=[], potentialIdsToRemove=[]) {
     // removes nodes, edges, and potential terms and updates the index/label ordering on edges and nodes
 
