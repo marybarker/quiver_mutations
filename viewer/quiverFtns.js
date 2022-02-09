@@ -594,8 +594,9 @@ function mutateQP(vertex, QP) {
         var wPrime = [];
         // update the potential
         for (let mci = 0; mci < QP.potential.length; mci++) {
-            var coef = QP.potential[mci][0];
-            var monoid = QP.potential[mci][1].split(',');
+            let mc = QP.potential[mci];
+            var coef = mc[0];
+            var monoid = mc[1].split(',');
             let ml = monoid.length;
             var m = "";
             var foundMatch = false;
@@ -621,8 +622,8 @@ function mutateQP(vertex, QP) {
             }
             wPrime.push([coef, m.slice(0, -1)]);
         }
-
         wPrime.push(...delta);
+
         // reduce the resulting quiver
         return reduce(makeQP(savedEdges, QP.nodes, QP.frozenNodes, wPrime, inputType="fromQP"));
     } else {
@@ -933,6 +934,6 @@ function removeEdges(edgeIndices, QP, altPotential="None") {
                 let y = x[1].split(",").map(y => edgeIndexLookupBackwards[parseInt(y)]);
 	        return [parseFloat(x[0]), y.filter(x => x != null).toString()];
             }
-        });
-    return makeQP(newEdges, QP.nodes, QP.frozenNodes, newPotential, "fromQP");
+        }).filter(x => x != null);
+    return makeQP(newEdges, QP.nodes, QP.frozenNodes, newPotential, inputType="fromQP");
 }
