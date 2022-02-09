@@ -632,9 +632,9 @@ function mutateQP(vertex, QP) {
 }
 
 function pathDerivative(thisPotential, edgeIndex) {
-    return thisPotential.map(
+    var tp = thisPotential.map(
 	function(x) {
-            const inTerm = x[1].indexOf(edgeIndex.toString());
+            const inTerm = x[1].split(",").map(y => parseInt(y)).indexOf(parseInt(edgeIndex));
             if (inTerm >= 0) {
                 const partial = x[1].split(',').map(
                     function(y) {
@@ -645,6 +645,7 @@ function pathDerivative(thisPotential, edgeIndex) {
                 return [x[0], partial];
 	    }
 	}).filter(y => (y != null));
+    if (tp != null) {return tp} else { return []}
 }
 
 function randInt(range) {
@@ -728,13 +729,15 @@ function reduce(QP) {
     if (squareTerms.length > 0) {
         var edgesToRemove = new Array();
         var reduceDict = [...Array(QP.edges.length).keys()].map(x => [[1, [parseInt(x)]]]);
+
         for (let ti = 0; ti < squareTerms.length; ti++) {
             let t = squareTerms[ti];
             let e1 = parseInt(t.slice(0, t.indexOf(',')));
             let e2 = parseInt(t.slice(t.indexOf(',')+1));
             let c = parseFloat(squareCoefs[ti]);
-            if (!edgesToRemove.includes(e1)) { edgesToRemove.push(e1); }
-            if (!edgesToRemove.includes(e2)) { edgesToRemove.push(e2); }
+
+            if (!edgesToRemove.includes(e1)) {edgesToRemove.push(e1);}
+            if (!edgesToRemove.includes(e2)) {edgesToRemove.push(e2);}
 
             reduceDict[e1] = pathDerivative(thePotential, parseInt(e2)).map(
                 function(x) {
@@ -799,7 +802,6 @@ function reduce(QP) {
             do {
 		// stopping criteria
                 foundReplacement = true; ctr++;
-
                 // placeholder for holding non-edgesToRemove lookup values for edge e
                 var altTermsForE = []
                 for (let cti = 0; cti < termsForE.length; cti++) {
@@ -848,8 +850,9 @@ function reduce(QP) {
                         }}
 		        altTermsForE.push(...altTerm);
                     }
-		    termsForE = altTermsForE;
                 }
+                reduceDict[e] = deepCopy(termsForE);
+		termsForE = deepCopy(altTermsForE);
             } while (!foundReplacement && (ctr < edgesToRemove.length));
 	    reduceDict[e] = termsForE;
         }
