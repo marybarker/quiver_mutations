@@ -87,7 +87,7 @@ def ordered_rays(L):
         if len(firstPair) < 1:
             print("ERROR IN ORDERED_RAYS ROUTINE!!!\nNever found a first pair")
             exit(1)
-        toRet = [(0, 1), (firstPair[0], firstPair[2])]
+        toRet = [(0, 1), (firstPair[0]+1, firstPair[2])]
 
         met = [firstPair[0]]
         L0 = iLs[firstPair[0]]
@@ -105,7 +105,7 @@ def ordered_rays(L):
 
                             if (vals.max() - vals.min()) < 1.0e-6:
                                 not_found = False
-                                toRet.append((iL1, vals[vals.nonzero()[0][0]]))
+                                toRet.append((iL1+1, vals[vals.nonzero()[0][0]]))
                                 met.append(iL1)
 
                                 # now update pointer to next step
@@ -115,7 +115,7 @@ def ordered_rays(L):
 
         nz = L1.nonzero()[0][0]
         # add second-to-last ray (its L2 will be the last ray)
-        toRet.append((iL1, (L0[nz] + lk[nz]) / L1[nz]))
+        toRet.append((iL1+1, (L0[nz] + lk[nz]) / L1[nz]))
         # add the last ray with a strength of 1
         toRet.append([len(L)-1, 1])
         return toRet
@@ -130,6 +130,10 @@ def is_collinear(ray, pt, tol=1.0e-6):
 
     frac = numerator / denominator
     return frac.max() - frac.min() < tol
+
+
+def veclen(vec):
+    return np.dot(vec,vec)**0.5
 
 
 def triangulation(R,a,b,c):
@@ -151,15 +155,17 @@ def triangulation(R,a,b,c):
         # reindex so that first and last points of Li correspond to the edges of the sinmplex
         pts = [pts[0]] + pts[2:] + [pts[1]]
 
-        side1_pts = sorted([((x-eis[i]).sum(), ix) for ix, x in enumerate(points) if is_collinear(eis[(i+2)%3]-eis[i], x)])
+        side1_nonzeros = set(np.nonzero(eis[i]+eis[(i+2)%3])[0])
+        side1_pts = sorted([(veclen(x-eis[i]), ix) for ix, x in enumerate(points) if set(np.nonzero(x)[0]) == side1_nonzeros])
         if len(side1_pts) > 0:
             side1_pts = [y[1] for y in side1_pts]
-            pts = [pts[side1_pts[0]]] + [x for ix, x in enumerate(points) if ix not in side1_pts] 
+            pts = [points[side1_pts[0]]] + [x for ix, x in enumerate(points) if ((ix not in side1_pts) and (ix != (i+2)%3))] 
 
-        side2_pts = sorted([((x-eis[i]).sum(), ix) for ix, x in enumerate(points) if is_collinear(eis[(i+1)%3]-eis[i], x)])
+        side2_nonzeros = set(np.nonzero(eis[i]+eis[(i+1)%3])[0])
+        side2_pts = sorted([(veclen(x-eis[i]), ix) for ix, x in enumerate(points) if set(np.nonzero(x)[0]) == side2_nonzeros])
         if len(side2_pts) > 0:
             side2_pts = [y[1] for y in side2_pts]
-            pts = [x for ix, x in enumerate(points) if ix not in side2_pts] + [pts[side2_pts[0]]]
+            pts = [x for ix, x in enumerate(points) if ((ix not in side2_pts) and (ix != (i+1)%3))] + [points[side2_pts[0]]]
     
         # now make these into rays emanating from e_i
         Lis = [x - eis[i] for x in pts]
@@ -180,7 +186,7 @@ def triangulation(R,a,b,c):
     longest_extension = 0
     for ir, r in enumerate(all_rays):
         if strengths[ir] > 1:
-            pts_along_r = [(0, segments[ir][1])] + sorted([((p-r[1]).sum(), pi) for pi, p in enumerate(points) if ((pi not in segments[ir]) and (is_collinear(r, p)))])
+            pts_along_r = [(0, segments[ir][1])] + sorted([(veclen(p-r[1]), pi) for pi, p in enumerate(points) if ((pi not in segments[ir]) and (is_collinear(r, p)))])
             potential_segments.extend([[ir, pts_along_r[i][1], pts_along_r[i+1][1]] for i in range(len(pts_along_r) - 1)])
             longest_extension = max(longest_extension, (len(pts_along_r)))
 
@@ -236,5 +242,7 @@ def triangulation(R,a,b,c):
 
 
 
-R,a,b,c=13,1,5,7#11,1,2,8
+R,a,b,c=6,1,2,3
+R,a,b,c=30,25,2,3
+R,a,b,c=11,1,2,8
 triangulation(R,a,b,c)
