@@ -67,10 +67,14 @@ def ordered_rays(L):
     # corresponds each to a ray at one 'end'
 
     L = [np.array(l) for l in L]
-    l0,lk = L[-1],L[0]
+    l0,lk = L[0],L[-1]
     iLs = L[1:-1]
-    if len(iLs) < 2:
-        return [(0, 1), (1, lk[0] + l0[0]), (2, 1)]
+    if len(iLs) < 1:
+        return [(0, 0), (1, 0)]
+    elif len(iLs) < 2:
+        l1 = iLs[0]
+        nz = l1.nonzero()[0][0]
+        return [(0, 0), (1, (l0[nz] + lk[nz])/l1[nz]), (2, 0)]
     else:
         # find L1 and L2 as a starting point
         firstPair = []
@@ -87,7 +91,7 @@ def ordered_rays(L):
         if len(firstPair) < 1:
             print("ERROR IN ORDERED_RAYS ROUTINE!!!\nNever found a first pair")
             exit(1)
-        toRet = [(0, 1), (firstPair[0]+1, firstPair[2])]
+        toRet = [(0, 0), (firstPair[0]+1, firstPair[2])]
 
         met = [firstPair[0]]
         L0 = iLs[firstPair[0]]
@@ -98,7 +102,7 @@ def ordered_rays(L):
             not_found = True
             for iL2, L2 in enumerate(iLs):
                 if not_found:
-                    if (iL2 not in met) and iL1 != iL2:
+                    if (iL2 not in met) and (iL1 != iL2):
                         vals = L0 + L2
                         if set(vals.nonzero()[0]) == set(L1.nonzero()[0]):
                             vals = vals / L1
@@ -117,7 +121,7 @@ def ordered_rays(L):
         # add second-to-last ray (its L2 will be the last ray)
         toRet.append((iL1+1, (L0[nz] + lk[nz]) / L1[nz]))
         # add the last ray with a strength of 1
-        toRet.append([len(L)-1, 1])
+        toRet.append([len(L)-1, 0])
         return toRet
 
 
@@ -140,32 +144,39 @@ def triangulation(R,a,b,c):
     # vertices defining the junior simplex (scaled by length R so we deal with integers instead of fractions)
     eis = [np.array([0 if j != i else R for j in range(3)]) for i in range(3)]
 
-    # interior lattice points for junior simplex
+    # interior lattice points for junior simplex (also scaled by r)
     Li = interior_lattice_points_nonunit(R,a,b,c)
 
+    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
+    #       STEP 1: GENERATE INITIAL RAYS AND THEIR STRENGTHS       #
+    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
     # create rays L_{i,j} emanating from each corner e_i, each with 
     # its associated 'strength' (from the Jung-Hirzebruch relation)
     all_rays = []
     strengths = []
     for i in range(3):
         # get the points of the convex hull of {Delta + interior_points}\{e_i}
-        points = [eis[(i+2)%3], eis[(i+1)%3]] + Li
+        points = [eis[(i+2)%3], eis[(i+1)%3]] + [x for x in Li if 0 not in tuple(x)]
         indices_of_cvxhull_pts = convex_hull(points)
-        pts = [points[k] for k in indices_of_cvxhull_pts]
-        # reindex so that first and last points of Li correspond to the edges of the sinmplex
-        pts = [pts[0]] + pts[2:] + [pts[1]]
+        pts = [points[k] for k in indices_of_cvxhull_pts] + [x for x in Li if 0 in tuple(x)]
 
+        side1,side2 = eis[(i+2)%3],eis[(i+1)%3]
         side1_nonzeros = set(np.nonzero(eis[i]+eis[(i+2)%3])[0])
-        side1_pts = sorted([(veclen(x-eis[i]), ix) for ix, x in enumerate(points) if set(np.nonzero(x)[0]) == side1_nonzeros])
+        side2_nonzeros = set(np.nonzero(eis[i]+eis[(i+1)%3])[0])
+        side3_nonzeros = set(np.nonzero(eis[(i+2)%3]+eis[(i+1)%3])[0])
+        side1_pts = sorted([(veclen(x-eis[i]), ix) for ix, x in enumerate(pts) if set(np.nonzero(x)[0]) == side1_nonzeros])
+        side2_pts = sorted([(veclen(x-eis[i]), ix) for ix, x in enumerate(pts) if set(np.nonzero(x)[0]) == side2_nonzeros])
+        side3_pts = [ix for ix, x in enumerate(pts) if set(np.nonzero(x)[0]) == side3_nonzeros]
+
         if len(side1_pts) > 0:
             side1_pts = [y[1] for y in side1_pts]
-            pts = [points[side1_pts[0]]] + [x for ix, x in enumerate(points) if ((ix not in side1_pts) and (ix != (i+2)%3))] 
-
-        side2_nonzeros = set(np.nonzero(eis[i]+eis[(i+1)%3])[0])
-        side2_pts = sorted([(veclen(x-eis[i]), ix) for ix, x in enumerate(points) if set(np.nonzero(x)[0]) == side2_nonzeros])
+            side1 = pts[side1_pts[0]]
         if len(side2_pts) > 0:
             side2_pts = [y[1] for y in side2_pts]
-            pts = [x for ix, x in enumerate(points) if ((ix not in side2_pts) and (ix != (i+1)%3))] + [points[side2_pts[0]]]
+            side2 = pts[side2_pts[0]]
+
+        side_pts = side1_pts+side2_pts+side3_pts+[0,1]
+        pts = [side2] + [np.array(x) for ix, x in enumerate(pts) if (ix not in side_pts)] + [side1]
     
         # now make these into rays emanating from e_i
         Lis = [x - eis[i] for x in pts]
@@ -180,16 +191,22 @@ def triangulation(R,a,b,c):
     tuplePts = [tuple(x) for x in points]
     segments = [[tuplePts.index(tuple(r[j])) for j in range(2)] for r in all_rays]
 
+    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
+    #       STEP 2: CALCULATE POSSIBLE EXTENSIONS FOR EACH RAY      #
+    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
     # not_done and potential_segments keep track of which rays can be "extended" past their endpoints (and how far)
     not_done = [True for s in segments]
     potential_segments = []
     longest_extension = 0
     for ir, r in enumerate(all_rays):
-        if strengths[ir] > 1:
+        if strengths[ir] > 0:
             pts_along_r = [(0, segments[ir][1])] + sorted([(veclen(p-r[1]), pi) for pi, p in enumerate(points) if ((pi not in segments[ir]) and (is_collinear(r, p)))])
             potential_segments.extend([[ir, pts_along_r[i][1], pts_along_r[i+1][1]] for i in range(len(pts_along_r) - 1)])
             longest_extension = max(longest_extension, (len(pts_along_r)))
 
+    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
+    #       STEP 3: FIND INTERSECTIONS OF RAYS/EXTENSIONS           #
+    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
     # now keep track of main list of segments that are going to be added to create a triangulation.
     all_segments = copy.deepcopy(segments)
     all_strengths = copy.deepcopy(strengths)
@@ -197,9 +214,9 @@ def triangulation(R,a,b,c):
         for i in range(len(segments)):
 
             # if the endpoint of this segment has not had an intersection computed already
-            if not_done[i] and (strengths[i] > 1):
+            if not_done[i] and (strengths[i] > 0):
                 pt = segments[i][1] # extract the endpoint and all segments that hit that point
-                segments_at_pt = [j for j,s in enumerate(segments) if (s[1] == pt and strengths[j] > 1 and not_done[j])]
+                segments_at_pt = [j for j,s in enumerate(segments) if (s[1] == pt and strengths[j] > 0 and not_done[j])]
 
                 # if we have multiple segments intersecting at the point:
                 if len(segments_at_pt) > 1:
@@ -230,6 +247,9 @@ def triangulation(R,a,b,c):
         segments = copy.deepcopy(all_segments)
         strengths = copy.deepcopy(all_strengths)
 
+    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
+    #     STEP 4: TESSELATE REMAINING r-SIDED TRIANGLES INTO r^2    #
+    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -244,5 +264,5 @@ def triangulation(R,a,b,c):
 
 R,a,b,c=6,1,2,3
 R,a,b,c=30,25,2,3
-R,a,b,c=11,1,2,8
+#R,a,b,c=11,1,2,8
 triangulation(R,a,b,c)
