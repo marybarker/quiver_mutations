@@ -557,6 +557,39 @@ function makeQP(es, ns, fn, p, inputType="fromVisDataSet") {
     }
 }
 
+function stringifyQP(qp, includePotential=false) {
+  const qpCopy = deepCopy(qp)
+
+  if (!includePotential) {
+    delete qpCopy.potential;
+  }
+
+  /*
+  AWT/AWH contain the same information that is already included in edges, so it doesn't need to be included
+  And the sorting of edges makes the edge IDs contained in AWH/AWT incorrect, so they need to be removed
+  */
+  delete qpCopy.arrowsWithHead;
+  delete qpCopy.arrowsWithTail;
+  delete qpCopy.loopsAt;
+
+  for (var key in qpCopy) {
+    if (Array.isArray(qpCopy[key])) {
+        qpCopy[key].sort(function (a, b) {
+            var as = JSON.stringify(a);
+            var bs = JSON.stringify(b);
+            if (as < bs) {
+                return -1;
+            }
+            if (as > bs) {
+                return 1;
+            }
+            return 0;
+        });
+    }
+  }
+  return JSON.stringify(qpCopy)
+}
+
 function mutateQP(vertex, QP) {
     const v = parseInt(vertex);
     if (QP.canMutate[v]) {
@@ -629,6 +662,33 @@ function mutateQP(vertex, QP) {
     } else {
         return makeQP(QP.edges, QP.nodes, QP.frozenNodes, QP.potential, inputType="fromQP");
     }
+}
+
+function getAllMutationsForQP(qp) {
+    var alreadySeen = [stringifyQP(qp)]
+    var chains = [''];
+
+    function collectMutations(qp, chain) {
+        for (var i = 0; i < qp.nodes.length; i++) {
+            if (!qp.canMutate[i]) {
+                continue
+            }
+            var mutated = mutateQP(qp.nodes[i], deepCopy(qp))
+            var mutatedStr = stringifyQP(mutated)
+            if (!alreadySeen.includes(mutatedStr)) {
+                alreadySeen.push(mutatedStr)
+                chains.push(chain)
+                collectMutations(mutated, chain + qp.nodes[i])
+            }
+        }
+    }
+
+    collectMutations(qp, '')
+    
+    //TODO change this - assumes stringify produces an object with the whole qp
+    alreadySeen = alreadySeen.map(qp => JSON.parse(qp))
+    
+    return {quivers: alreadySeen, chains};
 }
 
 function pathDerivative(thisPotential, edgeIndex) {
