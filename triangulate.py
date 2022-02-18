@@ -147,8 +147,7 @@ def intersects(seg1, seg2, pts):
 
         if np.count_nonzero(t1-t1[0]) + np.count_nonzero(t2-t2[0]) < 1:
             return (0<t1[0]<1) and (0<t2[0]<1)
-    else:
-        return False
+    return False
 
 def veclen(vec):
     return np.dot(vec,vec)**0.5
