@@ -135,6 +135,20 @@ def is_collinear(ray, pt, tol=1.0e-6):
     frac = numerator / denominator
     return frac.max() - frac.min() < tol
 
+def intersects(seg1, seg2, pts):
+    a1 = np.array(pts[seg1[0]])
+    a2 = np.array(pts[seg2[0]])
+    b1 = np.array(pts[seg1[1]]) - a1
+    b2 = np.array(pts[seg2[1]]) - a2
+
+    if np.count_nonzero(np.cross(b1,b2)) > 2:
+        t1 = np.cross(a2-a1, b2) / np.cross(b1,b2)
+        t2 = np.cross(a1-a2, b1) / np.cross(b2,b1)
+
+        if np.count_nonzero(t1-t1[0]) + np.count_nonzero(t2-t2[0]) < 1:
+            return (0<t1[0]<1) and (0<t2[0]<1)
+    else:
+        return False
 
 def veclen(vec):
     return np.dot(vec,vec)**0.5
@@ -211,12 +225,14 @@ def triangulation(R,a,b,c):
     all_segments = copy.deepcopy(segments)
     all_strengths = copy.deepcopy(strengths)
     for extensions in range(longest_extension + 1):
+
+        added_segments = False
         for i in range(len(segments)):
 
             # if the endpoint of this segment has not had an intersection computed already
             if not_done[i] and (strengths[i] > 0):
                 pt = segments[i][1] # extract the endpoint and all segments that hit that point
-                segments_at_pt = [j for j,s in enumerate(segments) if (s[1] == pt and strengths[j] > 0 and not_done[j])]
+                segments_at_pt = [j for j,s in enumerate(all_segments) if (s[1] == pt and all_strengths[j] > 0 and not_done[j])]
 
                 # if we have multiple segments intersecting at the point:
                 if len(segments_at_pt) > 1:
@@ -224,7 +240,7 @@ def triangulation(R,a,b,c):
                     for j in segments_at_pt:
                         not_done[j] = False
 
-                    strengths_at_pt = [strengths[j] for j in segments_at_pt]
+                    strengths_at_pt = [all_strengths[j] for j in segments_at_pt]
                     mx = max(strengths_at_pt)
                     # first check if all rays meeting at the point have equal strength (or there are multiple 'winners')
                     if strengths_at_pt.count(mx) < 2:
@@ -238,6 +254,7 @@ def triangulation(R,a,b,c):
                         all_segments.append([ps[1], ps[2]])
                         all_strengths.append(new_s)
                         not_done.append(True)
+                        added_segments = True
 
                         # now update potential segments so that they emanate from the newly added segment
                         for k in ps_from_j[1:]:
@@ -247,18 +264,55 @@ def triangulation(R,a,b,c):
         segments = copy.deepcopy(all_segments)
         strengths = copy.deepcopy(all_strengths)
 
+        # now double-check if there were no intersections (all segments need to be extended in order to reach another)
+        if (not added_segments):
+            for i in range(len(segments)):
+                if strengths[i] > 0:
+                    # get endpoint of segment
+                    pt = segments[i][1]
+
+                    # all 'potential' segments (extensions of existing ones) that emanate from pt
+                    ps_from_pt = [psi for psi, ps in enumerate(potential_segments) if (ps[1] == pt)]
+
+                    # make sure that we only extend the current segment till it intersects with another
+                    # i.e. only extend this segment if it doesn't intersect with another segment at its beginning point
+                    other_sources = set([potential_segments[psi][0] for psi in ps_from_pt])
+                    if len([x for x in other_sources if not_done[x]]) < 2:
+                        for psi in ps_from_pt:
+                            ps = potential_segments[psi]
+                            # double-check if this potential segment intersects a previously existing one
+                            not_intersects = all([~intersects([ps[1], ps[2]], s, points) for s in all_segments])
+                            if not_done[ps[0]] and not_intersects:
+                                all_segments.append([ps[1], ps[2]])
+                                all_strengths.append(all_strengths[ps[0]])
+                                not_done.append(True)
+                                potential_segments[psi] = [len(all_strengths) - 1, ps[1], ps[2]]
+
+                        for psi, ps in enumerate(potential_segments):
+                            if ps[0] == i:
+                                potential_segments[psi] = [len(all_strengths) - 1, ps[1], ps[2]]
+                        not_done[i] = False
+
+        segments = copy.deepcopy(all_segments)
+        strengths = copy.deepcopy(all_strengths)
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        for s in all_segments:
+            xp, yp, zp = np.matrix([points[s[0]], points[s[1]]]).transpose().tolist()
+            ax.plot3D(xp,yp,zp)
+        plt.show()
+
     # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
     #     STEP 4: TESSELATE REMAINING r-SIDED TRIANGLES INTO r^2    #
     # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-
     for s in all_segments:
         xp, yp, zp = np.matrix([points[s[0]], points[s[1]]]).transpose().tolist()
         ax.plot3D(xp,yp,zp)
     plt.show()
-    plt.clf()
 
 
 
