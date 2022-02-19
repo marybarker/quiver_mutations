@@ -668,10 +668,16 @@ function getAllMutationsForQP(qp) {
     var alreadySeen = [stringifyQP(qp)]
     var chains = [''];
 
+    var maxRuntime = 10000;
+    var beginTime = Date.now();
+
     function collectMutations(qp, chain) {
         for (var i = 0; i < qp.nodes.length; i++) {
             if (!qp.canMutate[i]) {
                 continue
+            }
+            if (Date.now() - beginTime > maxRuntime) {
+                return;
             }
             var mutated = mutateQP(qp.nodes[i], deepCopy(qp))
             var mutatedStr = stringifyQP(mutated)
@@ -688,7 +694,22 @@ function getAllMutationsForQP(qp) {
     //TODO change this - assumes stringify produces an object with the whole qp
     alreadySeen = alreadySeen.map(qp => JSON.parse(qp))
     
-    return {quivers: alreadySeen, chains};
+    return {quivers: alreadySeen, chains, timeout: Date.now() - beginTime > maxRuntime};
+}
+
+function showExchangeNumber() {
+    const output = document.getElementById('exchange-number-output')
+    try {
+        const result = getAllMutationsForQP(makeQP(edges, nodes, frozen_nodes, potential));
+        if (result.timeout) {
+            output.textContent = "Timed out"
+        } else {
+            output.textContent = result.quivers.length;
+        }
+    } catch(e) {
+        console.error(e);
+        output.textContent = "Error"
+    }
 }
 
 function pathDerivative(thisPotential, edgeIndex) {
