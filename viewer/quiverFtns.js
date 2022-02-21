@@ -127,7 +127,7 @@ function updateQPFromJSON(JSONData) {
     	"coef": c.toString()
         }
     }));
-    frozen_nodes.add(JSONData.frozen_nodes.map(function(x){
+    frozen_nodes.add(JSONData.frozenNodes.map(function(x){
         const i = x.id;
         return {
     	"id": i.toString()
