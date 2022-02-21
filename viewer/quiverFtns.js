@@ -525,7 +525,7 @@ function makeQP(es, ns, fn, p, inputType="fromVisDataSet") {
 	var edgeIDMap = es.getIds();
         thisPotential = p.getIds().map(x => [parseFloat(p.get(x).coef), x.split(",").map(y => edgeIDMap.indexOf(y)).toString()]);
     } else {
-        fns = Array.from(fns, x => parseInt(x));
+        fns = Array.from(fn, x => parseInt(x));
         theseNodes = Array.from(ns, x => parseInt(x));
         theseEdges = deepCopy(es.filter(x => (x != null))).map(x => [parseInt(x[0]), parseInt(x[1])]);
         thisPotential = p;
@@ -555,6 +555,39 @@ function makeQP(es, ns, fn, p, inputType="fromVisDataSet") {
         nodes: theseNodes,
         potential: thisPotential
     }
+}
+
+function stringifyQP(qp, includePotential=false) {
+  const qpCopy = deepCopy(qp)
+
+  if (!includePotential) {
+    delete qpCopy.potential;
+  }
+
+  /*
+  AWT/AWH contain the same information that is already included in edges, so it doesn't need to be included
+  And the sorting of edges makes the edge IDs contained in AWH/AWT incorrect, so they need to be removed
+  */
+  delete qpCopy.arrowsWithHead;
+  delete qpCopy.arrowsWithTail;
+  delete qpCopy.loopsAt;
+
+  for (var key in qpCopy) {
+    if (Array.isArray(qpCopy[key])) {
+        qpCopy[key].sort(function (a, b) {
+            var as = JSON.stringify(a);
+            var bs = JSON.stringify(b);
+            if (as < bs) {
+                return -1;
+            }
+            if (as > bs) {
+                return 1;
+            }
+            return 0;
+        });
+    }
+  }
+  return JSON.stringify(qpCopy)
 }
 
 function mutateQP(vertex, QP) {
@@ -628,6 +661,54 @@ function mutateQP(vertex, QP) {
         return reduce(makeQP(savedEdges, QP.nodes, QP.frozenNodes, wPrime, inputType="fromQP"));
     } else {
         return makeQP(QP.edges, QP.nodes, QP.frozenNodes, QP.potential, inputType="fromQP");
+    }
+}
+
+function getAllMutationsForQP(qp) {
+    var alreadySeen = [stringifyQP(qp)]
+    var chains = [''];
+
+    var maxRuntime = 10000;
+    var beginTime = Date.now();
+
+    function collectMutations(qp, chain) {
+        for (var i = 0; i < qp.nodes.length; i++) {
+            if (!qp.canMutate[i]) {
+                continue
+            }
+            if (Date.now() - beginTime > maxRuntime) {
+                return;
+            }
+            var mutated = mutateQP(qp.nodes[i], deepCopy(qp))
+            var mutatedStr = stringifyQP(mutated)
+            if (!alreadySeen.includes(mutatedStr)) {
+                alreadySeen.push(mutatedStr)
+                chains.push(chain)
+                collectMutations(mutated, chain + qp.nodes[i])
+            }
+        }
+    }
+
+    collectMutations(qp, '')
+    
+    //TODO change this - assumes stringify produces an object with the whole qp
+    alreadySeen = alreadySeen.map(qp => JSON.parse(qp))
+    
+    return {quivers: alreadySeen, chains, timeout: Date.now() - beginTime > maxRuntime};
+}
+
+function showExchangeNumber() {
+    const output = document.getElementById('exchange-number-output')
+    try {
+        const result = getAllMutationsForQP(makeQP(edges, nodes, frozen_nodes, potential));
+        if (result.timeout) {
+            output.textContent = "Timed out"
+        } else {
+            output.textContent = result.quivers.length;
+        }
+    } catch(e) {
+        console.error(e);
+        output.textContent = "Error"
     }
 }
 
