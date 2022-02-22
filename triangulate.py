@@ -74,7 +74,7 @@ def ordered_rays(L):
     elif len(iLs) < 2:
         l1 = iLs[0]
         nz = l1.nonzero()[0][0]
-        return [(0, 0), (1, (l0[nz] + lk[nz])/l1[nz]), (2, 0)]
+        return [(0, 0), (2, (l0[nz] + lk[nz])/l1[nz]), (1, 0)]
     else:
         # find L1 and L2 as a starting point
         firstPair = []
@@ -135,6 +135,7 @@ def is_collinear(ray, pt, tol=1.0e-6):
     frac = numerator / denominator
     return frac.max() - frac.min() < tol
 
+
 def intersects(seg1, seg2, pts):
     a1 = np.array(pts[seg1[0]])
     a2 = np.array(pts[seg2[0]])
@@ -148,6 +149,7 @@ def intersects(seg1, seg2, pts):
         if np.count_nonzero(t1-t1[0]) + np.count_nonzero(t2-t2[0]) < 1:
             return (0<t1[0]<1) and (0<t2[0]<1)
     return False
+
 
 def veclen(vec):
     return np.dot(vec,vec)**0.5
@@ -316,6 +318,6 @@ def triangulation(R,a,b,c):
 
 
 R,a,b,c=6,1,2,3
-R,a,b,c=30,25,2,3
+#R,a,b,c=30,25,2,3
 #R,a,b,c=11,1,2,8
 triangulation(R,a,b,c)
