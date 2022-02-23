@@ -71,10 +71,6 @@ def ordered_rays(L):
     iLs = L[1:-1]
     if len(iLs) < 1:
         return [(0, 0), (1, 0)]
-    elif len(iLs) < 2:
-        l1 = iLs[0]
-        nz = l1.nonzero()[0][0]
-        return [(0, 0), (2, (l0[nz] + lk[nz])/l1[nz]), (1, 0)]
     else:
         angles = np.argsort([veclen(np.cross(l, l0)) for l in iLs])
         oLs = [l0] + [iLs[x] for x in angles] + [lk]
@@ -99,7 +95,7 @@ def intersects(seg1, seg2, pts):
     b1 = np.array(pts[seg1[1]]) - a1
     b2 = np.array(pts[seg2[1]]) - a2
 
-    if np.count_nonzero(np.cross(b1,b2)) > 2:
+    if np.count_nonzero(np.cross(b1,b2)) >= len(b1):
         t1 = np.cross(a2-a1, b2) / np.cross(b1,b2)
         t2 = np.cross(a1-a2, b1) / np.cross(b2,b1)
 
@@ -276,5 +272,5 @@ def triangulation(R,a,b,c):
 
 R,a,b,c=6,1,2,3
 R,a,b,c=30,25,2,3
-R,a,b,c=11,1,2,8
+#R,a,b,c=11,1,2,8
 triangulation(R,a,b,c)
