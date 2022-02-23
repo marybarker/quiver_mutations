@@ -76,52 +76,9 @@ def ordered_rays(L):
         nz = l1.nonzero()[0][0]
         return [(0, 0), (2, (l0[nz] + lk[nz])/l1[nz]), (1, 0)]
     else:
-        # find L1 and L2 as a starting point
-        firstPair = []
-        for iL1,L1 in enumerate(iLs):
-            if len(firstPair) < 1:
-                for iL2,L2 in enumerate(iLs):
-                    if iL2 != iL1:
-                        vals = l0 + L2
-                        if set(vals.nonzero()[0]) == set(L1.nonzero()[0]):
-                            vals = vals / L1
-                            if (vals.max() - vals.min()) < 1.0e-6:
-                                firstPair = [iL1, iL2, vals[vals.nonzero()[0][0]]]
-                                break
-        if len(firstPair) < 1:
-            print("ERROR IN ORDERED_RAYS ROUTINE!!!\nNever found a first pair")
-            exit(1)
-        toRet = [(0, 0), (firstPair[0]+1, firstPair[2])]
-
-        met = [firstPair[0]]
-        L0 = iLs[firstPair[0]]
-        iL1 = firstPair[1]
-        L1 = iLs[iL1]
-
-        for i in range(len(iLs) - 1):
-            not_found = True
-            for iL2, L2 in enumerate(iLs):
-                if not_found:
-                    if (iL2 not in met) and (iL1 != iL2):
-                        vals = L0 + L2
-                        if set(vals.nonzero()[0]) == set(L1.nonzero()[0]):
-                            vals = vals / L1
-
-                            if (vals.max() - vals.min()) < 1.0e-6:
-                                not_found = False
-                                toRet.append((iL1+1, vals[vals.nonzero()[0][0]]))
-                                met.append(iL1)
-
-                                # now update pointer to next step
-                                L0 = iLs[iL1]
-                                iL1 = iL2
-                                L1 = iLs[iL1]
-
-        nz = L1.nonzero()[0][0]
-        # add second-to-last ray (its L2 will be the last ray)
-        toRet.append((iL1+1, (L0[nz] + lk[nz]) / L1[nz]))
-        # add the last ray with a strength of 1
-        toRet.append([len(L)-1, 0])
+        angles = np.argsort([veclen(np.cross(l, l0)) for l in iLs])
+        oLs = [l0] + [iLs[x] for x in angles] + [lk]
+        toRet = [(0,0)] + [(angles[i-1], (oLs[i-1][0] + oLs[i+1][0]) / oLs[i][0]) for i in range(1, len(oLs)-1)] + [(1,0)]
         return toRet
 
 
@@ -318,6 +275,6 @@ def triangulation(R,a,b,c):
 
 
 R,a,b,c=6,1,2,3
-#R,a,b,c=30,25,2,3
-#R,a,b,c=11,1,2,8
+R,a,b,c=30,25,2,3
+R,a,b,c=11,1,2,8
 triangulation(R,a,b,c)
