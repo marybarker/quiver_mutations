@@ -78,7 +78,7 @@ def ordered_rays(L):
     else:
         angles = np.argsort([veclen(np.cross(l, l0)) for l in iLs])
         oLs = [l0] + [iLs[x] for x in angles] + [lk]
-        toRet = [(0,0)] + [(angles[i-1], (oLs[i-1][0] + oLs[i+1][0]) / oLs[i][0]) for i in range(1, len(oLs)-1)] + [(1,0)]
+        toRet = [(0,0)] + [(angles[i-1]+2, (oLs[i-1][0] + oLs[i+1][0]) / oLs[i][0]) for i in range(1, len(oLs)-1)] + [(1,0)]
         return toRet
 
 
