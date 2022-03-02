@@ -664,7 +664,7 @@ function mutateQP(vertex, QP) {
     }
 }
 
-function getAllMutationsForQP(qp) {
+function getAllMutationsForQP(qp, maxMutationsToFind) {
     var alreadySeen = [stringifyQP(qp)]
     var chains = [''];
 
@@ -677,6 +677,9 @@ function getAllMutationsForQP(qp) {
                 continue
             }
             if (Date.now() - beginTime > maxRuntime) {
+                return;
+            }
+            if (chains.length === maxMutationsToFind) {
                 return;
             }
             var mutated = mutateQP(qp.nodes[i], deepCopy(qp))
@@ -710,6 +713,75 @@ function showExchangeNumber() {
         console.error(e);
         output.textContent = "Error"
     }
+}
+
+// https://stackoverflow.com/questions/546655/finding-all-cycles-in-a-directed-graph
+function findAllCycles(qp) {
+    //TODO should match a "figure 8" cycle like 2,6,7,3
+    var cycles = []
+
+    function collectCyles(qp, originNode, currentNode, visitedNodes, path) {
+        if (visitedNodes.includes(currentNode)) {
+            if (currentNode == originNode) {
+                cycles.push(path)
+            }
+        } else {
+            for (var edgeOut of qp.arrowsWithTail[currentNode]) {
+                collectCyles(qp, originNode, qp.edges[edgeOut][1], visitedNodes.concat([currentNode]), path.concat([edgeOut]))
+            }
+        }
+    }
+
+    for (var node of qp.nodes) {
+        collectCyles(qp, node, node, [], []);
+    }
+
+    return cycles;
+}
+
+function potentialSearch(qp, searchExchangeNum) {
+    var cyclesWithoutQuadratics = findAllCycles(qp).filter(cycle => cycle.length > 2)
+    var potentialTemplate = cyclesWithoutQuadratics.map(cycle => {
+        return [0, cycle.join(",")]
+    })
+
+    const maxWeight = 2;
+
+    let tested = 0;
+    let failed = 0;
+    let totalToTest = Math.pow((maxWeight + 1), potentialTemplate.length);
+
+    function buildPotentialAndTest(template, idx) {
+        if (idx === template.length) {
+            //done buidling the potential, test it
+            var qpt = deepCopy(qp)
+            qpt.potential = deepCopy(template).filter(t => t[0] !== 0);
+            try {
+                var exchangeNum = getAllMutationsForQP(qpt, searchExchangeNum + 1).quivers.length
+            } catch (e) {
+                failed++;
+            }
+            if (exchangeNum === searchExchangeNum) {
+                console.log(template)
+            } else {
+                console.log(exchangeNum)
+            }
+            tested++;
+           // console.log(tested);
+            if (tested % 100 === 0) {
+                console.log("%: ", tested / totalToTest, failed)
+            }
+        } else {
+            //set this potential term and continue building
+
+            for (var weight = 0; weight <= maxWeight; weight++) {
+                template[idx][0] = weight;
+                buildPotentialAndTest(template, idx + 1);
+            }
+        }
+    }
+
+    buildPotentialAndTest(potentialTemplate, 0)
 }
 
 function pathDerivative(thisPotential, edgeIndex) {
