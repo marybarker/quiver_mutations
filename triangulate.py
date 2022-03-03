@@ -5,11 +5,11 @@ from itertools import permutations
 import matplotlib.pyplot as plt
 
 
-def interior_lattice_points_nonunit(r=6,a=1,b=2,c=3):
+def lattice_points_nonunit(r=6,a=1,b=2,c=3):
     # Lattice points in the junior simplex lie in the plane x+y+z=1 and are of the form 
     # (i/r,j/r,k/r) where i+j+k=r. 
     # This routine returns the triples (i,j,k) instead of scaling by 1/r. 
-    points = []
+    points = [(r,0,0), (0,r,0), (0,0,r)]
     for i in range(r):
         ai = (a*i)%r
         bi = (b*i)%r
@@ -74,7 +74,7 @@ def ordered_rays(L):
     else:
         angles = np.argsort([veclen(np.cross(l, l0)) for l in iLs])
         oLs = [l0] + [iLs[x] for x in angles] + [lk]
-        toRet = [(0,0)] + [(angles[i-1]+2, (oLs[i-1][0] + oLs[i+1][0]) / oLs[i][0]) for i in range(1, len(oLs)-1)] + [(1,0)]
+        toRet = [(0,0)] + [(angles[i-1]+2, (oLs[i-1][np.flatnonzero(oLs[i])[0]] + oLs[i+1][np.flatnonzero(oLs[i])[0]]) / oLs[i][np.flatnonzero(oLs[i])[0]]) for i in range(1, len(oLs)-1)] + [(1,0)]
         return toRet
 
 
@@ -113,7 +113,7 @@ def triangulation(R,a,b,c):
     eis = [np.array([0 if j != i else R for j in range(3)]) for i in range(3)]
 
     # interior lattice points for junior simplex (also scaled by r)
-    Li = interior_lattice_points_nonunit(R,a,b,c)
+    Li = lattice_points_nonunit(R,a,b,c)
 
     # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
     #       STEP 1: GENERATE INITIAL RAYS AND THEIR STRENGTHS       #
@@ -123,53 +123,47 @@ def triangulation(R,a,b,c):
     all_rays = []
     strengths = []
     for i in range(3):
-        # get the points of the convex hull of {Delta + interior_points}\{e_i}
-        points = [eis[(i+2)%3], eis[(i+1)%3]] + [x for x in Li if 0 not in tuple(x)]
-        indices_of_cvxhull_pts = convex_hull(points)
-        pts = [points[k] for k in indices_of_cvxhull_pts] + [x for x in Li if 0 in tuple(x)]
 
-        side1,side2 = eis[(i+2)%3],eis[(i+1)%3]
-        side1_nonzeros = set(np.nonzero(eis[i]+eis[(i+2)%3])[0])
-        side2_nonzeros = set(np.nonzero(eis[i]+eis[(i+1)%3])[0])
-        side3_nonzeros = set(np.nonzero(eis[(i+2)%3]+eis[(i+1)%3])[0])
-        side1_pts = sorted([(veclen(x-eis[i]), ix) for ix, x in enumerate(pts) if set(np.nonzero(x)[0]) == side1_nonzeros])
-        side2_pts = sorted([(veclen(x-eis[i]), ix) for ix, x in enumerate(pts) if set(np.nonzero(x)[0]) == side2_nonzeros])
-        side3_pts = [ix for ix, x in enumerate(pts) if set(np.nonzero(x)[0]) == side3_nonzeros]
+        ei = tuple([0 if x != i else R for x in range(3)])
+        deleted_lattice_points = [tuple(eis[(i+1)%3]), tuple(eis[(i+2)%3])] + [x for x in Li if R not in tuple(x)]
 
-        if len(side1_pts) > 0:
-            side1_pts = [y[1] for y in side1_pts]
-            side1 = pts[side1_pts[0]]
-        if len(side2_pts) > 0:
-            side2_pts = [y[1] for y in side2_pts]
-            side2 = pts[side2_pts[0]]
+        indices_of_cvxhull_pts = convex_hull(deleted_lattice_points)
+        # extract the coordinatens of the points on the convex hull
+        pts = [deleted_lattice_points[k] for k in indices_of_cvxhull_pts] 
 
-        side_pts = side1_pts+side2_pts+side3_pts+[0,1]
-        pts = [side2] + [np.array(x) for ix, x in enumerate(pts) if (ix not in side_pts)] + [side1]
-    
-        # now make these into rays emanating from e_i
+        # convex_hull includes all lattice points along sides of the simplex, so we 
+        # need to remove all the edge-lattice points except the two closest ones that lie along the 
+        # sides emanating from ei 
+        side_pt_indices = [[j for j,p in enumerate(pts) if p[(i+k)%3] == 0] for k in range(3)]
+        side_1_closest_pt = pts[sorted([(veclen(np.array(pts[pi]) - np.array(ei)), pi) for pi in side_pt_indices[1]])[0][1]]
+        side_2_closest_pt = pts[sorted([(veclen(np.array(pts[pi]) - np.array(ei)), pi) for pi in side_pt_indices[2]])[0][1]]
+        side_pts = list(set([y for x in side_pt_indices for y in x]))
+        pts = [side_1_closest_pt] + [x for i, x in enumerate(pts) if i not in (side_pts)] + [side_2_closest_pt]
+
         Lis = [x - eis[i] for x in pts]
-    
+
         # generate initial rays and strengths for e_i
         for j, x in enumerate(ordered_rays(Lis)):
-            all_rays.append([eis[i], np.array(pts[j])])
-            strengths.append(int(x[1]))
+            if x[1] > 0:
+                all_rays.append([ei, tuple(pts[j])])
+                strengths.append(int(x[1]))
 
     # generate index-valued copies of rays and points so referencing can be done without coordinates
-    points = eis + Li
+    points = Li
     tuplePts = [tuple(x) for x in points]
-    segments = [[tuplePts.index(tuple(r[j])) for j in range(2)] for r in all_rays]
+    segments = [tuple([tuplePts.index(r[j]) for j in range(2)]) for r in all_rays]
 
     # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
     #       STEP 2: CALCULATE POSSIBLE EXTENSIONS FOR EACH RAY      #
     # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
     # not_done and potential_segments keep track of which rays can be "extended" past their endpoints (and how far)
-    not_done = [True for s in segments]
+    not_done = [True if strengths[si] != 0 else False for si, s in enumerate(segments)]
     potential_segments = []
     longest_extension = 0
     for ir, r in enumerate(all_rays):
         if strengths[ir] > 0:
-            pts_along_r = [(0, segments[ir][1])] + sorted([(veclen(p-r[1]), pi) for pi, p in enumerate(points) if ((pi not in segments[ir]) and (is_collinear(r, p)))])
-            potential_segments.extend([[ir, pts_along_r[i][1], pts_along_r[i+1][1]] for i in range(len(pts_along_r) - 1)])
+            pts_along_r = [(0, segments[ir][1])] + sorted([(veclen(p-np.array(r[1])), pi) for pi, p in enumerate(points) if ((pi not in segments[ir]) and (is_collinear(r, p)))])
+            potential_segments.extend([[ir, pts_along_r[j][1], pts_along_r[j+1][1]] for j in range(len(pts_along_r) - 1)])
             longest_extension = max(longest_extension, (len(pts_along_r)))
 
     # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
@@ -178,7 +172,7 @@ def triangulation(R,a,b,c):
     # now keep track of main list of segments that are going to be added to create a triangulation.
     all_segments = copy.deepcopy(segments)
     all_strengths = copy.deepcopy(strengths)
-    for extensions in range(longest_extension + 1):
+    for extensions in range(longest_extension):
 
         added_segments = False
         for i in range(len(segments)):
@@ -186,7 +180,7 @@ def triangulation(R,a,b,c):
             # if the endpoint of this segment has not had an intersection computed already
             if not_done[i] and (strengths[i] > 0):
                 pt = segments[i][1] # extract the endpoint and all segments that hit that point
-                segments_at_pt = [j for j,s in enumerate(all_segments) if (s[1] == pt and all_strengths[j] > 0 and not_done[j])]
+                segments_at_pt = [j for j,s in enumerate(all_segments) if (s[1] == pt and all_strengths[j] > 0)]
 
                 # if we have multiple segments intersecting at the point:
                 if len(segments_at_pt) > 1:
@@ -203,59 +197,73 @@ def triangulation(R,a,b,c):
 
                         new_s = mx - (len(strengths_at_pt) - 1)
                         ps_from_j = [psi for psi, ps in enumerate(potential_segments) if (ps[0] == j)]
-                        ps = potential_segments[ps_from_j[0]]
+                        if len(ps_from_j) > 0:
+                            ps = potential_segments[ps_from_j[0]]
 
-                        all_segments.append([ps[1], ps[2]])
-                        all_strengths.append(new_s)
-                        not_done.append(True)
-                        added_segments = True
+                            all_segments.append((ps[1], ps[2]))
+                            all_strengths.append(new_s)
+                            not_done.append(True)
+                            added_segments = True
 
-                        # now update potential segments so that they emanate from the newly added segment
-                        for k in ps_from_j[1:]:
-                            oldps = potential_segments[k]
-                            potential_segments[k] = [len(all_strengths) - 1, oldps[1], oldps[2]]
-
-        segments = copy.deepcopy(all_segments)
-        strengths = copy.deepcopy(all_strengths)
+                            # now update potential segments so that they emanate from the newly added segment
+                            for k in ps_from_j[1:]:
+                                oldps = potential_segments[k]
+                                potential_segments[k] = [len(all_strengths) - 1, oldps[1], oldps[2]]
+                            potential_segments = potential_segments[:ps_from_j[0]] + potential_segments[ps_from_j[0]+1:]
+        if added_segments:
+            segments = copy.deepcopy(all_segments)
+            strengths = copy.deepcopy(all_strengths)
 
         # now double-check if there were no intersections (all segments need to be extended in order to reach another)
         if (not added_segments):
             for i in range(len(segments)):
-                if strengths[i] > 0:
+                if strengths[i] > 0 and not_done[i]:
                     # get endpoint of segment
                     pt = segments[i][1]
 
-                    # all 'potential' segments (extensions of existing ones) that emanate from pt
-                    ps_from_pt = [psi for psi, ps in enumerate(potential_segments) if (ps[1] == pt)]
+                    # get the next 'potential' segment that extends the current one at the endpoint
+                    ps_from_pt = [psi for psi, ps in enumerate(potential_segments) if (ps[0] == i)]
 
-                    # make sure that we only extend the current segment till it intersects with another
-                    # i.e. only extend this segment if it doesn't intersect with another segment at its beginning point
-                    other_sources = set([potential_segments[psi][0] for psi in ps_from_pt])
-                    if len([x for x in other_sources if not_done[x]]) < 2:
-                        for psi in ps_from_pt:
-                            ps = potential_segments[psi]
+                    if len(ps_from_pt) > 0:
+                        ps = potential_segments[ps_from_pt[0]]
+
+                        # make sure that we only extend the current segment till it intersects with another
+                        # i.e. only extend this segment if it doesn't intersect with another segment at its endpoint
+                        other_potential_segments_hitting_pt = len([1 for x in potential_segments if x[2] == ps[2]])
+                        previous_segments_hitting_pt = len([1 for ix, x in enumerate(segments) if x[1] == pt and i != ix])
+
+                        if (other_potential_segments_hitting_pt + previous_segments_hitting_pt) < 3:
+
                             # double-check if this potential segment intersects a previously existing one
                             not_intersects = all([~intersects([ps[1], ps[2]], s, points) for s in all_segments])
                             if not_done[ps[0]] and not_intersects:
-                                all_segments.append([ps[1], ps[2]])
+                                all_segments.append((ps[1], ps[2]))
                                 all_strengths.append(all_strengths[ps[0]])
                                 not_done.append(True)
-                                potential_segments[psi] = [len(all_strengths) - 1, ps[1], ps[2]]
+                                potential_segments[ps_from_pt[0]] = [len(all_strengths) - 1, ps[1], ps[2]]
 
-                        for psi, ps in enumerate(potential_segments):
-                            if ps[0] == i:
-                                potential_segments[psi] = [len(all_strengths) - 1, ps[1], ps[2]]
-                        not_done[i] = False
-
-        segments = copy.deepcopy(all_segments)
-        strengths = copy.deepcopy(all_strengths)
+                            for psi, ps in enumerate(potential_segments):
+                                if ps[0] == i:
+                                    potential_segments[psi] = [len(all_strengths) - 1, ps[1], ps[2]]
+                            potential_segments = potential_segments[:ps_from_pt[0]] + potential_segments[ps_from_pt[0]+1:]
+                            not_done[i] = False
+            segments = copy.deepcopy(all_segments)
+            strengths = copy.deepcopy(all_strengths)
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
-        for s in all_segments:
+        for s in segments:
             xp, yp, zp = np.matrix([points[s[0]], points[s[1]]]).transpose().tolist()
             ax.plot3D(xp,yp,zp)
         plt.show()
+
+    # add segments that lie along the sides
+    for i in range(3):
+        points_along_side = sorted([tuple(x) for x in points if x[i] == 0])
+        segments_along_side = [[tuplePts.index(points_along_side[ip]), tuplePts.index(points_along_side[ip+1])] for ip in range(len(points_along_side)-1)]
+        segments.extend(segments_along_side)
+        strengths.extend([0 for x in range(len(segments_along_side))])
+        
 
     # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
     #     STEP 4: TESSELATE REMAINING r-SIDED TRIANGLES INTO r^2    #
@@ -263,7 +271,7 @@ def triangulation(R,a,b,c):
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    for s in all_segments:
+    for s in segments:
         xp, yp, zp = np.matrix([points[s[0]], points[s[1]]]).transpose().tolist()
         ax.plot3D(xp,yp,zp)
     plt.show()
