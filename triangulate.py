@@ -85,7 +85,7 @@ def is_collinear(ray, pt, tol=1.0e-6):
     if set(numerator.nonzero()[0]) != set(denominator.nonzero()[0]):
         return False
 
-    frac = numerator / denominator
+    frac = numerator[np.nonzero(denominator)] / denominator[np.nonzero(denominator)]
     return frac.max() - frac.min() < tol
 
 
@@ -106,6 +106,200 @@ def intersects(seg1, seg2, pts):
 
 def veclen(vec):
     return np.dot(vec,vec)**0.5
+
+
+def nontriangulated_sides(segments, coordinates):
+    # find out which of the edges contained in the list is not the side for 
+    # two triangles. This happens if 
+    # (1) the edge is on the boundary of the domain OR 
+    # (2) there are edges missing in the domain, making an incomplete triangulation
+
+    all_edge_segments = True
+    hanging_segments = []
+    segment_neighbor_count = [0 for s in segments]
+
+    # first generate all possible triangles (a,b,c) where a,b,c are segments and the endpoints agree
+    node_nbrs = [[] for c in range(len(coordinates))]
+    for si, s in enumerate(segments):
+        node_nbrs[s[0]].append(si)
+        node_nbrs[s[1]].append(si)
+
+    all_tris = set()
+    for s0, s in enumerate(segments):
+        for s1 in node_nbrs[s[0]]:
+            if s1 != s0:
+                for s2 in node_nbrs[s[1]]:
+                    if (s2 != s1) and (s2 != s0):
+                        if len(set([segments[si][j] for si in [s1,s2] for j in [0,1]])) == 3:
+                            all_tris.add(tuple(sorted([s0,s1,s2])))
+
+    for t in all_tris:
+        for ti in t:
+            segment_neighbor_count[ti] += 1
+
+    for si, s in enumerate(segments):
+        if segment_neighbor_count[si] < 2:
+            hanging_segments.append(s)
+            if not all([0 in coordinates[p] for p in s]):
+                all_edge_segments = False
+
+    return all_edge_segments, hanging_segments, segment_neighbor_count 
+
+
+def find_loop(starting_edge, segments, segments_to_ignore):
+    # finds loop within the set of segments that contains the 
+    # segment starting_edge, but which does not contain any 
+    # edges in the list edges_to_ignore 
+
+    edges_to_use = [x for ix, x in enumerate(segments) if ix not in segments_to_ignore]
+    reindexing = [ix for ix in range(len(segments)) if ix not in segments_to_ignore]
+
+    def follow_neighbors_of_point(begin_pt, p, all_edges, current_path):
+        nb = [ei for ei, e in enumerate(all_edges) if ((p in e) and (ei not in current_path))]
+        for e in nb:
+            if begin_pt in all_edges[e]:
+                return current_path + [e]
+            else:
+                e_pts = all_edges[e]
+                return follow_neighbors_of_point(begin_pt, e_pts[1 - e_pts.index(p)], all_edges, current_path + [e])
+
+    [p1,p2] = segments[starting_edge]
+    loop = follow_neighbors_of_point(p1, p2, edges_to_use, [reindexing.index(starting_edge)])
+    return [reindexing[x] for x in loop]
+
+
+def find_linear_groups(edge_indices, segments, coordinates):
+    # takes a set of edge_indices, and returns the groups that are aligned along a single line. 
+    to_return = []
+    edge_remaining = [True for e in range(len(segments))]
+
+    for e in edge_indices:
+        if edge_remaining[e]:
+            current_group = [e]
+            e_pts = [coordinates[s] for s in segments[e]]
+            for other_e in edge_indices:
+                if (other_e != e) and edge_remaining[other_e]:
+                    if all([is_collinear(e_pts, coordinates[p]) for p in segments[other_e] if p not in segments[e]]):
+                        current_group.append(other_e)
+                        edge_remaining[other_e] = False
+            edge_remaining[e] = False
+            to_return.append(current_group)
+    return to_return
+
+
+def identify_regular_triangles(segments, segment_adjacency_count, coordinates):
+    ts = []
+    segments_used = [x > 1 for x in segment_adjacency_count]
+    for si, s in enumerate(segments):
+        if segment_adjacency_count[si] > 0 and (0 in coordinates[s[0]] and 0 in coordinates[s[1]]):
+            segments_used[si] = True
+    interior_segments = [iy for iy, y in enumerate(segments) if not (0 in coordinates[y[0]] and 0 in coordinates[y[1]])]
+
+    remaining_interior_segments = len(interior_segments) > 0
+    ctr = 0
+    while remaining_interior_segments:
+        # begin identifying the segments that comprise another triangle
+        current_triangle = []
+        starting_edge = -1
+        for e in interior_segments:
+            if not segments_used[e]:
+                starting_edge = e
+                break
+
+        if starting_edge >= 0:
+            # identify the shortest closed 'loop' of edges that contains starting_edge
+            new_loop = find_loop(starting_edge, segments, [s for s, b in enumerate(segments_used) if b])
+            current_triangle = find_linear_groups(new_loop, segments, coordinates)
+
+            if len(current_triangle) != 3:
+                print("Error in identify_regular_triangles: came up with polygon instead of a triangle")
+                return ts
+
+            # update which edges have met all assigned neighbors
+            for s in new_loop:
+                segment_adjacency_count[s] += 1
+                if segment_adjacency_count[s] > 1:
+                    segments_used[s] = True
+            remaining_interior_segments = len([1 for s in interior_segments if not segments_used[s]]) > 0
+            ts.append([[segments[s] for s in t] for t in current_triangle])
+        else:
+            remaining_interior_segments = False
+    return ts
+
+
+def tesselate(triangle, coordinates):
+    if not (len(triangle[0]) == len(triangle[1]) == len(triangle[2])):
+        print("Error in tesselate routine: not a regular triangle.")
+        return [[]],[]
+
+    r = len(triangle[0]) - 1
+
+    def order_segments(segs):
+        [b,e] = segs[0]
+        l = [tuple(segs[0])]
+        met = [False for s in segs]
+        met[0] = True
+
+        while not all(met):
+            for si, s in enumerate(segs):
+                if not met[si]:
+                    if e in s:
+                        other = s[1-s.index(e)]
+                        l.append((e, other))
+                        e = other
+                        met[si] = True
+                    elif b in s:
+                        other = s[1-s.index(b)]
+                        l = [(other, b)] + l
+                        b = other
+                        met[si] = True
+        return l
+
+    # order the segments along each side so that side1 and side2 emanate from the 
+    # same vertex, and side3 begins at the end of side1 and ends at the end of side2. 
+    side1 = order_segments(triangle[0])
+    side2 = order_segments(triangle[1])
+    side3 = order_segments(triangle[2])
+    if side3[0][0] == side1[0][0]:
+        s2 = side2
+        side2 = side3
+        side3 = s2
+    elif side3[-1][0] == side1[0][0]:
+        s3 = side2
+        side2 = [[y[1],y[0]] for y in side3[::-1]]
+        side3 = s3
+    elif side2[-1][0] == side1[0][0]:
+        side2 = [[y[1],y[0]] for y in side2[::-1]]
+    if side3[-1][0] == side1[0][0]:
+        side3 = [[y[1],y[0]] for y in side3[::-1]]
+
+    # generate new points:
+    new_points = [[]]
+    for row in range(r):
+        num_pts_in_row = r - (row + 1)
+        row_endpoints = [coordinates[side2[row][1]], coordinates[side3[row][1]]]
+        row_pts = list(zip(*[np.linspace(coordinates[0][i], coordinates[1][i], num_pts_in_row) for i in range(3)]))
+        new_points.append(row_pts)
+
+    # create lookup table of index points for new_segments and new_points
+    vertex_map = [s[0] for s in side1] + [side1[-1][1]]
+    b = 0
+    for row in range(r):
+        vertex_map.append(side2[row][1])
+        vertex_map.extend([-(x+1) for x in range(b, b + r - 1 - row)])
+        vertex_map.append(side3[row][1])
+        b += r - 1 - row
+    vertex_map.append(side2[-1][1])
+
+    # now create segments with appropriately indexed new_pts values
+    new_segments = []
+    offset = 0
+    for row in range(r):
+        new_segments.extend([[vertex_map[offset+c], vertex_map[offset+(r+2-row)+c+j]] for j in [-1,0] for c in range(1, r+1-row)])
+        new_segments.extend([[vertex_map[offset+(r+2-row)+c+j] for j in [-1,0]] for c in range(1, r+1-row)])
+        offset += r + 2 - row
+
+    return new_points, new_segments
 
 
 def triangulation(R,a,b,c):
@@ -235,7 +429,7 @@ def triangulation(R,a,b,c):
                         if (other_potential_segments_hitting_pt + previous_segments_hitting_pt) < 3:
 
                             # double-check if this potential segment intersects a previously existing one
-                            not_intersects = all([~intersects([ps[1], ps[2]], s, points) for s in all_segments])
+                            not_intersects = all([not intersects([ps[1], ps[2]], s, points) for s in all_segments])
                             if not_done[ps[0]] and not_intersects:
                                 all_segments.append((ps[1], ps[2]))
                                 all_strengths.append(all_strengths[ps[0]])
@@ -250,12 +444,12 @@ def triangulation(R,a,b,c):
             segments = copy.deepcopy(all_segments)
             strengths = copy.deepcopy(all_strengths)
 
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        for s in segments:
-            xp, yp, zp = np.matrix([points[s[0]], points[s[1]]]).transpose().tolist()
-            ax.plot3D(xp,yp,zp)
-        plt.show()
+        #fig = plt.figure()
+        #ax = fig.add_subplot(111, projection='3d')
+        #for s in segments:
+        #    xp, yp, zp = np.matrix([points[s[0]], points[s[1]]]).transpose().tolist()
+        #    ax.plot3D(xp,yp,zp)
+        #plt.show()
 
     # add segments that lie along the sides
     for i in range(3):
@@ -263,11 +457,28 @@ def triangulation(R,a,b,c):
         segments_along_side = [[tuplePts.index(points_along_side[ip]), tuplePts.index(points_along_side[ip+1])] for ip in range(len(points_along_side)-1)]
         segments.extend(segments_along_side)
         strengths.extend([0 for x in range(len(segments_along_side))])
-        
+    segments = list(set([tuple(sorted(s)) for s in segments]))
 
     # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
     #     STEP 4: TESSELATE REMAINING r-SIDED TRIANGLES INTO r^2    #
     # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
+    #for si, s in enumerate(segments):
+    #    print("segment %d : "%si + str(points[s[0]]) + ", "+str(points[s[1]]))
+    all_edges, hanging_segments, segment_neighbor_count = nontriangulated_sides(segments, points)
+    if not all_edges:
+        regular_triangles = identify_regular_triangles(segments, segment_neighbor_count, points)
+
+        print("There are %d regular triangles"%len(regular_triangles))
+        for t in regular_triangles:
+            extra_points, extra_segments = tesselate(t, points)
+
+            if len(extra_points[0]) > 0:
+                points = points + extra_points
+
+            for e_s in extra_segments:
+                reindexed_segment = tuple([e_s[i] if e_s[i] >= 0 else (len(points) - (e_s[i] + 1)) for i in range(2)])
+                segments.append(reindexed_segment)
+    print(points, segments)
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -280,5 +491,5 @@ def triangulation(R,a,b,c):
 
 R,a,b,c=6,1,2,3
 R,a,b,c=30,25,2,3
-#R,a,b,c=11,1,2,8
+R,a,b,c=11,1,2,8
 triangulation(R,a,b,c)
