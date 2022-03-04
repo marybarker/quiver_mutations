@@ -161,6 +161,11 @@ def nontriangulated_sides(segments, coordinates):
 
 
 def all_cycles(segments):
+    # find all cycles in an undirected graph defined by the list
+    # of segments of the form [v1,v2] to denote an edge between vertices v1 and v2.
+    # note: this routine ignores multi-edges, and it does not require the vertices 
+    # to have index set {0,..., len(vertices)}.
+
     def dfs_all_cycles(segments, es_at, start_vertex, end_vertex):
         the_list = [(start_vertex, [])]
         while the_list:
@@ -285,13 +290,13 @@ def tesselate(triangle, coordinates):
         s2 = side2
         side2 = side3
         side3 = s2
-    elif side3[-1][0] == side1[0][0]:
-        s3 = side2
-        side2 = [[y[1],y[0]] for y in side3[::-1]]
-        side3 = s3
-    elif side2[-1][0] == side1[0][0]:
+    elif side3[-1][1] == side1[0][0]:
+        s2 = side2
+        side2 = side3
+        side3 = s2
+    if side2[-1][1] == side1[0][0]:
         side2 = [[y[1],y[0]] for y in side2[::-1]]
-    if side3[-1][0] == side1[0][0]:
+    if side3[-1][1] == side1[-1][1]:
         side3 = [[y[1],y[0]] for y in side3[::-1]]
 
     # generate new points:
@@ -304,7 +309,7 @@ def tesselate(triangle, coordinates):
             new_points.append(row_pts)
         elif num_pts_in_row > 0:
             row_endpoints = [coordinates[side2[row][1]], coordinates[side3[row][1]]]
-            row_pts = [0.5*(coordinates[0][i]+coordinates[1][i]) for i in range(3)]
+            row_pts = [0.5*(row_endpoints[0][i]+row_endpoints[1][i]) for i in range(3)]
             new_points.append(row_pts)
 
     # create lookup table of index points for new_segments and new_points
@@ -312,9 +317,10 @@ def tesselate(triangle, coordinates):
     b = 0
     for row in range(r):
         vertex_map.append(side2[row][1])
-        vertex_map.extend([-(x+1) for x in range(b, b + r - 1 - row)])
+        if row < (r - 1):
+            vertex_map.extend([-(x+1) for x in range(b, b + r - (1 + row))])
+            b += r - (1 + row)
         vertex_map.append(side3[row][1])
-        b += r - 1 - row
     vertex_map.append(side2[-1][1])
 
     # now create segments with appropriately indexed new_pts values
@@ -322,7 +328,7 @@ def tesselate(triangle, coordinates):
     offset = 0
     for row in range(r):
         new_segments.extend([[vertex_map[offset+c], vertex_map[offset+(r+2-row)+c+j]] for j in [-1,0] for c in range(1, r+1-row)])
-        new_segments.extend([[vertex_map[offset+(r+2-row)+c+j] for j in [-1,0]] for c in range(1, r+1-row)])
+        new_segments.extend([[vertex_map[offset+(r+2-row)+c+j] for j in [-1,0]] for c in range(1, r+2-row)])
         offset += r + 2 - row
 
     return new_points, new_segments
@@ -470,13 +476,6 @@ def triangulation(R,a,b,c):
             segments = copy.deepcopy(all_segments)
             strengths = copy.deepcopy(all_strengths)
 
-        #fig = plt.figure()
-        #ax = fig.add_subplot(111, projection='3d')
-        #for s in segments:
-        #    xp, yp, zp = np.matrix([points[s[0]], points[s[1]]]).transpose().tolist()
-        #    ax.plot3D(xp,yp,zp)
-        #plt.show()
-
     # add segments that lie along the sides
     for i in range(3):
         points_along_side = sorted([tuple(x) for x in points if x[i] == 0])
@@ -488,11 +487,7 @@ def triangulation(R,a,b,c):
     # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
     #     STEP 4: TESSELATE REMAINING r-SIDED TRIANGLES INTO r^2    #
     # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
-    #for si, s in enumerate(segments):
-    #    print("segment %d : "%si + str(points[s[0]]) + ", "+str(points[s[1]]))
     all_edges, hanging_segments, segment_neighbor_count = nontriangulated_sides(segments, points)
-    for s in sorted(segments):
-        print(s)
     if not all_edges:
         regular_triangles = identify_regular_triangles(segments, segment_neighbor_count, points)
 
@@ -508,8 +503,6 @@ def triangulation(R,a,b,c):
             if len(extra_points) > 0:
                 points = points + extra_points
 
-    print(points, segments)
-
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     for s in segments:
@@ -517,9 +510,11 @@ def triangulation(R,a,b,c):
         ax.plot3D(xp,yp,zp)
     plt.show()
 
+    #return segments, points
+
 
 
 R,a,b,c=6,1,2,3
-#R,a,b,c=30,25,2,3
+R,a,b,c=30,25,2,3
 #R,a,b,c=11,1,2,8
 triangulation(R,a,b,c)
