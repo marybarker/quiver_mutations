@@ -741,15 +741,34 @@ function findAllCycles(qp) {
 
 function potentialSearch(qp, searchExchangeNum) {
     var cyclesWithoutQuadratics = findAllCycles(qp).filter(cycle => cycle.length > 2)
-    var potentialTemplate = cyclesWithoutQuadratics.map(cycle => {
-        return [0, cycle.join(",")]
-    })
 
-    const maxWeight = 2;
+    //remove duplicate cycles
+    cyclesWithoutQuadratics = cyclesWithoutQuadratics.map(i => i.sort().join(",")).sort()
+    console.log(cyclesWithoutQuadratics)
+
+    cyclesWithoutQuadratics = cyclesWithoutQuadratics.filter((cycle, idx) => cyclesWithoutQuadratics.indexOf(cycle) === idx)
+
+    cyclesWithoutQuadratics = cyclesWithoutQuadratics.concat([
+        "8,9,10",
+        "2,6,7,3",
+        "0,1,17,16",
+        "6,8,7"
+    ])
+
+    var potentialTemplate = cyclesWithoutQuadratics.map(cycle => {
+        return [0, cycle]
+    })
+    console.log(cyclesWithoutQuadratics)
+
+    const weightsToTest = [0, 1, 2.5]
 
     let tested = 0;
     let failed = 0;
-    let totalToTest = Math.pow((maxWeight + 1), potentialTemplate.length);
+    let succeeded = 0
+    let succeededResults = []
+    //exchange num: count of succeeded
+    let exchangeNumBuckets = {};
+    let totalToTest = Math.pow(weightsToTest.length, potentialTemplate.length);
 
     function buildPotentialAndTest(template, idx) {
         if (idx === template.length) {
@@ -761,10 +780,16 @@ function potentialSearch(qp, searchExchangeNum) {
             } catch (e) {
                 failed++;
             }
-            if (exchangeNum === searchExchangeNum) {
-                console.log(template)
+            if (exchangeNumBuckets[exchangeNum]) {
+                exchangeNumBuckets[exchangeNum]++;
             } else {
-                console.log(exchangeNum)
+                exchangeNumBuckets[exchangeNum] = 1;
+            }
+            if (exchangeNum === searchExchangeNum) {
+                succeeded++;
+                succeededResults.push(deepCopy(template));
+            } else {
+               // console.log(exchangeNum)
             }
             tested++;
            // console.log(tested);
@@ -774,14 +799,23 @@ function potentialSearch(qp, searchExchangeNum) {
         } else {
             //set this potential term and continue building
 
-            for (var weight = 0; weight <= maxWeight; weight++) {
-                template[idx][0] = weight;
+            for (var weightI = 0; weightI < weightsToTest.length; weightI++) {
+                template[idx][0] = weightsToTest[weightI];
                 buildPotentialAndTest(template, idx + 1);
             }
         }
     }
 
     buildPotentialAndTest(potentialTemplate, 0)
+
+    return {
+        stats: {
+            tested,
+            succeeded,
+            failed
+        },
+        succeededResults
+    }
 }
 
 function pathDerivative(thisPotential, edgeIndex) {
