@@ -259,10 +259,13 @@ def identify_regular_triangles(segments, segment_adjacency_count, coordinates):
         for cycle in cycles:
             indexed_cycle = [remaining_segments_index[e] for e in cycle]
             current_triangle = find_linear_groups(indexed_cycle, segments, coordinates)
+            num_edges_per_side = [len(x) for x in current_triangle]
 
-            if len(current_triangle) != 3:
-                print("Error in identify_regular_triangles: came up with polygon instead of a triangle")
-                print(current_triangle)
+            # remove cycles that aren't triangle, cycles that aren't regular triangles, and the cycle that contains all the outer edges
+            if all([x not in interior_segments for x in indexed_cycle]) \
+               or len(current_triangle) != 3 \
+               or (max(num_edges_per_side) - min(num_edges_per_side)) > 0:
+                pass
             else:
                 ts.append([[segments[s] for s in t] for t in current_triangle])
     return ts
@@ -315,12 +318,17 @@ def tesselate(triangle, coordinates):
         side3 = [[y[1],y[0]] for y in side3[::-1]]
 
     # generate new points:
-    new_points = [[]]
-    for row in range(r):
+    new_points = []
+    for row in range(r - 1):
         num_pts_in_row = r - (row + 1)
-        row_endpoints = [coordinates[side2[row][1]], coordinates[side3[row][1]]]
-        row_pts = list(zip(*[np.linspace(coordinates[0][i], coordinates[1][i], num_pts_in_row) for i in range(3)]))
-        new_points.append(row_pts)
+        if num_pts_in_row > 1:
+            row_endpoints = [coordinates[side2[row][1]], coordinates[side3[row][1]]]
+            row_pts = list(zip(*[np.linspace(coordinates[0][i], coordinates[1][i], num_pts_in_row) for i in range(3)]))
+            new_points.append(row_pts)
+        elif num_pts_in_row > 0:
+            row_endpoints = [coordinates[side2[row][1]], coordinates[side3[row][1]]]
+            row_pts = [0.5*(coordinates[0][i]+coordinates[1][i]) for i in range(3)]
+            new_points.append(row_pts)
 
     # create lookup table of index points for new_segments and new_points
     vertex_map = [s[0] for s in side1] + [side1[-1][1]]
@@ -514,13 +522,15 @@ def triangulation(R,a,b,c):
         print("There are %d regular triangles"%len(regular_triangles))
         for t in regular_triangles:
             extra_points, extra_segments = tesselate(t, points)
-
-            if len(extra_points[0]) > 0:
-                points = points + extra_points
+            print("adding in %d extra points and %d extra segments"%(len(extra_points), len(extra_segments)))
 
             for e_s in extra_segments:
                 reindexed_segment = tuple([e_s[i] if e_s[i] >= 0 else (len(points) - (e_s[i] + 1)) for i in range(2)])
                 segments.append(reindexed_segment)
+
+            if len(extra_points) > 0:
+                points = points + extra_points
+
     print(points, segments)
 
     fig = plt.figure()
@@ -533,6 +543,6 @@ def triangulation(R,a,b,c):
 
 
 R,a,b,c=6,1,2,3
-R,a,b,c=30,25,2,3
+#R,a,b,c=30,25,2,3
 #R,a,b,c=11,1,2,8
 triangulation(R,a,b,c)
