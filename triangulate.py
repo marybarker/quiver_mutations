@@ -160,29 +160,6 @@ def nontriangulated_sides(segments, coordinates):
     return all_edge_segments, hanging_segments, segment_neighbor_count 
 
 
-def find_loop(starting_edge, segments, segments_to_ignore):
-    # finds loop within the set of segments that contains the 
-    # segment starting_edge, but which does not contain any 
-    # edges in the list edges_to_ignore 
-
-    edges_to_use = [x for ix, x in enumerate(segments) if ix not in segments_to_ignore]
-    reindexing = [ix for ix in range(len(segments)) if ix not in segments_to_ignore]
-
-    def follow_neighbors_of_point(begin_pt, current_pt, all_edges, current_path):
-        nb = [ei for ei, e in enumerate(all_edges) if ((current_pt in e) and (ei not in current_path))]
-        for e in nb:
-            if begin_pt in all_edges[e]:
-                return current_path + [e]
-        for e in nb:
-            other_pt = [x for x in all_edges[e] if x != current_pt][0]
-            print("following the path: "+str([segments[s] for s in current_path+[e]]))
-            return follow_neighbors_of_point(begin_pt, other_pt, all_edges, current_path + [e])
-
-    [p1,p2] = segments[starting_edge]
-    loop = follow_neighbors_of_point(p1, p2, edges_to_use, [reindexing.index(starting_edge)])
-    return [reindexing[x] for x in loop]
-
-
 def all_cycles(segments):
     def dfs_all_cycles(segments, es_at, start_vertex, end_vertex):
         the_list = [(start_vertex, [])]
@@ -212,8 +189,8 @@ def all_cycles(segments):
             if tuple(sorted(c)) not in added:
                 added.append(tuple(sorted(c)))
                 cycles.append(c)
-    #cycles = [path for node in range(len(vertices)) for path in dfs_all_cycles(indexed_edges, edges_out_of, node, node)]
     return cycles
+
 
 def find_linear_groups(edge_indices, segments, coordinates):
     # This routine takes a set of edge_indices, and returns a list of
