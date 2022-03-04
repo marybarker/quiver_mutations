@@ -328,7 +328,7 @@ def tesselate(triangle, coordinates):
     offset = 0
     for row in range(r):
         new_segments.extend([[vertex_map[offset+c], vertex_map[offset+(r+2-row)+c+j]] for j in [-1,0] for c in range(1, r+1-row)])
-        new_segments.extend([[vertex_map[offset+(r+2-row)+c+j] for j in [-1,0]] for c in range(1, r+2-row)])
+        new_segments.extend([[vertex_map[offset+(r+2-row)+c+j] for j in [-1,0]] for c in range(1, r+1-row)])
         offset += r + 2 - row
 
     return new_points, new_segments
@@ -491,10 +491,8 @@ def triangulation(R,a,b,c):
     if not all_edges:
         regular_triangles = identify_regular_triangles(segments, segment_neighbor_count, points)
 
-        print("There are %d regular triangles"%len(regular_triangles))
         for t in regular_triangles:
             extra_points, extra_segments = tesselate(t, points)
-            print("adding in %d extra points and %d extra segments"%(len(extra_points), len(extra_segments)))
 
             for e_s in extra_segments:
                 reindexed_segment = tuple([e_s[i] if e_s[i] >= 0 else (len(points) - (e_s[i] + 1)) for i in range(2)])
@@ -508,6 +506,7 @@ def triangulation(R,a,b,c):
     for s in segments:
         xp, yp, zp = np.matrix([points[s[0]], points[s[1]]]).transpose().tolist()
         ax.plot3D(xp,yp,zp)
+    ax.view_init(elev=45., azim=45)
     plt.show()
 
     #return segments, points
@@ -516,5 +515,6 @@ def triangulation(R,a,b,c):
 
 R,a,b,c=6,1,2,3
 R,a,b,c=30,25,2,3
-#R,a,b,c=11,1,2,8
+R,a,b,c=25,20,2,3
+R,a,b,c=11,1,2,8
 triangulation(R,a,b,c)
