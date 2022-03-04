@@ -79,17 +79,29 @@ def ordered_rays(L):
 
 
 def is_collinear(ray, pt, tol=1.0e-6):
+    # this routine checks if a point lies along the line 
+    # defined by the two n-dimensional points ray = [point1, point2]
+
+    # first check if the point is 'equal' to one of the points defining the ray
+    if np.allclose(np.array(ray[0]), np.array(pt)) or np.allclose(np.array(ray[1]), np.array(pt)):
+        return True
+
+    # otherwise, we'll look at the component-wise slopes 
     numerator = np.array(pt) - np.array(ray[0])
     denominator = np.array(ray[1]) - np.array(ray[0])
 
     if set(numerator.nonzero()[0]) != set(denominator.nonzero()[0]):
         return False
 
-    frac = numerator[np.nonzero(denominator)] / denominator[np.nonzero(denominator)]
+    nz = np.nonzero(denominator)
+    frac = numerator[nz] / denominator[nz]
     return frac.max() - frac.min() < tol
 
 
 def intersects(seg1, seg2, pts):
+    # check if two segments intersect at a point interior to both 
+    # (i.e. excluding intersection at endpoints and intersection
+    # of the extended lines passing through the segments)
     a1 = np.array(pts[seg1[0]])
     a2 = np.array(pts[seg2[0]])
     b1 = np.array(pts[seg1[1]]) - a1
@@ -118,12 +130,13 @@ def nontriangulated_sides(segments, coordinates):
     hanging_segments = []
     segment_neighbor_count = [0 for s in segments]
 
-    # first generate all possible triangles (a,b,c) where a,b,c are segments and the endpoints agree
+    # create quick lookup of all edges emanating from each point
     node_nbrs = [[] for c in range(len(coordinates))]
     for si, s in enumerate(segments):
         node_nbrs[s[0]].append(si)
         node_nbrs[s[1]].append(si)
 
+    # generate all possible triangles (a,b,c) where a,b,c are segments and the endpoints agree
     all_tris = set()
     for s0, s in enumerate(segments):
         for s1 in node_nbrs[s[0]]:
@@ -132,11 +145,12 @@ def nontriangulated_sides(segments, coordinates):
                     if (s2 != s1) and (s2 != s0):
                         if len(set([segments[si][j] for si in [s1,s2] for j in [0,1]])) == 3:
                             all_tris.add(tuple(sorted([s0,s1,s2])))
-
+    # now allocate each triangle as a neighbor to its 3 edges
     for t in all_tris:
         for ti in t:
             segment_neighbor_count[ti] += 1
 
+    # tabulate how many segments are missing at least one triangle neighbor
     for si, s in enumerate(segments):
         if segment_neighbor_count[si] < 2:
             hanging_segments.append(s)
@@ -154,22 +168,57 @@ def find_loop(starting_edge, segments, segments_to_ignore):
     edges_to_use = [x for ix, x in enumerate(segments) if ix not in segments_to_ignore]
     reindexing = [ix for ix in range(len(segments)) if ix not in segments_to_ignore]
 
-    def follow_neighbors_of_point(begin_pt, p, all_edges, current_path):
-        nb = [ei for ei, e in enumerate(all_edges) if ((p in e) and (ei not in current_path))]
+    def follow_neighbors_of_point(begin_pt, current_pt, all_edges, current_path):
+        nb = [ei for ei, e in enumerate(all_edges) if ((current_pt in e) and (ei not in current_path))]
         for e in nb:
             if begin_pt in all_edges[e]:
                 return current_path + [e]
-            else:
-                e_pts = all_edges[e]
-                return follow_neighbors_of_point(begin_pt, e_pts[1 - e_pts.index(p)], all_edges, current_path + [e])
+        for e in nb:
+            other_pt = [x for x in all_edges[e] if x != current_pt][0]
+            print("following the path: "+str([segments[s] for s in current_path+[e]]))
+            return follow_neighbors_of_point(begin_pt, other_pt, all_edges, current_path + [e])
 
     [p1,p2] = segments[starting_edge]
     loop = follow_neighbors_of_point(p1, p2, edges_to_use, [reindexing.index(starting_edge)])
     return [reindexing[x] for x in loop]
 
 
+def all_cycles(segments):
+    def dfs_all_cycles(segments, es_at, start_vertex, end_vertex):
+        the_list = [(start_vertex, [])]
+        while the_list:
+            state, path = the_list.pop()
+            if path and state == end_vertex:
+                yield path
+                continue
+            for next_edge in es_at[state]:
+                if next_edge in path:
+                    continue
+                next_state = [x for x in segments[next_edge] if x != state][0]
+                the_list.append((next_state, path + [next_edge]))
+
+    cycles = []
+    added = []
+    vertices = list(set([v for s in segments for v in s]))
+    indexed_edges = [[vertices.index(v) for v in s] for s in segments]
+    edges_out_of = [[] for i in range(len(vertices))]
+    for ei, e in enumerate(indexed_edges):
+        edges_out_of[e[0]].append(ei)
+        edges_out_of[e[1]].append(ei)
+
+    for node in range(len(vertices)):
+        cycles_at_node = [path for path in dfs_all_cycles(indexed_edges, edges_out_of, node, node)]
+        for c in cycles_at_node:
+            if tuple(sorted(c)) not in added:
+                added.append(tuple(sorted(c)))
+                cycles.append(c)
+    #cycles = [path for node in range(len(vertices)) for path in dfs_all_cycles(indexed_edges, edges_out_of, node, node)]
+    return cycles
+
 def find_linear_groups(edge_indices, segments, coordinates):
-    # takes a set of edge_indices, and returns the groups that are aligned along a single line. 
+    # This routine takes a set of edge_indices, and returns a list of
+    # lists, where the edge indices are grouped into lists such that 
+    # each list consists of edges that are aligned along a single line. 
     to_return = []
     edge_remaining = [True for e in range(len(segments))]
 
@@ -188,42 +237,34 @@ def find_linear_groups(edge_indices, segments, coordinates):
 
 
 def identify_regular_triangles(segments, segment_adjacency_count, coordinates):
+    # Take a set of segments and the number of neighboring triangles 
+    # for each, and return a list of 'regular triangles' i.e. triangles
+    # whose edges each consist of r segments, for some r>1.
+
     ts = []
-    segments_used = [x > 1 for x in segment_adjacency_count]
-    for si, s in enumerate(segments):
-        if segment_adjacency_count[si] > 0 and (0 in coordinates[s[0]] and 0 in coordinates[s[1]]):
-            segments_used[si] = True
+    # make a list of the segments that already have 2 neighbors (i.e. they're done)
+    completed_segments = [x > 1 for x in segment_adjacency_count]
     interior_segments = [iy for iy, y in enumerate(segments) if not (0 in coordinates[y[0]] and 0 in coordinates[y[1]])]
 
-    remaining_interior_segments = len(interior_segments) > 0
-    ctr = 0
-    while remaining_interior_segments:
-        # begin identifying the segments that comprise another triangle
-        current_triangle = []
-        starting_edge = -1
-        for e in interior_segments:
-            if not segments_used[e]:
-                starting_edge = e
-                break
+    # add in all the segments that are on an edge and already have a neighbor
+    for si, s in enumerate(segments):
+        if segment_adjacency_count[si] > 0 and (si not in interior_segments):
+            completed_segments[si] = True
 
-        if starting_edge >= 0:
-            # identify the shortest closed 'loop' of edges that contains starting_edge
-            new_loop = find_loop(starting_edge, segments, [s for s, b in enumerate(segments_used) if b])
-            current_triangle = find_linear_groups(new_loop, segments, coordinates)
+    remaining_segments = [tuple(s) for si, s in enumerate(segments) if not completed_segments[si]]
+    remaining_segments_index = [si for si, s in enumerate(segments) if not completed_segments[si]]
+    cycles = all_cycles(remaining_segments)
+
+    if len(cycles) > 0:
+        for cycle in cycles:
+            indexed_cycle = [remaining_segments_index[e] for e in cycle]
+            current_triangle = find_linear_groups(indexed_cycle, segments, coordinates)
 
             if len(current_triangle) != 3:
                 print("Error in identify_regular_triangles: came up with polygon instead of a triangle")
-                return ts
-
-            # update which edges have met all assigned neighbors
-            for s in new_loop:
-                segment_adjacency_count[s] += 1
-                if segment_adjacency_count[s] > 1:
-                    segments_used[s] = True
-            remaining_interior_segments = len([1 for s in interior_segments if not segments_used[s]]) > 0
-            ts.append([[segments[s] for s in t] for t in current_triangle])
-        else:
-            remaining_interior_segments = False
+                print(current_triangle)
+            else:
+                ts.append([[segments[s] for s in t] for t in current_triangle])
     return ts
 
 
@@ -465,6 +506,8 @@ def triangulation(R,a,b,c):
     #for si, s in enumerate(segments):
     #    print("segment %d : "%si + str(points[s[0]]) + ", "+str(points[s[1]]))
     all_edges, hanging_segments, segment_neighbor_count = nontriangulated_sides(segments, points)
+    for s in sorted(segments):
+        print(s)
     if not all_edges:
         regular_triangles = identify_regular_triangles(segments, segment_neighbor_count, points)
 
@@ -491,5 +534,5 @@ def triangulation(R,a,b,c):
 
 R,a,b,c=6,1,2,3
 R,a,b,c=30,25,2,3
-R,a,b,c=11,1,2,8
+#R,a,b,c=11,1,2,8
 triangulation(R,a,b,c)
