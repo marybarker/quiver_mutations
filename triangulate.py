@@ -1,7 +1,5 @@
 import numpy as np
 import copy
-import random
-from itertools import permutations
 import matplotlib.pyplot as plt
 
 
@@ -210,7 +208,7 @@ def find_linear_groups(edge_indices, segments, coordinates):
             e_pts = [coordinates[s] for s in segments[e]]
             for other_e in edge_indices:
                 if (other_e != e) and edge_remaining[other_e]:
-                    if all([is_collinear(e_pts, coordinates[p]) for p in segments[other_e] if p not in segments[e]]):
+                    if all([is_collinear(e_pts, coordinates[p]) for p in segments[other_e]]):
                         current_group.append(other_e)
                         edge_remaining[other_e] = False
             edge_remaining[e] = False
@@ -334,18 +332,7 @@ def tesselate(triangle, coordinates):
     return new_points, new_segments
 
 
-def triangulation(R,a,b,c):
-    # vertices defining the junior simplex (scaled by length R so we deal with integers instead of fractions)
-    eis = [np.array([0 if j != i else R for j in range(3)]) for i in range(3)]
-
-    # interior lattice points for junior simplex (also scaled by r)
-    Li = lattice_points_nonunit(R,a,b,c)
-
-    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
-    #       STEP 1: GENERATE INITIAL RAYS AND THEIR STRENGTHS       #
-    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
-    # create rays L_{i,j} emanating from each corner e_i, each with 
-    # its associated 'strength' (from the Jung-Hirzebruch relation)
+def generate_initial_rays(R, eis, Li):
     all_rays = []
     strengths = []
     for i in range(3):
@@ -375,30 +362,14 @@ def triangulation(R,a,b,c):
                 strengths.append(int(x[1]))
 
     # generate index-valued copies of rays and points so referencing can be done without coordinates
-    points = Li
-    tuplePts = [tuple(x) for x in points]
-    segments = [tuple([tuplePts.index(r[j]) for j in range(2)]) for r in all_rays]
+    return all_rays, strengths
 
-    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
-    #       STEP 2: CALCULATE POSSIBLE EXTENSIONS FOR EACH RAY      #
-    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
-    # not_done and potential_segments keep track of which rays can be "extended" past their endpoints (and how far)
-    not_done = [True if strengths[si] != 0 else False for si, s in enumerate(segments)]
-    potential_segments = []
-    longest_extension = 0
-    for ir, r in enumerate(all_rays):
-        if strengths[ir] > 0:
-            pts_along_r = [(0, segments[ir][1])] + sorted([(veclen(p-np.array(r[1])), pi) for pi, p in enumerate(points) if ((pi not in segments[ir]) and (is_collinear(r, p)))])
-            potential_segments.extend([[ir, pts_along_r[j][1], pts_along_r[j+1][1]] for j in range(len(pts_along_r) - 1)])
-            longest_extension = max(longest_extension, (len(pts_along_r)))
 
-    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
-    #       STEP 3: FIND INTERSECTIONS OF RAYS/EXTENSIONS           #
-    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
-    # now keep track of main list of segments that are going to be added to create a triangulation.
-    all_segments = copy.deepcopy(segments)
-    all_strengths = copy.deepcopy(strengths)
-    for extensions in range(longest_extension):
+def Reids_recipe(segments, strengths, not_done, potential_segments, longest_extension, coordinates):
+    all_segments = segments
+    all_strengths = strengths
+
+    for extensions in range(2*longest_extension):
 
         added_segments = False
         for i in range(len(segments)):
@@ -416,6 +387,7 @@ def triangulation(R,a,b,c):
 
                     strengths_at_pt = [all_strengths[j] for j in segments_at_pt]
                     mx = max(strengths_at_pt)
+
                     # first check if all rays meeting at the point have equal strength (or there are multiple 'winners')
                     if strengths_at_pt.count(mx) < 2:
                         ij = strengths_at_pt.index(mx)
@@ -438,73 +410,108 @@ def triangulation(R,a,b,c):
                             potential_segments = potential_segments[:ps_from_j[0]] + potential_segments[ps_from_j[0]+1:]
         if added_segments:
             segments = copy.deepcopy(all_segments)
-            strengths = copy.deepcopy(all_strengths)
+            strengths = all_strengths
 
         # now double-check if there were no intersections (all segments need to be extended in order to reach another)
         if (not added_segments):
             for i in range(len(segments)):
                 if strengths[i] > 0 and not_done[i]:
-                    # get endpoint of segment
-                    pt = segments[i][1]
-
-                    # get the next 'potential' segment that extends the current one at the endpoint
+                    # get the 'potential' segments that extend the current one at the endpoint
                     ps_from_pt = [psi for psi, ps in enumerate(potential_segments) if (ps[0] == i)]
 
                     if len(ps_from_pt) > 0:
+                        # extract the first extension
                         ps = potential_segments[ps_from_pt[0]]
 
                         # make sure that we only extend the current segment till it intersects with another
                         # i.e. only extend this segment if it doesn't intersect with another segment at its endpoint
-                        other_potential_segments_hitting_pt = len([1 for x in potential_segments if x[2] == ps[2]])
-                        previous_segments_hitting_pt = len([1 for ix, x in enumerate(segments) if x[1] == pt and i != ix])
+                        previous_segments_hitting_pt = len([1 for ix, x in enumerate(all_segments) if (x[1] == ps[2] and not_done[ix])])
 
-                        if (other_potential_segments_hitting_pt + previous_segments_hitting_pt) < 3:
+                        if previous_segments_hitting_pt < 2:
 
                             # double-check if this potential segment intersects a previously existing one
-                            not_intersects = all([not intersects([ps[1], ps[2]], s, points) for s in all_segments])
-                            if not_done[ps[0]] and not_intersects:
+                            not_intersects = all([not intersects([ps[1], ps[2]], s, coordinates) for s in all_segments])
+                            if not_intersects:
                                 all_segments.append((ps[1], ps[2]))
                                 all_strengths.append(all_strengths[ps[0]])
                                 not_done.append(True)
-                                potential_segments[ps_from_pt[0]] = [len(all_strengths) - 1, ps[1], ps[2]]
 
                             for psi, ps in enumerate(potential_segments):
                                 if ps[0] == i:
                                     potential_segments[psi] = [len(all_strengths) - 1, ps[1], ps[2]]
                             potential_segments = potential_segments[:ps_from_pt[0]] + potential_segments[ps_from_pt[0]+1:]
                             not_done[i] = False
-            segments = copy.deepcopy(all_segments)
-            strengths = copy.deepcopy(all_strengths)
+            segments = all_segments
+            strengths = all_strengths
 
+    return segments
+
+
+def triangulation(R,a,b,c):
+    # vertices defining the junior simplex (scaled by length R so we deal with integers instead of fractions)
+    eis = [np.array([0 if j != i else R for j in range(3)]) for i in range(3)]
+
+    # interior lattice points for junior simplex (also scaled by r)
+    coordinates = lattice_points_nonunit(R,a,b,c) # list of arrays
+    tuplePts = [tuple(x) for x in coordinates] # list of tuples (used for finding index of point)
+
+    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
+    #       STEP 1: GENERATE INITIAL RAYS AND THEIR STRENGTHS       #
+    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
+    # create rays L_{i,j} emanating from each corner e_i, each with 
+    # its associated 'strength' (from the Jung-Hirzebruch relation)
+    segments_with_coords, strengths = generate_initial_rays(R, eis, coordinates)
+    segments = [tuple([tuplePts.index(r[j]) for j in range(2)]) for r in segments_with_coords]
+
+    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
+    #       STEP 2: CALCULATE POSSIBLE EXTENSIONS FOR EACH RAY      #
+    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
+    # not_done and potential_segments keep track of which rays can be "extended" past their endpoints (and how far)
+    not_done = [True if strengths[si] != 0 else False for si, s in enumerate(segments)]
+    potential_segments = []
+    longest_extension = 0
+    for ir, r in enumerate(segments_with_coords):
+        if strengths[ir] > 0:
+            pts_along_r = [(0, segments[ir][1])] + sorted([(veclen(p-np.array(r[1])), pi) for pi, p in enumerate(coordinates) if ((pi not in segments[ir]) and (is_collinear(r, p)))])
+            potential_segments.extend([[ir, pts_along_r[j][1], pts_along_r[j+1][1]] for j in range(len(pts_along_r) - 1)])
+            longest_extension = max(longest_extension, (len(pts_along_r)))
+
+
+    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
+    #       STEP 3: FIND INTERSECTIONS OF RAYS/EXTENSIONS           #
+    # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
+    # now keep track of main list of segments that are going to be added to create a triangulation.
+    segments = Reids_recipe(segments, strengths, not_done, potential_segments, longest_extension, coordinates)
     # add segments that lie along the sides
     for i in range(3):
-        points_along_side = sorted([tuple(x) for x in points if x[i] == 0])
+        points_along_side = sorted([tuple(x) for x in coordinates if x[i] == 0])
         segments_along_side = [[tuplePts.index(points_along_side[ip]), tuplePts.index(points_along_side[ip+1])] for ip in range(len(points_along_side)-1)]
         segments.extend(segments_along_side)
         strengths.extend([0 for x in range(len(segments_along_side))])
     segments = list(set([tuple(sorted(s)) for s in segments]))
 
+
     # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
     #     STEP 4: TESSELATE REMAINING r-SIDED TRIANGLES INTO r^2    #
     # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
-    all_edges, hanging_segments, segment_neighbor_count = nontriangulated_sides(segments, points)
+    all_edges, hanging_segments, segment_neighbor_count = nontriangulated_sides(segments, coordinates)
     if not all_edges:
-        regular_triangles = identify_regular_triangles(segments, segment_neighbor_count, points)
+        regular_triangles = identify_regular_triangles(segments, segment_neighbor_count, coordinates)
 
         for t in regular_triangles:
-            extra_points, extra_segments = tesselate(t, points)
+            extra_points, extra_segments = tesselate(t, coordinates)
 
             for e_s in extra_segments:
-                reindexed_segment = tuple([e_s[i] if e_s[i] >= 0 else (len(points) - (e_s[i] + 1)) for i in range(2)])
+                reindexed_segment = tuple([e_s[i] if e_s[i] >= 0 else (len(coordinates) - (e_s[i] + 1)) for i in range(2)])
                 segments.append(reindexed_segment)
 
             if len(extra_points) > 0:
-                points = points + extra_points
+                coordinates = coordinates + extra_points
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     for s in segments:
-        xp, yp, zp = np.matrix([points[s[0]], points[s[1]]]).transpose().tolist()
+        xp, yp, zp = np.matrix([coordinates[s[0]], coordinates[s[1]]]).transpose().tolist()
         ax.plot3D(xp,yp,zp)
     ax.view_init(elev=45., azim=45)
     plt.show()
@@ -515,6 +522,11 @@ def triangulation(R,a,b,c):
 
 R,a,b,c=6,1,2,3
 R,a,b,c=30,25,2,3
-R,a,b,c=25,20,2,3
+R,a,b,c=25,3,1,21
+triangulation(R,a,b,c)
+R,a,b,c=30,25,2,3
+triangulation(R,a,b,c)
 R,a,b,c=11,1,2,8
+triangulation(R,a,b,c)
+R,a,b,c=6,1,2,3
 triangulation(R,a,b,c)
