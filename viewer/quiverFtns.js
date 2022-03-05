@@ -756,14 +756,14 @@ function potentialSearch(qp, searchExchangeNum) {
     var cyclesWithoutQuadratics = findAllCycles(qp).filter(cycle => cycle.length > 2)
 
     cyclesWithoutQuadratics = cyclesWithoutQuadratics.concat([
-        "8,9,10",
-        "2,6,7,3",
-        "0,1,17,16",
-        "6,8,7"
+        [8, 9, 10],
+        [2, 6, 7, 3],
+        [0, 1, 17, 16],
+        [6, 8, 7]
     ])
 
     var potentialTemplate = cyclesWithoutQuadratics.map(cycle => {
-        return [0, cycle]
+        return [0, cycle.join(",")]
     })
     console.log(cyclesWithoutQuadratics)
 
@@ -785,6 +785,7 @@ function potentialSearch(qp, searchExchangeNum) {
             try {
                 var exchangeNum = getAllMutationsForQP(qpt, searchExchangeNum + 1).quivers.length
             } catch (e) {
+                console.log(e)
                 failed++;
             }
             if (exchangeNumBuckets[exchangeNum]) {
