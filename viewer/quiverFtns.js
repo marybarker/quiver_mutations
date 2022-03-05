@@ -411,6 +411,7 @@ function draw() {
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 function allThreeCycles (QP) {
     var triples = [];
+    let alreadySeen = []
     for (let v1 in QP.nodes) {
         let arrowsOut1 = QP.arrowsWithTail[v1];
 
@@ -437,8 +438,9 @@ function allThreeCycles (QP) {
 
                             if (v4 == v1) {
                                 let triple = cycleOrder([e1i, e2i, e3i]).toString();
-                                if (!triples.includes(triple)) {
+                                if (!alreadySeen.includes(triple)) {
                                     triples.push([e1i,e2i,e3i]);
+                                    alreadySeen.push([e1i,e2i,e3i].toString());
                                 }
                             }
                         }
@@ -736,17 +738,22 @@ function findAllCycles(qp) {
         collectCyles(qp, node, node, [], []);
     }
 
+   // cycles = cycles.map(cycle => cycle.sort())
+
+    cycles = cycles.filter(function(cycle, idx) {
+        for(var idx2 = 0; idx2 < idx; idx2++) {
+            if (JSON.stringify(cycleOrder(cycles[idx])) === JSON.stringify(cycles[idx2])) {
+                return false;
+            }
+        }
+        return true;
+    })
+
     return cycles;
 }
 
 function potentialSearch(qp, searchExchangeNum) {
     var cyclesWithoutQuadratics = findAllCycles(qp).filter(cycle => cycle.length > 2)
-
-    //remove duplicate cycles
-    cyclesWithoutQuadratics = cyclesWithoutQuadratics.map(i => i.sort().join(",")).sort()
-    console.log(cyclesWithoutQuadratics)
-
-    cyclesWithoutQuadratics = cyclesWithoutQuadratics.filter((cycle, idx) => cyclesWithoutQuadratics.indexOf(cycle) === idx)
 
     cyclesWithoutQuadratics = cyclesWithoutQuadratics.concat([
         "8,9,10",
@@ -793,7 +800,7 @@ function potentialSearch(qp, searchExchangeNum) {
             }
             tested++;
            // console.log(tested);
-            if (tested % 100 === 0) {
+            if (tested % 1000 === 0) {
                 console.log("%: ", tested / totalToTest, failed)
             }
         } else {
