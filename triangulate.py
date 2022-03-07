@@ -368,35 +368,39 @@ def generate_initial_rays(R, eis, Li):
 def Reids_recipe(segments, strengths, not_done, potential_segments, longest_extension, coordinates):
     all_segments = segments
     all_strengths = strengths
+    total_num_extensions = len(segments)*longest_extension
 
-    for extensions in range(2*longest_extension):
+    for extensions in range(total_num_extensions):
 
         added_segments = False
-        for i in range(len(segments)):
+        for seg_i,seg in enumerate(segments):
 
             # if the endpoint of this segment has not had an intersection computed already
-            if not_done[i] and (strengths[i] > 0):
-                pt = segments[i][1] # extract the endpoint and all segments that hit that point
+            if not_done[seg_i] and (strengths[seg_i] > 0):
+                pt = seg[1] # extract the endpoint and all segments that hit that point
                 segments_at_pt = [j for j,s in enumerate(all_segments) if (s[1] == pt and all_strengths[j] > 0)]
 
                 # if we have multiple segments intersecting at the point:
                 if len(segments_at_pt) > 1:
 
+                    # mark all of the intersecting segments as "done"
                     for j in segments_at_pt:
                         not_done[j] = False
 
+                    # get the strengths of each segment, and the maximum strength
                     strengths_at_pt = [all_strengths[j] for j in segments_at_pt]
                     mx = max(strengths_at_pt)
 
                     # first check if all rays meeting at the point have equal strength (or there are multiple 'winners')
                     if strengths_at_pt.count(mx) < 2:
-                        ij = strengths_at_pt.index(mx)
-                        j = segments_at_pt[ij]
+                        winner_index = strengths_at_pt.index(mx)
+                        winner = segments_at_pt[winner_index]
 
                         new_s = mx - (len(strengths_at_pt) - 1)
-                        ps_from_j = [psi for psi, ps in enumerate(potential_segments) if (ps[0] == j)]
-                        if len(ps_from_j) > 0:
-                            ps = potential_segments[ps_from_j[0]]
+                        ps_from_winner = [psi for psi, ps in enumerate(potential_segments) if (ps[0] == winner)]
+
+                        if len(ps_from_winner) > 0: # if the winner can be extended further
+                            ps = potential_segments[ps_from_winner[0]] # extract the first segment extension of winner
 
                             all_segments.append((ps[1], ps[2]))
                             all_strengths.append(new_s)
@@ -404,43 +408,29 @@ def Reids_recipe(segments, strengths, not_done, potential_segments, longest_exte
                             added_segments = True
 
                             # now update potential segments so that they emanate from the newly added segment
-                            for k in ps_from_j[1:]:
+                            for k in ps_from_winner[1:]:
                                 oldps = potential_segments[k]
                                 potential_segments[k] = [len(all_strengths) - 1, oldps[1], oldps[2]]
-                            potential_segments = potential_segments[:ps_from_j[0]] + potential_segments[ps_from_j[0]+1:]
-        if added_segments:
-            segments = copy.deepcopy(all_segments)
-            strengths = all_strengths
-
-        # now double-check if there were no intersections (all segments need to be extended in order to reach another)
-        if (not added_segments):
-            for i in range(len(segments)):
-                if strengths[i] > 0 and not_done[i]:
-                    # get the 'potential' segments that extend the current one at the endpoint
-                    ps_from_pt = [psi for psi, ps in enumerate(potential_segments) if (ps[0] == i)]
+                            potential_segments = potential_segments[:ps_from_winner[0]] + potential_segments[ps_from_winner[0]+1:]
+                else:
+                    ps_from_pt = [psi for psi, ps in enumerate(potential_segments) if (ps[0] == seg_i)]
 
                     if len(ps_from_pt) > 0:
-                        # extract the first extension
                         ps = potential_segments[ps_from_pt[0]]
+                        # double-check if this potential segment intersects a previously existing one
+                        not_intersects = all([not intersects([ps[1], ps[2]], s, coordinates) for s in all_segments])
+                        if not_intersects:
+                            all_segments.append((ps[1], ps[2]))
+                            all_strengths.append(all_strengths[ps[0]])
+                            not_done.append(True)
 
-                        # make sure that we only extend the current segment till it intersects with another
-                        # i.e. only extend this segment if it doesn't intersect with another segment at its endpoint
-                        previous_segments_hitting_pt = len([1 for ix, x in enumerate(all_segments) if (x[1] == ps[2] and not_done[ix])])
-
-                        if previous_segments_hitting_pt < 2:
-
-                            # double-check if this potential segment intersects a previously existing one
-                            not_intersects = all([not intersects([ps[1], ps[2]], s, coordinates) for s in all_segments])
-                            if not_intersects:
-                                all_segments.append((ps[1], ps[2]))
-                                all_strengths.append(all_strengths[ps[0]])
-                                not_done.append(True)
-
-                            for psi, ps in enumerate(potential_segments):
-                                if ps[0] == i:
-                                    potential_segments[psi] = [len(all_strengths) - 1, ps[1], ps[2]]
-                            potential_segments = potential_segments[:ps_from_pt[0]] + potential_segments[ps_from_pt[0]+1:]
-                            not_done[i] = False
+                        for psi, ps in enumerate(potential_segments):
+                            if ps[0] == seg_i:
+                                potential_segments[psi] = [len(all_strengths) - 1, ps[1], ps[2]]
+                        potential_segments = potential_segments[:ps_from_pt[0]] + potential_segments[ps_from_pt[0]+1:]
+                        not_done[seg_i] = False
+                        added_segments = True
+        if added_segments:
             segments = all_segments
             strengths = all_strengths
 
@@ -462,6 +452,7 @@ def triangulation(R,a,b,c):
     # its associated 'strength' (from the Jung-Hirzebruch relation)
     segments_with_coords, strengths = generate_initial_rays(R, eis, coordinates)
     segments = [tuple([tuplePts.index(r[j]) for j in range(2)]) for r in segments_with_coords]
+
 
     # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
     #       STEP 2: CALCULATE POSSIBLE EXTENSIONS FOR EACH RAY      #
@@ -520,13 +511,11 @@ def triangulation(R,a,b,c):
 
 
 
-R,a,b,c=6,1,2,3
-R,a,b,c=30,25,2,3
-R,a,b,c=25,3,1,21
-triangulation(R,a,b,c)
 R,a,b,c=30,25,2,3
 triangulation(R,a,b,c)
 R,a,b,c=11,1,2,8
 triangulation(R,a,b,c)
 R,a,b,c=6,1,2,3
+triangulation(R,a,b,c)
+R,a,b,c=25,21,3,1
 triangulation(R,a,b,c)
