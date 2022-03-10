@@ -752,7 +752,8 @@ function findAllCycles(qp) {
     return cycles;
 }
 
-function potentialSearch(qp, searchExchangeNum) {
+//test rate - % of potentials to test (1 tests all potentials, but is very slow)
+function potentialSearch(qp, searchExchangeNum, testRate=0.005) {
     var cyclesWithoutQuadratics = findAllCycles(qp).filter(cycle => cycle.length > 2)
 
     cyclesWithoutQuadratics = cyclesWithoutQuadratics.concat([
@@ -765,28 +766,39 @@ function potentialSearch(qp, searchExchangeNum) {
     var potentialTemplate = cyclesWithoutQuadratics.map(cycle => {
         return [0, cycle.join(",")]
     })
-    console.log(cyclesWithoutQuadratics)
+    console.log('testing with terms', cyclesWithoutQuadratics)
 
     const weightsToTest = [0, 1, 2.5]
 
+    const inverseTestRate = Math.round(1 / testRate)
+    const totalToTest = Math.pow(weightsToTest.length, potentialTemplate.length) / inverseTestRate;
+
+    let skipped = 0;
     let tested = 0;
-    let failed = 0;
+    let errored = 0;
     let succeeded = 0
+    let failed = 0;
     let succeededResults = []
     //exchange num: count of succeeded
     let exchangeNumBuckets = {};
-    let totalToTest = Math.pow(weightsToTest.length, potentialTemplate.length);
+
 
     function buildPotentialAndTest(template, idx) {
         if (idx === template.length) {
             //done buidling the potential, test it
+
+            if ((skipped + tested) % inverseTestRate !== 0) { 
+                skipped++;
+                return;
+            }
+
             var qpt = deepCopy(qp)
             qpt.potential = deepCopy(template).filter(t => t[0] !== 0);
             try {
                 var exchangeNum = getAllMutationsForQP(qpt, searchExchangeNum + 1).quivers.length
             } catch (e) {
                 console.log(e)
-                failed++;
+                errored++;
             }
             if (exchangeNumBuckets[exchangeNum]) {
                 exchangeNumBuckets[exchangeNum]++;
@@ -797,12 +809,12 @@ function potentialSearch(qp, searchExchangeNum) {
                 succeeded++;
                 succeededResults.push(deepCopy(template));
             } else {
-               // console.log(exchangeNum)
+               failed++;
             }
             tested++;
            // console.log(tested);
             if (tested % 1000 === 0) {
-                console.log("%: ", tested / totalToTest, failed)
+                console.log("%: ", tested / totalToTest, errored)
             }
         } else {
             //set this potential term and continue building
@@ -819,10 +831,13 @@ function potentialSearch(qp, searchExchangeNum) {
     return {
         stats: {
             tested,
+            skipped,
             succeeded,
-            failed
+            failed,
+            errored,
         },
-        succeededResults
+        succeededResults,
+        exchangeNumBuckets
     }
 }
 
