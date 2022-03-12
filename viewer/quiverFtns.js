@@ -119,14 +119,12 @@ function updateQPFromJSON(JSONData) {
             "x": parseFloat(x.x), "y": parseFloat(x.y)
         }
     }));
-    potential.add(JSONData.potential.map(function(x){
-        const i = x.id;
+    for (let pi = 0; pi < JSONData.potential.length; pi++) {
+	let x = JSONData.potential[pi];
+        const i = cycleOrder(x.id.split(",")).toString();
         const c = x.coef;
-        return {
-    	"id": i.toString(),
-    	"coef": c.toString()
-        }
-    }));
+	addTermToPotential(i, c);
+    }
     frozen_nodes.add(JSONData.frozenNodes.map(function(x){
         const i = x.id;
         return {
@@ -236,19 +234,16 @@ function potentialTermIsSubsetOfEdges(term) {
     return (esInTerm.filter(x => !currentEdges.includes(x.toString())).length < 1);
 }
 
-function updatePotential() {
-    var t = document.getElementById("term-input").value;
-    var c1 = parseFloat(document.getElementById("coefficient-input").value);
+function addTermToPotential(t, coef=1) {
     var c2 = 0;
     try {
         c2 = potential.get(t);
-    } catch(err) {
-    }
+    } catch(err) {}
     if(potentialTermIsSubsetOfEdges(t)) {
         if (c2 == null) {
-            potential.add({id: t, coef: c1.toString()});
+            potential.add({id: t, coef: coef.toString()});
         } else {
-            let c3 = c1 + parseFloat(c2.coef);
+            let c3 = parseFloat(coef) + parseFloat(c2.coef);
             if (c3 > 0 || c3 < 0) {
                 potential.update({id: t, coef: c3.toString()});
             } else {
@@ -260,16 +255,30 @@ function updatePotential() {
     }
 }
 
+function updatePotential() {
+    var t = document.getElementById("term-input").value;
+    var c1 = parseFloat(document.getElementById("coefficient-input").value);
+    addTermToPotential(t, c1);
+}
+
 function generateRandomPotential() {
     var np = randomPotential(nodes, edges);
 
     potential.clear();
+    for (let i = 0; i < np.length; i++) {
+        let x = np[i];
+        if (x[1] != ",") {
+            addTermToPotential(x[1], x[0]);
+	}
+    }
+    /*
     potential.add(np.filter(x => (x[1] != ",")).map(function(x) {
     return {
         id: x[1],
         coef: x[0].toString(),
         };
     }));
+    */
 }
 
 function getUniqueEdgeId() { /* create a string value that is not currently in ids for edges */
