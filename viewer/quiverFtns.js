@@ -742,7 +742,7 @@ function findAllCycles(qp) {
 
     cycles = cycles.filter(function(cycle, idx) {
         for(var idx2 = 0; idx2 < idx; idx2++) {
-            if (JSON.stringify(cycleOrder(cycles[idx])) === JSON.stringify(cycles[idx2])) {
+            if (JSON.stringify(cycleOrder(cycles[idx])) === JSON.stringify(cycleOrder(cycles[idx2]))) {
                 return false;
             }
         }
@@ -753,7 +753,7 @@ function findAllCycles(qp) {
 }
 
 //test rate - % of potentials to test (1 tests all potentials, but is very slow)
-function potentialSearch(qp, searchExchangeNum, testRate=0.005) {
+function potentialSearch(qp, searchExchangeNum, testRate=0.2) {
     var cyclesWithoutQuadratics = findAllCycles(qp).filter(cycle => cycle.length > 2)
 
     cyclesWithoutQuadratics = cyclesWithoutQuadratics.concat([
@@ -779,8 +779,11 @@ function potentialSearch(qp, searchExchangeNum, testRate=0.005) {
     let succeeded = 0
     let failed = 0;
     let succeededResults = []
+    let failedResults = []
+    let erroredResults = []
     //exchange num: count of succeeded
     let exchangeNumBuckets = {};
+    let resultsByExchangeNum = {};
 
 
     function buildPotentialAndTest(template, idx) {
@@ -799,6 +802,7 @@ function potentialSearch(qp, searchExchangeNum, testRate=0.005) {
             } catch (e) {
                 console.log(e)
                 errored++;
+                erroredResults.push(deepCopy(template))
             }
             if (exchangeNumBuckets[exchangeNum]) {
                 exchangeNumBuckets[exchangeNum]++;
@@ -810,7 +814,14 @@ function potentialSearch(qp, searchExchangeNum, testRate=0.005) {
                 succeededResults.push(deepCopy(template));
             } else {
                failed++;
+               failedResults.push(deepCopy(template))
             }
+
+            if (!resultsByExchangeNum[exchangeNum]) {
+                resultsByExchangeNum[exchangeNum] = []
+            }
+            resultsByExchangeNum[exchangeNum].push(deepCopy(template))
+
             tested++;
            // console.log(tested);
             if (tested % 1000 === 0) {
@@ -837,8 +848,27 @@ function potentialSearch(qp, searchExchangeNum, testRate=0.005) {
             errored,
         },
         succeededResults,
-        exchangeNumBuckets
+        failedResults,
+        erroredResults,
+        exchangeNumBuckets,
+        resultsByExchangeNum
     }
+}
+
+function potentialIncludesEveryVertex(qp, potential) {
+    let nodesInPotential = []
+    potential.forEach(function(term) {
+        if (term[0] !== 0) {
+            term[1].split(",").map(i => parseInt(i)).forEach(function(edge) {
+                qp.edges[edge].forEach(function(node) {
+                    if (!nodesInPotential.includes(node)) {
+                        nodesInPotential.push(node);
+                    }
+                })
+            })
+        }
+    })
+    return nodesInPotential.length === qp.nodes.length
 }
 
 function pathDerivative(thisPotential, edgeIndex) {
