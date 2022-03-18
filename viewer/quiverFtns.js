@@ -688,7 +688,7 @@ function getAllMutationsForQP(qp, maxMutationsToFind) {
             var mutatedStr = stringifyQP(mutated)
             if (!alreadySeen.includes(mutatedStr)) {
                 alreadySeen.push(mutatedStr)
-                chains.push(chain)
+                chains.push(chain + qp.nodes[i])
                 collectMutations(mutated, chain + qp.nodes[i])
             }
         }
@@ -796,13 +796,14 @@ function potentialSearch(qp, searchExchangeNum, testRate=0.2) {
             }
 
             var qpt = deepCopy(qp)
-            qpt.potential = deepCopy(template).filter(t => t[0] !== 0);
+            var constructedPotential = deepCopy(template).filter(t => t[0] !== 0);
+            qpt.potential = constructedPotential
             try {
                 var exchangeNum = getAllMutationsForQP(qpt, searchExchangeNum + 1).quivers.length
             } catch (e) {
                 console.log(e)
                 errored++;
-                erroredResults.push(deepCopy(template))
+                erroredResults.push(constructedPotential)
             }
             if (exchangeNumBuckets[exchangeNum]) {
                 exchangeNumBuckets[exchangeNum]++;
@@ -811,16 +812,16 @@ function potentialSearch(qp, searchExchangeNum, testRate=0.2) {
             }
             if (exchangeNum === searchExchangeNum) {
                 succeeded++;
-                succeededResults.push(deepCopy(template));
+                succeededResults.push(constructedPotential);
             } else {
                failed++;
-               failedResults.push(deepCopy(template))
+               failedResults.push(constructedPotential)
             }
 
             if (!resultsByExchangeNum[exchangeNum]) {
                 resultsByExchangeNum[exchangeNum] = []
             }
-            resultsByExchangeNum[exchangeNum].push(deepCopy(template))
+            resultsByExchangeNum[exchangeNum].push(constructedPotential)
 
             tested++;
            // console.log(tested);
