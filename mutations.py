@@ -2,6 +2,7 @@ import numpy as np
 import copy
 import networkx as nx
 import matplotlib.pyplot as plt
+import json
 
 def flattenList(l):
     if type(l) is list or type(l) is tuple:
@@ -254,227 +255,38 @@ class QuiverWithPotential():
                 other=QP
         return other
 
+    def toJSON(self, filename=None):
+        ns = [{"id":str(ni), \
+               "label":str(ni), \
+               "x":100*xy[0], \
+               "y":100*xy[1]} \
+               for ni, xy in enumerate(self.positions)
+               ]
+        es = [{"id":str(ei), \
+               "title": "edge %d"%ei, \
+               "from": str(e[0]), \
+               "to": str(e[1]), \
+               "arrows": "to"} \
+               for ei, e in enumerate(self.Q1)
+               ]
+        fn = [{"id":str(x)} for x in self.frozen_nodes]
+        pt = [{"id":",".join(k), "coef":str(v)} for k,v in self.potential.items()]
+        obj = json.dumps({"nodes": ns, "edges":es, "frozenNodes":fn, "potential":pt}, indent=4)
+        if filename is not None:
+            with open(filename, "w") as f:
+                f.write(obj)
+        return obj
 
 
 
-class Resolution():
-
-    def __init__(self, e, vertex_positions=None):
-        self.edges = e
-        triangulation = make_triangulation(self.edges)
-        self.triangles = triangulation[0]
-        self.edge_to_triangle = triangulation[1]
-        self.vertex_positions = vertex_positions
-
-
-    def update(self, R):
-        self.edges = copy.deepcopy(R.edges)
-        self.triangles = copy.deepcopy(R.triangles)
-        self.edge_to_triangle = copy.deepcopy(R.edge_to_triangle)
-        self.vertex_positions = copy.deepcopy(R.vertex_positions)
-
-
-    def QP(self):
-        edges = [(t[i%3], t[(i+j)%3]) for j in [-1,1] for i in range(1, 4) for t in self.triangles]
-        for i, e in enumerate(self.edges):
-            if self.curve_type(e) == (-2,0):
-                edges.append((i,i))
-            if self.curve_type(e) == (-3,0):
-                edges.append((i,i))
-                edges.append((i,i))
-
-        p = potential(edges, self.triangles)
-
-        positions = None
-        if self.vertex_positions is not None:
-            positions = [[0.5*(self.vertex_positions[e[0]][0]
-                              +self.vertex_positions[e[1]][0]), 
-                          0.5*(self.vertex_positions[e[0]][1]
-                              +self.vertex_positions[e[1]][1])] for e in self.edges]
-        return QuiverWithPotential(edges, potential=p, positions=positions)
-
-
-    def draw(self, time=0.5, **kwargs):
-        # create networkx graph for drawing purposes
-        g = nx.Graph()
-        g.add_edges_from(self.edges)
-
-        # option for coloring specific edges
-        for key in kwargs.keys():
-            if 'edge' in key:
-                # have to manually match entries of edge_colors since nx reorders edges when it creates a graph
-                for e in g.edges:
-                    if list(e) in self.edges:
-                        i = self.edges.index(list(e))
-                    else:
-                        i = self.edges.index([e[1],e[0]])
-                    g.edges[e][key] = kwargs[key][i]
-                kwargs[key] = [x for x in nx.get_edge_attributes(g,key).values()]
-
-        # option for drawing with specified vertex positions
-        if self.vertex_positions is not None:
-            nx.draw_networkx(g, self.vertex_positions, **kwargs)
-        else:
-            nx.draw_networkx(g, **kwargs)
-
-        plt.draw()
-        plt.pause(time)
-        plt.clf()
-
-
-    def can_flop(self, e):
-        """
-        check if an edge e (passed as either the tuple representation or its index in the resolution) can be flopped
-        """
-        return self.curve_type(e) == (-1,-1)
-
-
-    def curve_type(self, e):
-        if isinstance(e, list):
-            ei = self.edges.index(e)
-        else:
-            ei, e = e, self.edges[e]
-
-        e2t = sorted(self.edge_to_triangle[ei])
-        if len(e2t) < 2: # check if its an edge on the boundary
-            return (0,0)
-
-        # unpack the vertices on the edge and those it would be flopped to 
-        vertices = set([tuple(self.vertex_positions[i]) for t in e2t for e in self.triangles[t] for i in self.edges[e]])
-        # vertices of existing edge
-        e_verts = [tuple(self.vertex_positions[e[0]]), tuple(self.vertex_positions[e[1]])]
-
-        # vertices and direction vector of flopped edge
-        o_verts = [x for x in vertices if x not in e_verts]
-        alt_e = [o_verts[1][0] - o_verts[0][0], o_verts[1][1] - o_verts[0][1]]
-
-        """
-         e_verts[0]     o_verts[1]
-         *-------------------*
-         | \              /  |
-         |   \     alt_e.    |
-         |     \      /      |
-         |       \  .        |
-         |         \         |
-         |t1v1   .   \       |
-         |     /      e\     |
-         |   .           \   |
-         | /    t2v1       \ |
-         *___________________*
-         o_verts[0]      e_verts[1]
-
-
-        Note that if e can be flopped(i.e. if the two triangles form a
-        convex 4-sided object), then the angles:
-          * angle1 (between t2v1 and alt_e)
-          * angle2 (between alt_e and t1v1)
-        will be both positive (if e_verts is oriented as in the
-        picture above), or both negative (if e_verts is reversed).
-        """
-
-        t1v1 = [e_verts[0][0] - o_verts[0][0], e_verts[0][1] - o_verts[0][1]]
-        t2v1 = [e_verts[1][0] - o_verts[0][0], e_verts[1][1] - o_verts[0][1]]
-
-        # affine transformation so that arctan will avoid branch cuts
-        # when computing the angles between alt_e and the two sides
-        # t1v1 and t1v2.
-        v1 = rotated_vector(basis=t1v1, hyp=alt_e)
-        v2 = rotated_vector(hyp=t2v1, basis=alt_e)
-        angle1 = np.arctan2(v1[1], v1[0])
-        angle2 = np.arctan2(v2[1], v2[0])
-
-        tol = 1.0e-6
-        if np.sign(angle1) == np.sign(angle2):
-            # check that neither angle is zero
-            if (abs(angle1) > tol) and (abs(angle2) > tol):
-                return (-1,-1)
-            return (-2,0)
-        return (-3,0)
-
-
-    def flop_in_sequence(self, edge_sequence, draw=True):
-        for edge in edge_sequence:
-            R = self.flop(edge)
-            edge_colors = ['b' if i != edge else 'r' for i in range(len(self.edges))]
-            if draw:
-                kw = {'edge_color': edge_colors}
-                self.draw(time=.5, **kw)
-                R.draw(time=.75, **kw)
-            self.update(R)
-        return R
-
-
-    def __repr__(self):
-        return "resolution:\n\t%d triangles\n\t"%(len(self.triangles))+repr(self.triangles)
-
-
-    def flop(self, e):
-        # make a copy of self to return: 
-        toRet = copy.deepcopy(self)
-
-        # check that this edge can be flopped 
-        # (i.e. it's not on a boundary, and the quadrilateral
-        # formed by the edge's neighboring triangles is convex)
-        if not self.can_flop(e):
-            return toRet
-
-        # find the two triangles that share edge e
-        nbrs = self.edge_to_triangle[e]
-        nbr1,nbr2 = nbrs[:2]
-
-        # get the points p1, p2 'opposite' to edge e
-        #    p1-------e[1]
-        #    |       /  |
-        #    | nbr1 /   |
-        #    |     /e   |
-        #    |    /     |
-        #    |   / nbr2 |
-        #    |  /       |
-        #   e[0]-------p2
-        p1 = [y for x in self.triangles[nbr1] for y in self.edges[x] if y not in self.edges[e]][0]
-        p2 = [y for x in self.triangles[nbr2] for y in self.edges[x] if y not in self.edges[e]][0]
-
-        # find the edge indices for e[0]--p2 and e[1]--p1 and other 2 as well.
-        e1p1 = [y for y in self.triangles[nbr1] if ((self.edges[e][1] in self.edges[y]) and (y != e))][0]
-        e0p1 = [y for y in self.triangles[nbr1] if ((self.edges[e][0] in self.edges[y]) and (y != e))][0]
-        e0p2 = [y for y in self.triangles[nbr2] if ((self.edges[e][0] in self.edges[y]) and (y != e))][0]
-        e1p2 = [y for y in self.triangles[nbr2] if ((self.edges[e][1] in self.edges[y]) and (y != e))][0]
-
-        # update the triangle edges
-        toRet.triangles[nbr1] = [e0p2,e,e0p1]
-        toRet.triangles[nbr2] = [e1p2,e,e1p1]
-        toRet.edges[e] = [p2, p1]
-
-        # replace the connectivity for edges to triangles
-        toRet.edge_to_triangle[e1p1] = [y if y != nbr1 else nbr2 for y in self.edge_to_triangle[e1p1]]
-        toRet.edge_to_triangle[e0p2] = [y if y != nbr2 else nbr1 for y in self.edge_to_triangle[e0p2]]
-
-        return toRet
-
-
-def potential(edges, triangles):
-    # build triples. Note: since the triangles' edges aren't necessarily ordered, we need to impose order here.
-    triples = [[6*ti + x for x in i] for i in [[1,3,5],[0,2,4]] for ti in range(len(triangles))]
-    p = {}
-    for t in triples:
-        t1,h1 = edges[t[0]]
-        t2,h2 = edges[t[1]]
-        if h1 == t2:
-            orderedTriple = tuple(t)
-        else:
-            orderedTriple = (t[1],t[0],t[2])
-        p[cycleOrder(orderedTriple)] = 1
-    return p
-
-
-def make_triangulation(edges):
+def make_triangulation(edges, extremal_edges=None):
     """
         this routine takes a list of edges where each edge is in the format [v1, v2] 
         and creates an edge-to-triangle and triangle-to-edge connectivity structure
         for all triangles that can be formed based on vertex identification. 
     """
 
-    numVerts = len(set(flattenList(edges)))
+    numVerts = max(flattenList(edges)) + 1
     nbrs = [set() for x in range(numVerts)] # create a set of edges incident to each vertex (empty at first)
     for i, e in enumerate(edges): # populate the list of edges incident to each vertex
         nbrs[e[0]].add(i)
@@ -515,7 +327,61 @@ def make_triangulation(edges):
                         triples.add(st)
                         triangle_ctr += 1
 
+    # remove the triangles that are extra, and get included because they are subdivisions. 
+    # That is, triangles like the boundary of the following:
+    """
+                        *
+                      / | \
+                     /  |  \
+                    /  .*.  \
+                   / ./   \. \
+                  /./       \.\
+                 *-------------*
+    """
+    if len(triangles) > 1:
+        if extremal_edges is not None:
+            if len(extremal_edges) == 3:
+                extremal_triangle = \
+                        set(edge_to_triangle[extremal_edges[0]]).intersection(
+                        set(edge_to_triangle[extremal_edges[1]])).intersection(
+                        set(edge_to_triangle[extremal_edges[2]])).pop()
+                triangles = [t for ti, t in enumerate(triangles) if ti != extremal_triangle]
+                edge_to_triangle = [[t - int(t > extremal_triangle) for t in e2t if t != extremal_triangle] for e2t in edge_to_triangle]
+
+        ts_to_keep = []
+        for ti, t in enumerate(triangles):
+            if all([((len(edge_to_triangle[e]) < 2) or (len(edge_to_triangle[e]) > 2)) for e in t]):
+                pass
+            else:
+                ts_to_keep.append(ti)
+        triangles = [triangles[i] for i in ts_to_keep]
+        edge_to_triangle = [[ts_to_keep.index(t) for t in e2t if t in ts_to_keep] for e2t in edge_to_triangle]
+
     return triangles, edge_to_triangle
+
+
+def rotated_vector(basis=[1,0], hyp=[1,1]):
+    """
+    Inputs:
+    This routine takes two vectors basis and hyp, both
+    of which are assumed to have tails at the origin,
+    so only the head is passed in each case.
+
+    Outputs:
+    The computes the affine transformation necessary to map
+    The input "basis" to <1,0>, and returns the image of "hyp"
+    under that transformation.
+    """
+    bb = np.array([basis[0], basis[1]])
+    hh = np.matrix([hyp[0], hyp[1]]).transpose()
+
+    # create matrix that translates basis to the line segment [0,1]
+    if bb[0] != 0:
+        matrix_of_transformation = np.matrix([[-bb[1]+1/bb[0],bb[0]],[-bb[1],bb[0]]])
+    else:
+        matrix_of_transformation = np.matrix([[-bb[1],bb[0]+1/bb[1]],[-bb[1],bb[0]]])
+
+    return (matrix_of_transformation*hh).transpose().tolist()[0]
 
 
 def path_derivative(potential, arrow):
@@ -682,30 +548,6 @@ def cycleOrder(cycle):
     cycle = tuple(cycle)
     minidx = cycle.index(min(cycle))
     return tuple(cycle[minidx:]+cycle[:minidx])
-
-
-def rotated_vector(basis=[1,0], hyp=[1,1]):
-    """
-    Inputs:
-    This routine takes two vectors basis and hyp, both
-    of which are assumed to have tails at the origin,
-    so only the head is passed in each case.
-
-    Outputs:
-    The computes the affine transformation necessary to map
-    The input "basis" to <1,0>, and returns the image of "hyp"
-    under that transformation.
-    """
-    bb = np.array([basis[0], basis[1]])
-    hh = np.matrix([hyp[0], hyp[1]]).transpose()
-
-    # create matrix that translates basis to the line segment [0,1]
-    if bb[0] != 0:
-        matrix_of_transformation = np.matrix([[-bb[1]+1/bb[0],bb[0]],[-bb[1],bb[0]]])
-    else:
-        matrix_of_transformation = np.matrix([[-bb[1],bb[0]+1/bb[1]],[-bb[1],bb[0]]])
-
-    return (matrix_of_transformation*hh).transpose().tolist()[0]
 
 
 def current_QP(QP):
