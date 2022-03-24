@@ -1,6 +1,7 @@
 import numpy as np
 import copy
 import matplotlib.pyplot as plt
+from mutations import *
 
 
 def lattice_points_nonunit(r=6,a=1,b=2,c=3):
@@ -366,73 +367,114 @@ def generate_initial_rays(R, eis, Li):
 
 
 def Reids_recipe(segments, strengths, not_done, potential_segments, longest_extension, coordinates):
-    all_segments = segments
-    all_strengths = strengths
-    total_num_extensions = len(segments)*longest_extension
 
-    for extensions in range(total_num_extensions):
+    new_segments = [(-1, s[0], s[1], strengths[si]) for si, s in enumerate(segments)]
+    children = [[] for si in range(len(segments))]
 
-        added_segments = False
-        for seg_i,seg in enumerate(segments):
+    #print(strengths)
+    #print([s[0] for s in segments])
+    # make sure each initial segment that meets with an initial segment of greater strength 
+    # is marked as "finished" so that it is not extended further into the domain. 
+    not_finished = [True for s in range(len(strengths))]
+    for i, si in enumerate(segments):
+        segs_at = [j for j, sj in enumerate(segments) if sj[1] == si[1]]
+        strengths_at = [strengths[j] for j in segs_at]
+        for j in segs_at:
+            not_finished[j] = False
+            if (strengths[j] == max(strengths_at)) and (strengths_at.count(max(strengths_at)) < 2):
+                not_finished[j] = True
 
-            # if the endpoint of this segment has not had an intersection computed already
-            if not_done[seg_i] and (strengths[seg_i] > 0):
-                pt = seg[1] # extract the endpoint and all segments that hit that point
-                segments_at_pt = [j for j,s in enumerate(all_segments) if (s[1] == pt and all_strengths[j] > 0)]
+    # add in extensions to each remaining non-finished segment
+    for si, s in enumerate(segments):
+        if not_finished[si]:
+            extensions_for_s = [(ps[1], ps[2], 0) for ps in potential_segments if ps[0] == si]
 
-                # if we have multiple segments intersecting at the point:
-                if len(segments_at_pt) > 1:
+            if len(extensions_for_s) > 0:
+                indices_from = [si] + [len(new_segments) + j for j in range(len(extensions_for_s) - 1)]
+                extensions_for_s = [(indices_from[i],e[0],e[1],e[2]) for i, e in enumerate(extensions_for_s)]
 
-                    # mark all of the intersecting segments as "done"
-                    for j in segments_at_pt:
-                        not_done[j] = False
+                added_indices = [len(new_segments) + j for j in range(len(extensions_for_s))]
+                children[si] = added_indices
+                for e in range(len(extensions_for_s) - 1):
+                    children.append(added_indices[e+1:])
+                children.append([])
+                new_segments.extend(extensions_for_s)
 
-                    # get the strengths of each segment, and the maximum strength
-                    strengths_at_pt = [all_strengths[j] for j in segments_at_pt]
-                    mx = max(strengths_at_pt)
+    segments = new_segments
 
-                    # first check if all rays meeting at the point have equal strength (or there are multiple 'winners')
-                    if strengths_at_pt.count(mx) < 2:
-                        winner_index = strengths_at_pt.index(mx)
-                        winner = segments_at_pt[winner_index]
+    segs_at_pt = [[] for c in coordinates]
+    for si, s in enumerate(segments):
+        segs_at_pt[s[2]].append(si)
 
-                        new_s = mx - (len(strengths_at_pt) - 1)
-                        ps_from_winner = [psi for psi, ps in enumerate(potential_segments) if (ps[0] == winner)]
+    still_updating = True
+    ctr = 0
+    while (still_updating and (ctr < longest_extension*len(segments))):
+        ctr += 1
+        #print(ctr)
+        still_updating = False
 
-                        if len(ps_from_winner) > 0: # if the winner can be extended further
-                            ps = potential_segments[ps_from_winner[0]] # extract the first segment extension of winner
+        # order segments by their strengths
+        current_segs = sorted([(segments[si][-1], si) for si in range(len(segments))])
 
-                            all_segments.append((ps[1], ps[2]))
-                            all_strengths.append(new_s)
-                            not_done.append(True)
-                            added_segments = True
+        for (seg_i_strength, seg_i) in current_segs[::-1]:
+            segment = segments[seg_i]
 
-                            # now update potential segments so that they emanate from the newly added segment
-                            for k in ps_from_winner[1:]:
-                                oldps = potential_segments[k]
-                                potential_segments[k] = [len(all_strengths) - 1, oldps[1], oldps[2]]
-                            potential_segments = potential_segments[:ps_from_winner[0]] + potential_segments[ps_from_winner[0]+1:]
+            # check if this segment has nonzero strength, and that it has possible extensions
+            if segment[-1] >= 0 and len(children[seg_i]) > 0:
+
+                segments_at_endpoint = [s for s in segs_at_pt[segment[2]] if segments[s][-1] >= 0]
+                strengths_at_endpoint = [segments[s][-1] for s in segments_at_endpoint]
+
+                if segment[-1] < max(strengths_at_endpoint):
+
+                    first_child = children[seg_i][0]
+                    if segments[first_child][-1] >= 0:
+                        still_updating = True
+
+                    for c in children[seg_i]:
+                        segments[c] = (segments[c][0], segments[c][1], segments[c][2], -1)
                 else:
-                    ps_from_pt = [psi for psi, ps in enumerate(potential_segments) if (ps[0] == seg_i)]
+                    if strengths_at_endpoint.count(max(strengths_at_endpoint)) < 2:
 
-                    if len(ps_from_pt) > 0:
-                        ps = potential_segments[ps_from_pt[0]]
-                        # double-check if this potential segment intersects a previously existing one
-                        not_intersects = all([not intersects([ps[1], ps[2]], s, coordinates) for s in all_segments])
+                        first_child = children[seg_i][0]
+
+                        not_intersects = True
+                        for sj, s in enumerate(segments):
+                            if sj != first_child and s[-1] > 0:
+                                if intersects([segments[sj][1], segments[sj][2]], [segments[first_child][1], segments[first_child][2]], coordinates):
+                                    not_intersects = False
+                                    break
                         if not_intersects:
-                            all_segments.append((ps[1], ps[2]))
-                            all_strengths.append(all_strengths[ps[0]])
-                            not_done.append(True)
+                            child_strength = segment[-1] + 1 - len(segments_at_endpoint)
+                            if child_strength != segments[first_child][-1]:
+                                 segments[first_child] = (segments[first_child][0], segments[first_child][1], segments[first_child][2], child_strength)
+                                 still_updating = True
+                        else:
+                            if segments[first_child][-1] >= 0:
+                                still_updating = True
+                            for c in children[seg_i]:
+                                segments[c] = (segments[c][0], segments[c][1], segments[c][2], -1)
 
-                        for psi, ps in enumerate(potential_segments):
-                            if ps[0] == seg_i:
-                                potential_segments[psi] = [len(all_strengths) - 1, ps[1], ps[2]]
-                        potential_segments = potential_segments[:ps_from_pt[0]] + potential_segments[ps_from_pt[0]+1:]
-                        not_done[seg_i] = False
-                        added_segments = True
-        if added_segments:
-            segments = all_segments
-            strengths = all_strengths
+            if still_updating:
+                break
+
+    strengths = [s[-1] for s in segments if s[-1] > 0]
+    segments = [[s[1],s[2]] for si, s in enumerate(segments) if s[-1] > 0]
+
+
+    #from mycolorpy import colorlist as mcp
+    #colors = mcp.gen_color('Set2', n=max(strengths))
+
+    #fig = plt.figure()
+    #ax = fig.add_subplot(111, projection='3d')
+    #for si, s in enumerate(segments):
+    #    xp, yp, zp = np.matrix([coordinates[s[0]], coordinates[s[1]]]).transpose().tolist()
+    #    ax.plot(xp,yp,zp,color=colors[strengths[si] - 1])
+    #ax.view_init(elev=45., azim=45)
+    #for ci, c in enumerate(colors):
+    #    w = 0.1 + ci * (0.8 / float(len(strengths)))
+    #    plt.figtext(w, 0.95, "%d"%(ci + 1), color=c)
+    #plt.show()
 
     return segments
 
@@ -499,23 +541,133 @@ def triangulation(R,a,b,c):
             if len(extra_points) > 0:
                 coordinates = coordinates + extra_points
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    for s in segments:
-        xp, yp, zp = np.matrix([coordinates[s[0]], coordinates[s[1]]]).transpose().tolist()
-        ax.plot3D(xp,yp,zp)
-    ax.view_init(elev=45., azim=45)
-    plt.show()
+    #fig = plt.figure()
+    #ax = fig.add_subplot(111, projection='3d')
+    #for s in segments:
+    #    xp, yp, zp = np.matrix([coordinates[s[0]], coordinates[s[1]]]).transpose().tolist()
+    #    ax.plot3D(xp,yp,zp)
+    #ax.view_init(elev=45., azim=45)
+    #plt.show()
 
-    #return segments, points
+    return segments, coordinates
 
 
+def rotateSimplexToPlane(coords):
+    n = np.array([1,1,1])
+    n = n / np.sqrt(3)
+    m1 = np.matrix([
+        [ n[0] / (n[0]**2 + n[1]**2), n[1] / (n[0]**2 + n[1]**2), 0], 
+        [-n[1] / (n[0]**2 + n[1]**2), n[0] / (n[0]**2 + n[1]**2), 0], 
+        [0, 0, 1]])
+    n = np.matmul(n, m1.transpose()).tolist()[0]
+    m2 = np.matrix([
+        [n[2],0,-n[0]],
+        [0,1,0],
+        [n[0],0, n[2]]])
+    return [np.matmul(np.matrix(c), np.matmul(m2,m1).transpose()).tolist()[0] for c in coords]
 
-R,a,b,c=30,25,2,3
-triangulation(R,a,b,c)
+
+def curve_type(edges, triangles, edge_to_triangle, coordinates, e):
+    if isinstance(e, list):
+        if isinstance(edges[0], list):
+            edges = [tuple(i) for i in edges]
+        ei = edges.index(tuple(e))
+    else:
+        ei, e = e, edges[e]
+
+    e2t = sorted(edge_to_triangle[ei])
+    if len(e2t) < 2: # check if its an edge on the boundary
+        return (0,0)
+
+    # unpack the vertices on the edge and those it would be flopped to 
+    vertices = set([tuple(coordinates[i]) for t in e2t for s in triangles[t] for i in edges[s]])
+    # vertices of existing edge
+    e_verts = [tuple(coordinates[e[0]]), tuple(coordinates[e[1]])]
+
+    # vertices and direction vector of flopped edge
+    o_verts = [x for x in vertices if x not in e_verts]
+    alt_e = [o_verts[1][0] - o_verts[0][0], o_verts[1][1] - o_verts[0][1]]
+
+    """
+     e_verts[0]     o_verts[1]
+     *-------------------*
+     | \              /  |
+     |   \     alt_e.    |
+     |     \      /      |
+     |       \  .        |
+     |         \         |
+     |t1v1   .   \       |
+     |     /      e\     |
+     |   .           \   |
+     | /    t2v1       \ |
+     *___________________*
+     o_verts[0]      e_verts[1]
+
+
+    Note that if e can be flopped(i.e. if the two triangles form a
+    convex 4-sided object), then the angles:
+      * angle1 (between t2v1 and alt_e)
+      * angle2 (between alt_e and t1v1)
+    will be both positive (if e_verts is oriented as in the
+    picture above), or both negative (if e_verts is reversed).
+    """
+
+    t1v1 = [e_verts[0][0] - o_verts[0][0], e_verts[0][1] - o_verts[0][1]]
+    t2v1 = [e_verts[1][0] - o_verts[0][0], e_verts[1][1] - o_verts[0][1]]
+
+    # affine transformation so that arctan will avoid branch cuts
+    # when computing the angles between alt_e and the two sides
+    # t1v1 and t1v2.
+    v1 = rotated_vector(basis=t1v1, hyp=alt_e)
+    v2 = rotated_vector(hyp=t2v1, basis=alt_e)
+    angle1 = np.arctan2(v1[1], v1[0])
+    angle2 = np.arctan2(v2[1], v2[0])
+
+    tol = 1.0e-6
+    if abs(angle1) < tol or abs(angle2) < tol:
+        return (-2, 0)
+    if np.sign(angle1) == np.sign(angle2):
+        # check that neither angle is zero
+        if (abs(angle1) > tol) and (abs(angle2) > tol):
+            return (-1,-1)
+        return (-2,0)
+    return (-3,0)
+
+def QPFromTriangulation(R,a,b,c):
+    (edges, coordinates) = triangulation(R,a,b,c)
+    extremal_edges = [ei for ei, e in enumerate(edges) if (R in tuple(coordinates[e[0]]) and R in tuple(coordinates[e[1]]))]
+    coordinates = [[c[0], c[1]] for c in rotateSimplexToPlane(coordinates)]
+
+    tri = make_triangulation(edges, extremal_edges)
+    triangles = tri[0]
+    edge_to_triangle = tri[1]
+
+    QP_edges = [(t[i%3], t[(i+j)%3]) \
+            for j in [-1,1] for i in range(1, 4) \
+            for t in triangles \
+            if ((len(edge_to_triangle[t[i%3]]) > 1) and (len(edge_to_triangle[t[(i+j)%3]]) > 1))]
+
+    for i, e in enumerate(edges):
+        if len(edge_to_triangle[i]) > 1:
+            if curve_type(edges, triangles, edge_to_triangle, coordinates, list(e)) == (-2,0):
+                QP_edges.append((i,i))
+            if curve_type(edges, triangles, edge_to_triangle, coordinates, list(e)) == (-3,0):
+                QP_edges.append((i,i))
+                QP_edges.append((i,i))
+
+    e_reorder = [i for i in range(len(edges)) if len(edge_to_triangle[i]) > 1]
+    QP_edges = [(e_reorder.index(x[0]), e_reorder.index(x[1])) for x in QP_edges]
+    p = {}
+
+    positions = [[0.5*(coordinates[e[0]][0]
+                      +coordinates[e[1]][0]), 
+                  0.5*(coordinates[e[0]][1]
+                      +coordinates[e[1]][1])] for ei, e in enumerate(edges) if len(edge_to_triangle[ei]) > 1]
+    return QuiverWithPotential(QP_edges, positions=positions)
+
 R,a,b,c=11,1,2,8
-triangulation(R,a,b,c)
-R,a,b,c=6,1,2,3
-triangulation(R,a,b,c)
-R,a,b,c=25,21,3,1
-triangulation(R,a,b,c)
+R,a,b,c=30,25,2,3
+#R,a,b,c=6,1,2,3
+
+QP = QPFromTriangulation(R,a,b,c)
+QP.toJSON("%d_%d_%d_%d.JSON"%(R,a,b,c))
