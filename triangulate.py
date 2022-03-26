@@ -73,7 +73,7 @@ def ordered_rays(L):
     else:
         angles = np.argsort([veclen(np.cross(l, l0)) for l in iLs])
         oLs = [l0] + [iLs[x] for x in angles] + [lk]
-        toRet = [(0,0)] + [(angles[i-1]+2, (oLs[i-1][np.flatnonzero(oLs[i])[0]] + oLs[i+1][np.flatnonzero(oLs[i])[0]]) / oLs[i][np.flatnonzero(oLs[i])[0]]) for i in range(1, len(oLs)-1)] + [(1,0)]
+        toRet = [(0,0)] + [(angles[i-1]+1, (oLs[i-1][np.flatnonzero(oLs[i])[0]] + oLs[i+1][np.flatnonzero(oLs[i])[0]]) / oLs[i][np.flatnonzero(oLs[i])[0]]) for i in range(1, len(oLs)-1)] + [(len(L)-1,0)]
         return toRet
 
 
@@ -359,7 +359,7 @@ def generate_initial_rays(R, eis, Li):
         # generate initial rays and strengths for e_i
         for j, x in enumerate(ordered_rays(Lis)):
             if x[1] > 0:
-                all_rays.append([ei, tuple(pts[j])])
+                all_rays.append([ei, tuple(pts[x[0]])])
                 strengths.append(int(x[1]))
 
     # generate index-valued copies of rays and points so referencing can be done without coordinates
@@ -371,8 +371,6 @@ def Reids_recipe(segments, strengths, not_done, potential_segments, longest_exte
     new_segments = [(-1, s[0], s[1], strengths[si]) for si, s in enumerate(segments)]
     children = [[] for si in range(len(segments))]
 
-    #print(strengths)
-    #print([s[0] for s in segments])
     # make sure each initial segment that meets with an initial segment of greater strength 
     # is marked as "finished" so that it is not extended further into the domain. 
     not_finished = [True for s in range(len(strengths))]
@@ -410,7 +408,6 @@ def Reids_recipe(segments, strengths, not_done, potential_segments, longest_exte
     ctr = 0
     while (still_updating and (ctr < longest_extension*len(segments))):
         ctr += 1
-        #print(ctr)
         still_updating = False
 
         # order segments by their strengths
@@ -425,9 +422,9 @@ def Reids_recipe(segments, strengths, not_done, potential_segments, longest_exte
                 segments_at_endpoint = [s for s in segs_at_pt[segment[2]] if segments[s][-1] >= 0]
                 strengths_at_endpoint = [segments[s][-1] for s in segments_at_endpoint]
 
-                if segment[-1] < max(strengths_at_endpoint):
+                first_child = children[seg_i][0]
 
-                    first_child = children[seg_i][0]
+                if segment[-1] < max(strengths_at_endpoint):
                     if segments[first_child][-1] >= 0:
                         still_updating = True
 
@@ -435,8 +432,6 @@ def Reids_recipe(segments, strengths, not_done, potential_segments, longest_exte
                         segments[c] = (segments[c][0], segments[c][1], segments[c][2], -1)
                 else:
                     if strengths_at_endpoint.count(max(strengths_at_endpoint)) < 2:
-
-                        first_child = children[seg_i][0]
 
                         not_intersects = True
                         for sj, s in enumerate(segments):
@@ -460,21 +455,6 @@ def Reids_recipe(segments, strengths, not_done, potential_segments, longest_exte
 
     strengths = [s[-1] for s in segments if s[-1] > 0]
     segments = [[s[1],s[2]] for si, s in enumerate(segments) if s[-1] > 0]
-
-
-    #from mycolorpy import colorlist as mcp
-    #colors = mcp.gen_color('Set2', n=max(strengths))
-
-    #fig = plt.figure()
-    #ax = fig.add_subplot(111, projection='3d')
-    #for si, s in enumerate(segments):
-    #    xp, yp, zp = np.matrix([coordinates[s[0]], coordinates[s[1]]]).transpose().tolist()
-    #    ax.plot(xp,yp,zp,color=colors[strengths[si] - 1])
-    #ax.view_init(elev=45., azim=45)
-    #for ci, c in enumerate(colors):
-    #    w = 0.1 + ci * (0.8 / float(len(strengths)))
-    #    plt.figtext(w, 0.95, "%d"%(ci + 1), color=c)
-    #plt.show()
 
     return segments
 
@@ -540,14 +520,6 @@ def triangulation(R,a,b,c):
 
             if len(extra_points) > 0:
                 coordinates = coordinates + extra_points
-
-    #fig = plt.figure()
-    #ax = fig.add_subplot(111, projection='3d')
-    #for s in segments:
-    #    xp, yp, zp = np.matrix([coordinates[s[0]], coordinates[s[1]]]).transpose().tolist()
-    #    ax.plot3D(xp,yp,zp)
-    #ax.view_init(elev=45., azim=45)
-    #plt.show()
 
     return segments, coordinates
 
@@ -665,9 +637,10 @@ def QPFromTriangulation(R,a,b,c):
                       +coordinates[e[1]][1])] for ei, e in enumerate(edges) if len(edge_to_triangle[ei]) > 1]
     return QuiverWithPotential(QP_edges, positions=positions)
 
-R,a,b,c=11,1,2,8
-R,a,b,c=30,25,2,3
+#R,a,b,c=11,1,2,8
+#R,a,b,c=30,25,2,3
 #R,a,b,c=6,1,2,3
+R,a,b,c = 25,1,3,21
 
 QP = QPFromTriangulation(R,a,b,c)
 QP.toJSON("%d_%d_%d_%d.JSON"%(R,a,b,c))
