@@ -778,7 +778,7 @@ function findAllCycles(qp) {
         return true;
     })
 
-    return cycles;
+    return cycles.map(cycle => cycleOrder(cycle));
 }
 
 /*
@@ -787,9 +787,9 @@ Takes output from findAllCycles, and expands the cycles to have any available co
 function extendCyclesWithSelfLoops(cycles, qp) {
     var cyclesOut = deepCopy(cycles)
 
+    //TODO  this should be recursive to generate all terms, but doing so generates terms that cause mutation to hang
    // for (var i = 0; i < cyclesOut.length; i++) {
    //     var cycle = cyclesOut[i]
-
 
    for (var i = 0; i < cycles.length; i++) {
     var cycle = cycles[i]
@@ -807,6 +807,7 @@ function extendCyclesWithSelfLoops(cycles, qp) {
                     //valid if:
                     //1. It doesn't repeat self loops: [6, 8, 8, 7]
                     //2. It doesn't repeat self loops even out of order: [17, 15, 14, 15, 14, 16]
+                    //(these cycles might still be valid actually, but including them would mean there are infinite possible cycles)
                     //3. It doesn't already exist
 
                     function isSelfLoop(edge) {
@@ -835,11 +836,10 @@ function extendCyclesWithSelfLoops(cycles, qp) {
                     }
 
                     for (var cout = 0; cout < cyclesOut.length; cout++) {
-                        if (JSON.stringify(cyclesOut[cout]) === JSON.stringify(cycle2)) {
+                        if (JSON.stringify(cycleOrder(cyclesOut[cout])) === JSON.stringify(cycleOrder(cycle2))) {
                             valid = false;
                         }
                     }
-
 
                     if (valid) {
                         cyclesOut.push(cycle2);
@@ -849,18 +849,18 @@ function extendCyclesWithSelfLoops(cycles, qp) {
         }
     }
 
-    return cyclesOut
+    return cyclesOut.map(cycle => cycleOrder(cycle))
 }
 
+//maxCycleLength - only test potential terms <= this length
+//longer potential terms should be testable, but are very slow to test / make the mutation code hang
 //test rate - % of potentials to test (1 tests all potentials, but is very slow)
-function potentialSearch(qp, searchExchangeNum, testRate=0.2) {
-    var cyclesWithoutQuadratics = findAllCycles(qp).filter(cycle => cycle.length > 2)
+function potentialSearch(qp, searchExchangeNum, maxCycleLength=5, testRate=0.2) {
+    var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp), qp).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
 
     cyclesWithoutQuadratics = cyclesWithoutQuadratics.concat([
-        [8, 9, 10],
         [2, 6, 7, 3],
         [0, 1, 17, 16],
-        [6, 8, 7]
     ])
 
     var potentialTemplate = cyclesWithoutQuadratics.map(cycle => {
@@ -925,7 +925,7 @@ function potentialSearch(qp, searchExchangeNum, testRate=0.2) {
 
             tested++;
            // console.log(tested);
-            if (tested % 1000 === 0) {
+            if (tested % 100 === 0) {
                 console.log("%: ", tested / totalToTest, errored)
             }
         } else {
