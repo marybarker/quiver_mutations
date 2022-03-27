@@ -781,6 +781,77 @@ function findAllCycles(qp) {
     return cycles;
 }
 
+/*
+Takes output from findAllCycles, and expands the cycles to have any available combination of self-loops
+*/
+function extendCyclesWithSelfLoops(cycles, qp) {
+    var cyclesOut = deepCopy(cycles)
+
+   // for (var i = 0; i < cyclesOut.length; i++) {
+   //     var cycle = cyclesOut[i]
+
+
+   for (var i = 0; i < cycles.length; i++) {
+    var cycle = cycles[i]
+
+        //find if there's a point a self-loop can be inserted here
+        for (var e = 0; e < cycle.length; e++) {
+            var node = qp.edges[cycle[e]][1]
+
+            for (var e2 = 0; e2 < qp.edges.length; e2++) {
+                if (qp.edges[e2][0] === node && qp.edges[e2][1] === node) {
+                    var cycle2 = deepCopy(cycle);
+                    cycle2.splice(e + 1, 0, e2)
+
+                    //is the new cycle valid?
+                    //valid if:
+                    //1. It doesn't repeat self loops: [6, 8, 8, 7]
+                    //2. It doesn't repeat self loops even out of order: [17, 15, 14, 15, 14, 16]
+                    //3. It doesn't already exist
+
+                    function isSelfLoop(edge) {
+                        return edge[0] === edge[1]
+                    }
+                    
+                    var valid = true;
+                    for (var cyclePoint = 1; cyclePoint < cycle2.length; cyclePoint++) {
+                        if (cycle2[cyclePoint] === cycle2[cyclePoint - 1]) {
+                            valid = false;
+                            break;
+                        }
+                        if (isSelfLoop(qp.edges[cycle2[cyclePoint]])) {
+                            var cp2 = cyclePoint + 1
+                            while (cycle2[cp2]) {
+                                if (!isSelfLoop(qp.edges[cycle2[cp2]])) {
+                                    break;
+                                }
+                                if (cycle2[cp2] === cycle2[cyclePoint]) {
+                                    valid = false;
+                                    break;
+                                }
+                                cp2++;
+                            }
+                        }
+                    }
+
+                    for (var cout = 0; cout < cyclesOut.length; cout++) {
+                        if (JSON.stringify(cyclesOut[cout]) === JSON.stringify(cycle2)) {
+                            valid = false;
+                        }
+                    }
+
+
+                    if (valid) {
+                        cyclesOut.push(cycle2);
+                    }
+                }
+            }
+        }
+    }
+
+    return cyclesOut
+}
+
 //test rate - % of potentials to test (1 tests all potentials, but is very slow)
 function potentialSearch(qp, searchExchangeNum, testRate=0.2) {
     var cyclesWithoutQuadratics = findAllCycles(qp).filter(cycle => cycle.length > 2)
