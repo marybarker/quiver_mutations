@@ -332,6 +332,35 @@ function draw() {
         { id: "16", from: "5", to: "0", arrows: "to", title: "edge 16"},
         { id: "17", from: "0", to: "5", arrows: "to", title: "edge 17"},
     ]);
+
+    //assigns each self-loop a unique radius so that they don't overlap
+    function updateEdgeRadii(id) {
+        var thisEdge = edges.get(id);
+
+        if (thisEdge.from === thisEdge.to) {
+            var count = edges.get().filter(function (otherEdge) {
+                return otherEdge.from === thisEdge.from & otherEdge.to === thisEdge.to && parseInt(otherEdge.id) < parseInt(thisEdge.id)
+            }).length
+
+            thisEdge.selfReference = {
+                size: 15 + (count * 5)
+            }
+
+            edges.update(thisEdge)
+        }
+    }
+
+    //update the initial dataset
+
+    edges.get().forEach(edge => updateEdgeRadii(edge.id))
+
+    //and whenever an edge is added
+    edges.on("add", function (event, properties, senderId) {
+        properties.items.forEach(function(i) {
+            updateEdgeRadii(i);
+        })
+    })
+
     frozen_nodes = new vis.DataSet();
     frozen_nodes.on("*", function () {
     document.getElementById("frozen_nodes").innerText = JSON.stringify(
