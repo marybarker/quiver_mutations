@@ -341,6 +341,35 @@ function draw() {
         { id: "16", from: "5", to: "0", arrows: "to", title: "edge 16"},
         { id: "17", from: "0", to: "5", arrows: "to", title: "edge 17"},
     ]);
+
+    //assigns each self-loop a unique radius so that they don't overlap
+    function updateEdgeRadii(id) {
+        var thisEdge = edges.get(id);
+
+        if (thisEdge.from === thisEdge.to) {
+            var count = edges.get().filter(function (otherEdge) {
+                return otherEdge.from === thisEdge.from & otherEdge.to === thisEdge.to && parseInt(otherEdge.id) < parseInt(thisEdge.id)
+            }).length
+
+            thisEdge.selfReference = {
+                size: 15 + (count * 5)
+            }
+
+            edges.update(thisEdge)
+        }
+    }
+
+    //update the initial dataset
+
+    edges.get().forEach(edge => updateEdgeRadii(edge.id))
+
+    //and whenever an edge is added
+    edges.on("add", function (event, properties, senderId) {
+        properties.items.forEach(function(i) {
+            updateEdgeRadii(i);
+        })
+    })
+
     frozen_nodes = new vis.DataSet();
     frozen_nodes.on("*", function () {
     document.getElementById("frozen_nodes").innerText = JSON.stringify(
@@ -420,6 +449,7 @@ function draw() {
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 function allThreeCycles (QP) {
     var triples = [];
+    let alreadySeen = []
     for (let v1 in QP.nodes) {
         let arrowsOut1 = QP.arrowsWithTail[v1];
 
@@ -446,8 +476,9 @@ function allThreeCycles (QP) {
 
                             if (v4 == v1) {
                                 let triple = cycleOrder([e1i, e2i, e3i]).toString();
-                                if (!triples.includes(triple)) {
+                                if (!alreadySeen.includes(triple)) {
                                     triples.push([e1i,e2i,e3i]);
+                                    alreadySeen.push([e1i,e2i,e3i].toString());
                                 }
                             }
                         }
@@ -673,7 +704,7 @@ function mutateQP(vertex, QP) {
     }
 }
 
-function getAllMutationsForQP(qp) {
+function getAllMutationsForQP(qp, maxMutationsToFind) {
     var alreadySeen = [stringifyQP(qp)]
     var chains = [''];
 
@@ -688,11 +719,14 @@ function getAllMutationsForQP(qp) {
             if (Date.now() - beginTime > maxRuntime) {
                 return;
             }
+            if (chains.length === maxMutationsToFind) {
+                return;
+            }
             var mutated = mutateQP(qp.nodes[i], deepCopy(qp))
             var mutatedStr = stringifyQP(mutated)
             if (!alreadySeen.includes(mutatedStr)) {
                 alreadySeen.push(mutatedStr)
-                chains.push(chain)
+                chains.push(chain + qp.nodes[i])
                 collectMutations(mutated, chain + qp.nodes[i])
             }
         }
@@ -719,6 +753,232 @@ function showExchangeNumber() {
         console.error(e);
         output.textContent = "Error"
     }
+}
+
+// https://stackoverflow.com/questions/546655/finding-all-cycles-in-a-directed-graph
+function findAllCycles(qp) {
+    //TODO should match a "figure 8" cycle like 2,6,7,3
+    var cycles = []
+
+    function collectCyles(qp, originNode, currentNode, visitedNodes, path) {
+        if (visitedNodes.includes(currentNode)) {
+            if (currentNode == originNode) {
+                cycles.push(path)
+            }
+        } else {
+            for (var edgeOut of qp.arrowsWithTail[currentNode]) {
+                collectCyles(qp, originNode, qp.edges[edgeOut][1], visitedNodes.concat([currentNode]), path.concat([edgeOut]))
+            }
+        }
+    }
+
+    for (var node of qp.nodes) {
+        collectCyles(qp, node, node, [], []);
+    }
+
+   // cycles = cycles.map(cycle => cycle.sort())
+
+    cycles = cycles.filter(function(cycle, idx) {
+        for(var idx2 = 0; idx2 < idx; idx2++) {
+            if (JSON.stringify(cycleOrder(cycles[idx])) === JSON.stringify(cycleOrder(cycles[idx2]))) {
+                return false;
+            }
+        }
+        return true;
+    })
+
+    return cycles.map(cycle => cycleOrder(cycle));
+}
+
+/*
+Takes output from findAllCycles, and expands the cycles to have any available combination of self-loops
+*/
+function extendCyclesWithSelfLoops(cycles, qp) {
+    var cyclesOut = deepCopy(cycles)
+
+    //TODO  this should be recursive to generate all terms, but doing so generates terms that cause mutation to hang
+   // for (var i = 0; i < cyclesOut.length; i++) {
+   //     var cycle = cyclesOut[i]
+
+   for (var i = 0; i < cycles.length; i++) {
+    var cycle = cycles[i]
+
+        //find if there's a point a self-loop can be inserted here
+        for (var e = 0; e < cycle.length; e++) {
+            var node = qp.edges[cycle[e]][1]
+
+            for (var e2 = 0; e2 < qp.edges.length; e2++) {
+                if (qp.edges[e2][0] === node && qp.edges[e2][1] === node) {
+                    var cycle2 = deepCopy(cycle);
+                    cycle2.splice(e + 1, 0, e2)
+
+                    //is the new cycle valid?
+                    //valid if:
+                    //1. It doesn't repeat self loops: [6, 8, 8, 7]
+                    //2. It doesn't repeat self loops even out of order: [17, 15, 14, 15, 14, 16]
+                    //(these cycles might still be valid actually, but including them would mean there are infinite possible cycles)
+                    //3. It doesn't already exist
+
+                    function isSelfLoop(edge) {
+                        return edge[0] === edge[1]
+                    }
+                    
+                    var valid = true;
+                    for (var cyclePoint = 1; cyclePoint < cycle2.length; cyclePoint++) {
+                        if (cycle2[cyclePoint] === cycle2[cyclePoint - 1]) {
+                            valid = false;
+                            break;
+                        }
+                        if (isSelfLoop(qp.edges[cycle2[cyclePoint]])) {
+                            var cp2 = cyclePoint + 1
+                            while (cycle2[cp2]) {
+                                if (!isSelfLoop(qp.edges[cycle2[cp2]])) {
+                                    break;
+                                }
+                                if (cycle2[cp2] === cycle2[cyclePoint]) {
+                                    valid = false;
+                                    break;
+                                }
+                                cp2++;
+                            }
+                        }
+                    }
+
+                    for (var cout = 0; cout < cyclesOut.length; cout++) {
+                        if (JSON.stringify(cycleOrder(cyclesOut[cout])) === JSON.stringify(cycleOrder(cycle2))) {
+                            valid = false;
+                        }
+                    }
+
+                    if (valid) {
+                        cyclesOut.push(cycle2);
+                    }
+                }
+            }
+        }
+    }
+
+    return cyclesOut.map(cycle => cycleOrder(cycle))
+}
+
+//maxCycleLength - only test potential terms <= this length
+//longer potential terms should be testable, but are very slow to test / make the mutation code hang
+//test rate - % of potentials to test (1 tests all potentials, but is very slow)
+function potentialSearch(qp, searchExchangeNum, maxCycleLength=5, testRate=0.2) {
+    var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp), qp).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
+
+    cyclesWithoutQuadratics = cyclesWithoutQuadratics.concat([
+        [2, 6, 7, 3],
+        [0, 1, 17, 16],
+    ])
+
+    var potentialTemplate = cyclesWithoutQuadratics.map(cycle => {
+        return [0, cycle.join(",")]
+    })
+    console.log('testing with terms', cyclesWithoutQuadratics)
+
+    const weightsToTest = [0, 1, 2.5]
+
+    const inverseTestRate = Math.round(1 / testRate)
+    const totalToTest = Math.pow(weightsToTest.length, potentialTemplate.length) / inverseTestRate;
+
+    let skipped = 0;
+    let tested = 0;
+    let errored = 0;
+    let succeeded = 0
+    let failed = 0;
+    let succeededResults = []
+    let failedResults = []
+    let erroredResults = []
+    //exchange num: count of succeeded
+    let exchangeNumBuckets = {};
+    let resultsByExchangeNum = {};
+
+
+    function buildPotentialAndTest(template, idx) {
+        if (idx === template.length) {
+            //done buidling the potential, test it
+
+            if ((skipped + tested) % inverseTestRate !== 0) { 
+                skipped++;
+                return;
+            }
+
+            var qpt = deepCopy(qp)
+            var constructedPotential = deepCopy(template).filter(t => t[0] !== 0);
+            qpt.potential = constructedPotential
+            try {
+                var exchangeNum = getAllMutationsForQP(qpt, searchExchangeNum + 1).quivers.length
+            } catch (e) {
+                console.log(e)
+                errored++;
+                erroredResults.push(constructedPotential)
+            }
+            if (exchangeNumBuckets[exchangeNum]) {
+                exchangeNumBuckets[exchangeNum]++;
+            } else {
+                exchangeNumBuckets[exchangeNum] = 1;
+            }
+            if (exchangeNum === searchExchangeNum) {
+                succeeded++;
+                succeededResults.push(constructedPotential);
+            } else {
+               failed++;
+               failedResults.push(constructedPotential)
+            }
+
+            if (!resultsByExchangeNum[exchangeNum]) {
+                resultsByExchangeNum[exchangeNum] = []
+            }
+            resultsByExchangeNum[exchangeNum].push(constructedPotential)
+
+            tested++;
+           // console.log(tested);
+            if (tested % 100 === 0) {
+                console.log("%: ", tested / totalToTest, errored)
+            }
+        } else {
+            //set this potential term and continue building
+
+            for (var weightI = 0; weightI < weightsToTest.length; weightI++) {
+                template[idx][0] = weightsToTest[weightI];
+                buildPotentialAndTest(template, idx + 1);
+            }
+        }
+    }
+
+    buildPotentialAndTest(potentialTemplate, 0)
+
+    return {
+        stats: {
+            tested,
+            skipped,
+            succeeded,
+            failed,
+            errored,
+        },
+        succeededResults,
+        failedResults,
+        erroredResults,
+        exchangeNumBuckets,
+        resultsByExchangeNum
+    }
+}
+
+function potentialIncludesEveryVertex(qp, potential) {
+    let nodesInPotential = []
+    potential.forEach(function(term) {
+        if (term[0] !== 0) {
+            term[1].split(",").map(i => parseInt(i)).forEach(function(edge) {
+                qp.edges[edge].forEach(function(node) {
+                    if (!nodesInPotential.includes(node)) {
+                        nodesInPotential.push(node);
+                    }
+                })
+            })
+        }
+    })
+    return nodesInPotential.length === qp.nodes.length
 }
 
 function pathDerivative(thisPotential, edgeIndex) {
