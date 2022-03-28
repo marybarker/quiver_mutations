@@ -605,6 +605,17 @@ def curve_type(edges, triangles, edge_to_triangle, coordinates, e):
         return (-2,0)
     return (-3,0)
 
+
+def drawTriangulation(t):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    for s in t[0]:
+        xp, yp, zp = np.matrix([t[1][s[0]], t[1][s[1]]]).transpose().tolist()
+        ax.plot3D(xp,yp,zp)
+    ax.view_init(elev=45., azim=45)
+    plt.show()
+
+
 def QPFromTriangulation(R,a,b,c):
     (edges, coordinates) = triangulation(R,a,b,c)
     extremal_edges = [ei for ei, e in enumerate(edges) if (R in tuple(coordinates[e[0]]) and R in tuple(coordinates[e[1]]))]
@@ -642,5 +653,7 @@ def QPFromTriangulation(R,a,b,c):
 #R,a,b,c=6,1,2,3
 R,a,b,c = 25,1,3,21
 
+t = triangulation(R,a,b,c)
+drawTriangulation(t)
 QP = QPFromTriangulation(R,a,b,c)
 QP.toJSON("%d_%d_%d_%d.JSON"%(R,a,b,c))
