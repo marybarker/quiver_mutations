@@ -727,7 +727,7 @@ function getAllMutationsForQP(qp, maxMutationsToFind) {
             if (!alreadySeen.includes(mutatedStr)) {
                 alreadySeen.push(mutatedStr)
                 chains.push(chain + qp.nodes[i])
-                collectMutations(mutated, chain + qp.nodes[i])
+                collectMutations(mutated, chain + ',' + qp.nodes[i])
             }
         }
     }
@@ -756,11 +756,14 @@ function showExchangeNumber() {
 }
 
 // https://stackoverflow.com/questions/546655/finding-all-cycles-in-a-directed-graph
-function findAllCycles(qp) {
+function findAllCycles(qp, maxCycleLength=Infinity) {
     //TODO should match a "figure 8" cycle like 2,6,7,3
     var cycles = []
 
     function collectCyles(qp, originNode, currentNode, visitedNodes, path) {
+        if (path.length > maxCycleLength) {
+            return;
+        }
         if (visitedNodes.includes(currentNode)) {
             if (currentNode == originNode) {
                 cycles.push(path)
@@ -865,12 +868,12 @@ function extendCyclesWithSelfLoops(cycles, qp) {
 //longer potential terms should be testable, but are very slow to test / make the mutation code hang
 //test rate - % of potentials to test (1 tests all potentials, but is very slow)
 function potentialSearch(qp, searchExchangeNum, maxCycleLength=5, testRate=0.2) {
-    var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp), qp).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
+    var cyclesWithoutQuadratics = findAllCycles(qp, maxCycleLength).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
 
-    cyclesWithoutQuadratics = cyclesWithoutQuadratics.concat([
+   /* cyclesWithoutQuadratics = cyclesWithoutQuadratics.concat([
         [2, 6, 7, 3],
         [0, 1, 17, 16],
-    ])
+    ])*/
 
     var potentialTemplate = cyclesWithoutQuadratics.map(cycle => {
         return [0, cycle.join(",")]
@@ -885,14 +888,11 @@ function potentialSearch(qp, searchExchangeNum, maxCycleLength=5, testRate=0.2) 
     let skipped = 0;
     let tested = 0;
     let errored = 0;
-    let succeeded = 0
-    let failed = 0;
-    let succeededResults = []
-    let failedResults = []
     let erroredResults = []
     //exchange num: count of succeeded
     let exchangeNumBuckets = {};
     let resultsByExchangeNum = {};
+    let chainsByExchangeNum = {};
 
 
     function buildPotentialAndTest(template, idx) {
@@ -908,23 +908,26 @@ function potentialSearch(qp, searchExchangeNum, maxCycleLength=5, testRate=0.2) 
             var constructedPotential = deepCopy(template).filter(t => t[0] !== 0);
             qpt.potential = constructedPotential
             try {
-                var exchangeNum = getAllMutationsForQP(qpt, searchExchangeNum + 1).quivers.length
+                console.log(JSON.stringify(constructedPotential))
+                var exchangeNumResult = getAllMutationsForQP(qpt, searchExchangeNum + 1)
+                var exchangeNum = exchangeNumResult.quivers.length
             } catch (e) {
                 console.log(e)
                 errored++;
                 erroredResults.push(constructedPotential)
+                return;
             }
+
+            if (chainsByExchangeNum[exchangeNum]) {
+                chainsByExchangeNum[exchangeNum].push(exchangeNumResult.chains)
+            } else {
+                chainsByExchangeNum[exchangeNum] = [exchangeNumResult.chains]
+            }
+
             if (exchangeNumBuckets[exchangeNum]) {
                 exchangeNumBuckets[exchangeNum]++;
             } else {
                 exchangeNumBuckets[exchangeNum] = 1;
-            }
-            if (exchangeNum === searchExchangeNum) {
-                succeeded++;
-                succeededResults.push(constructedPotential);
-            } else {
-               failed++;
-               failedResults.push(constructedPotential)
             }
 
             if (!resultsByExchangeNum[exchangeNum]) {
@@ -953,17 +956,105 @@ function potentialSearch(qp, searchExchangeNum, maxCycleLength=5, testRate=0.2) 
         stats: {
             tested,
             skipped,
-            succeeded,
-            failed,
             errored,
         },
-        succeededResults,
-        failedResults,
         erroredResults,
         exchangeNumBuckets,
-        resultsByExchangeNum
+        resultsByExchangeNum,
+        chainsByExchangeNum
     }
 }
+
+function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, numberToTest=5000) {
+   // var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
+   var cyclesWithoutQuadratics = findAllCycles(qp, maxCycleLength).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
+
+    var testedPotentials = [];
+
+   /* cyclesWithoutQuadratics = cyclesWithoutQuadratics.concat([
+        [2, 6, 7, 3],
+        [0, 1, 17, 16],
+    ])*/
+
+    var potentialTemplate = cyclesWithoutQuadratics.map(cycle => {
+        return [0, cycle.join(",")]
+    })
+    console.log('testing with terms', cyclesWithoutQuadratics)
+
+    const weightsToTest = [0, 1, 2.5]
+
+    let skipped = 0;
+    let tested = 0;
+    let errored = 0;
+    let erroredResults = []
+    //exchange num: count of succeeded
+    let exchangeNumBuckets = {};
+    let resultsByExchangeNum = {};
+    let chainsByExchangeNum = {};
+
+    for (var i = 0; i < numberToTest; i++) {
+        var template = deepCopy(potentialTemplate)
+        for (var t = 0; t < template.length; t++) {
+            template[t][0] = weightsToTest[Math.floor(Math.random() * weightsToTest.length)]
+        }
+
+        var templateStr = JSON.stringify(template)
+        if(testedPotentials.includes(templateStr)) {
+            continue;
+        }
+        testedPotentials.push(templateStr);
+
+        var qpt = deepCopy(qp)
+            var constructedPotential = deepCopy(template).filter(t => t[0] !== 0);
+            qpt.potential = constructedPotential
+            try {
+                console.log(JSON.stringify(constructedPotential))
+                var exchangeNumResult = getAllMutationsForQP(qpt, searchExchangeNum + 1)
+                var exchangeNum = exchangeNumResult.quivers.length
+            } catch (e) {
+                console.log(e)
+                errored++;
+                erroredResults.push(constructedPotential)
+                return;
+            }
+
+            if (chainsByExchangeNum[exchangeNum]) {
+                chainsByExchangeNum[exchangeNum].push(exchangeNumResult.chains)
+            } else {
+                chainsByExchangeNum[exchangeNum] = [exchangeNumResult.chains]
+            }
+
+            if (exchangeNumBuckets[exchangeNum]) {
+                exchangeNumBuckets[exchangeNum]++;
+            } else {
+                exchangeNumBuckets[exchangeNum] = 1;
+            }
+
+            if (!resultsByExchangeNum[exchangeNum]) {
+                resultsByExchangeNum[exchangeNum] = []
+            }
+            resultsByExchangeNum[exchangeNum].push(constructedPotential)
+
+            tested++;
+           // console.log(tested);
+            if (tested % 100 === 0) {
+                console.log("%: ", tested / numberToTest, errored)
+            }
+    }
+
+    return {
+        stats: {
+            tested,
+            skipped,
+            errored,
+        },
+        erroredResults,
+        exchangeNumBuckets,
+        resultsByExchangeNum,
+        chainsByExchangeNum
+    }
+}
+
 
 function potentialIncludesEveryVertex(qp, potential) {
     let nodesInPotential = []
@@ -979,6 +1070,21 @@ function potentialIncludesEveryVertex(qp, potential) {
         }
     })
     return nodesInPotential.length === qp.nodes.length
+}
+
+function isPotentialSubsetOf(potA, potB) {
+    for (var a = 0; a < potA.length; a++) {
+        var existsInB = false;
+        for (var b = 0; b < potB.length; b++) {
+            if (potB[b][1] === potA[a][1] && (potA[a][0] === 0 || potB[b][0] !== 0)) {
+                existsInB = true;
+            }
+        }
+        if (!existsInB) {
+            return false;
+        }
+    }
+    return true;
 }
 
 function pathDerivative(thisPotential, edgeIndex) {
