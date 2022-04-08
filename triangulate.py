@@ -304,11 +304,11 @@ def tesselate(triangle, coordinates):
         num_pts_in_row = r - (row + 1)
         if num_pts_in_row > 1:
             row_endpoints = [coordinates[side2[row][1]], coordinates[side3[row][1]]]
-            row_pts = list(zip(*[np.linspace(coordinates[0][i], coordinates[1][i], num_pts_in_row) for i in range(3)]))
-            new_points.append(row_pts)
+            row_pts = list(zip(*[np.linspace(row_endpoints[0][i], row_endpoints[1][i], num_pts_in_row) for i in range(3)]))
+            new_points.extend([tuple(x) for x in row_pts])
         elif num_pts_in_row > 0:
             row_endpoints = [coordinates[side2[row][1]], coordinates[side3[row][1]]]
-            row_pts = [0.5*(row_endpoints[0][i]+row_endpoints[1][i]) for i in range(3)]
+            row_pts = tuple([0.5*(row_endpoints[0][i]+row_endpoints[1][i]) for i in range(3)])
             new_points.append(row_pts)
 
     # create lookup table of index points for new_segments and new_points
@@ -652,8 +652,10 @@ def QPFromTriangulation(R,a,b,c):
 #R,a,b,c=30,25,2,3
 #R,a,b,c=6,1,2,3
 R,a,b,c = 25,1,3,21
+R,a,b,c = 60,49,6,5
 
 t = triangulation(R,a,b,c)
 drawTriangulation(t)
 QP = QPFromTriangulation(R,a,b,c)
 QP.toJSON("%d_%d_%d_%d.JSON"%(R,a,b,c))
+
