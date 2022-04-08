@@ -330,7 +330,7 @@ def tesselate(triangle, coordinates):
         new_segments.extend([[vertex_map[offset+(r+2-row)+c+j] for j in [-1,0]] for c in range(1, r+1-row)])
         offset += r + 2 - row
 
-    return new_points, new_segments
+    return new_points, list(set([tuple([min(x), max(x)]) for x in new_segments]))
 
 
 def generate_initial_rays(R, eis, Li):
@@ -558,52 +558,54 @@ def curve_type(edges, triangles, edge_to_triangle, coordinates, e):
 
     # vertices and direction vector of flopped edge
     o_verts = [x for x in vertices if x not in e_verts]
-    alt_e = [o_verts[1][0] - o_verts[0][0], o_verts[1][1] - o_verts[0][1]]
+    if len(o_verts) > 1:
+        alt_e = [o_verts[1][0] - o_verts[0][0], o_verts[1][1] - o_verts[0][1]]
 
-    """
-     e_verts[0]     o_verts[1]
-     *-------------------*
-     | \              /  |
-     |   \     alt_e.    |
-     |     \      /      |
-     |       \  .        |
-     |         \         |
-     |t1v1   .   \       |
-     |     /      e\     |
-     |   .           \   |
-     | /    t2v1       \ |
-     *___________________*
-     o_verts[0]      e_verts[1]
+        """
+         e_verts[0]     o_verts[1]
+         *-------------------*
+         | \              /  |
+         |   \     alt_e.    |
+         |     \      /      |
+         |       \  .        |
+         |         \         |
+         |t1v1   .   \       |
+         |     /      e\     |
+         |   .           \   |
+         | /    t2v1       \ |
+         *___________________*
+         o_verts[0]      e_verts[1]
 
 
-    Note that if e can be flopped(i.e. if the two triangles form a
-    convex 4-sided object), then the angles:
-      * angle1 (between t2v1 and alt_e)
-      * angle2 (between alt_e and t1v1)
-    will be both positive (if e_verts is oriented as in the
-    picture above), or both negative (if e_verts is reversed).
-    """
+        Note that if e can be flopped(i.e. if the two triangles form a
+        convex 4-sided object), then the angles:
+          * angle1 (between t2v1 and alt_e)
+          * angle2 (between alt_e and t1v1)
+        will be both positive (if e_verts is oriented as in the
+        picture above), or both negative (if e_verts is reversed).
+        """
 
-    t1v1 = [e_verts[0][0] - o_verts[0][0], e_verts[0][1] - o_verts[0][1]]
-    t2v1 = [e_verts[1][0] - o_verts[0][0], e_verts[1][1] - o_verts[0][1]]
+        t1v1 = [e_verts[0][0] - o_verts[0][0], e_verts[0][1] - o_verts[0][1]]
+        t2v1 = [e_verts[1][0] - o_verts[0][0], e_verts[1][1] - o_verts[0][1]]
 
-    # affine transformation so that arctan will avoid branch cuts
-    # when computing the angles between alt_e and the two sides
-    # t1v1 and t1v2.
-    v1 = rotated_vector(basis=t1v1, hyp=alt_e)
-    v2 = rotated_vector(hyp=t2v1, basis=alt_e)
-    angle1 = np.arctan2(v1[1], v1[0])
-    angle2 = np.arctan2(v2[1], v2[0])
+        # affine transformation so that arctan will avoid branch cuts
+        # when computing the angles between alt_e and the two sides
+        # t1v1 and t1v2.
+        v1 = rotated_vector(basis=t1v1, hyp=alt_e)
+        v2 = rotated_vector(hyp=t2v1, basis=alt_e)
+        angle1 = np.arctan2(v1[1], v1[0])
+        angle2 = np.arctan2(v2[1], v2[0])
 
-    tol = 1.0e-6
-    if abs(angle1) < tol or abs(angle2) < tol:
-        return (-2, 0)
-    if np.sign(angle1) == np.sign(angle2):
-        # check that neither angle is zero
-        if (abs(angle1) > tol) and (abs(angle2) > tol):
-            return (-1,-1)
-        return (-2,0)
-    return (-3,0)
+        tol = 1.0e-6
+        if abs(angle1) < tol or abs(angle2) < tol:
+            return (-2, 0)
+        if np.sign(angle1) == np.sign(angle2):
+            # check that neither angle is zero
+            if (abs(angle1) > tol) and (abs(angle2) > tol):
+                return (-1,-1)
+            return (-2,0)
+        return (-3,0)
+    return (0,0)
 
 
 def drawTriangulation(t):
