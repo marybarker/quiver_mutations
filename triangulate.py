@@ -304,8 +304,8 @@ def tesselate(triangle, coordinates):
         num_pts_in_row = r - (row + 1)
         if num_pts_in_row > 1:
             row_endpoints = [coordinates[side2[row][1]], coordinates[side3[row][1]]]
-            row_pts = list(zip(*[np.linspace(row_endpoints[0][i], row_endpoints[1][i], num_pts_in_row) for i in range(3)]))
-            new_points.extend([tuple(x) for x in row_pts])
+            row_pts = list(zip(*[np.linspace(row_endpoints[0][i], row_endpoints[1][i], num_pts_in_row+2) for i in range(3)]))
+            new_points.extend([tuple(x) for x in row_pts[1:-1]])
         elif num_pts_in_row > 0:
             row_endpoints = [coordinates[side2[row][1]], coordinates[side3[row][1]]]
             row_pts = tuple([0.5*(row_endpoints[0][i]+row_endpoints[1][i]) for i in range(3)])
