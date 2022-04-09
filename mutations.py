@@ -256,10 +256,13 @@ class QuiverWithPotential():
         return other
 
     def toJSON(self, filename=None):
+        xscaling = max([x[0] for x in self.positions])-min([x[0] for x in self.positions])
+        yscaling = max([x[1] for x in self.positions])-min([x[1] for x in self.positions])
+
         ns = [{"id":str(ni), \
                "label":str(ni), \
-               "x":100*xy[0], \
-               "y":100*xy[1]} \
+               "x":(1000.0/xscaling)*xy[0], \
+               "y":(1000.0/yscaling)*xy[1]} \
                for ni, xy in enumerate(self.positions)
                ]
         es = [{"id":str(ei), \

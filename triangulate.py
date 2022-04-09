@@ -366,7 +366,7 @@ def generate_initial_rays(R, eis, Li):
     return all_rays, strengths
 
 
-def Reids_recipe(segments, strengths, not_done, potential_segments, longest_extension, coordinates):
+def Reids_recipe(segments, strengths, potential_segments, longest_extension, coordinates):
 
     new_segments = [(-1, s[0], s[1], strengths[si]) for si, s in enumerate(segments)]
     children = [[] for si in range(len(segments))]
@@ -453,7 +453,6 @@ def Reids_recipe(segments, strengths, not_done, potential_segments, longest_exte
             if still_updating:
                 break
 
-    strengths = [s[-1] for s in segments if s[-1] > 0]
     segments = [[s[1],s[2]] for si, s in enumerate(segments) if s[-1] > 0]
 
     return segments
@@ -479,8 +478,7 @@ def triangulation(R,a,b,c):
     # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
     #       STEP 2: CALCULATE POSSIBLE EXTENSIONS FOR EACH RAY      #
     # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
-    # not_done and potential_segments keep track of which rays can be "extended" past their endpoints (and how far)
-    not_done = [True if strengths[si] != 0 else False for si, s in enumerate(segments)]
+    # potential_segments keeps track of which rays can be "extended" past their endpoints (and how far)
     potential_segments = []
     longest_extension = 0
     for ir, r in enumerate(segments_with_coords):
@@ -494,7 +492,7 @@ def triangulation(R,a,b,c):
     #       STEP 3: FIND INTERSECTIONS OF RAYS/EXTENSIONS           #
     # * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * #
     # now keep track of main list of segments that are going to be added to create a triangulation.
-    segments = Reids_recipe(segments, strengths, not_done, potential_segments, longest_extension, coordinates)
+    segments = Reids_recipe(segments, strengths, potential_segments, longest_extension, coordinates)
     # add segments that lie along the sides
     for i in range(3):
         points_along_side = sorted([tuple(x) for x in coordinates if x[i] == 0])
