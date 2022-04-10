@@ -341,6 +341,109 @@ function latticePoints(r=6,a=1,b=2,c=3,nonunit=true) {
     return points;
 }
 
+function makeTriangulation(edges, boundary_edges=null){
+    
+    var num_vertices = Math.max(...edges.map(e=>Math.max(e)))+1;
+    var nbrs = range(0, num_vertices).map(x => null);
+    for (let i = 0; i < edges.length; i++) {
+        let e = edges[i];
+        if (nbrs[e[0]] != null) {
+            if (!nbrs[e[0]].includes(i)) {nbrs[e[0]].push(i);}
+        } else {
+            nbrs[e[0]] = [i];
+        }
+        if (nbrs[e[1]] != null) {
+            if (!nbrs[e[1]].includes(i)) {nbrs[e[1]].push(i);}
+        } else {
+            nbrs[e[1]] = [i];
+        }
+    }
+
+    var triangles = [];
+    var edge_to_triangle = edges.map(x=>[]);
+
+    // create set of triples that comprise all possible triangles
+    var triples = [];
+    var triangle_ctr = 0;
+    for (let edge1 = 0; edge1 < edges.length; edge1++) {
+        let e = edges[edge1];
+        let h = e[0]; let t = e[1];
+
+        // loop over all edges that connect to one endpoint of edge1
+        for (let edge2i = 0; edge2i < nbrs[t]; edge2i++) {
+            let edge2 = nbrs[t][edge2i];
+
+            if (edge2 != edge1) {
+                let p0 = edges[edge2][0]; let p1 = edges[edge2][1];
+                let p = (p0 == t) ? p1 : p0;
+
+                // if the neighboring edge connects to one of the neighbors
+                // of the second endpoint, then we have a triangle.
+                let edge3 = nbrs[p].filter(x => nbrs[h].includes(x));
+                if (edge3.length > 0) {
+                    edge3 = edge3[0];
+
+                    // check that the edge triple hasn't already been added
+                    var st = JSON.stringify([edge1,edge2,edge3].sort());
+                    if (!triples.includes(st)) {
+
+                        triples.push(st);
+
+                        triangles.push([edge1,edge2,edge3]);
+
+                        edge_to_triangle[edge1].push(triangle_ctr);
+                        edge_to_triangle[edge2].push(triangle_ctr);
+                        edge_to_triangle[edge3].push(triangle_ctr);
+
+                        triangle_ctr += 1;
+                    }
+                }
+            }
+        }
+    }
+    /*
+    remove the triangles that are extra, and get included because they are subdivisions. 
+    That is, triangles like the boundary of the following:
+    
+                        *
+                      / | \
+                     /  |  \
+                    /  .*.  \
+                   / ./   \. \
+                  /./       \.\
+                 *-------------*
+    */
+    if (triangles.length > 1) {
+        if (boundary_edges != null) {
+            if (boundary_edges.length == 3) {
+                var boundary_triangle = edge_to_triangle[boundary_edges[0]].filter(function (be0) {
+                     return (boundary_edges[1].includes(be0) && boundary_edges[2].includes(be0));
+                }).pop();
+                if (boundary_triangle != null) {
+                    triangles = triangles.splice(boundary_triangle, 1);
+                    edge_to_triangle = edge_to_triangle.map(function(x) {
+                        return x.map(y => y > extremal_triangle ? y - 1 : y);
+                    });
+                }
+            }
+        }
+        var ts_to_keep = [];
+        for (ti = 0; ti < triangles.length; ti++) {
+            let t = triangles[t];
+            if (!t.every(e => (edge_to_triangle[e].length != 2))) {
+                ts_to_keep.push(ti);
+            }
+        }
+        triangles = ts_to_keep.map(ti => triangles[ti]);
+        edge_to_triangle = edge_to_triangle.map(function(x) {
+            return x.map(function(y) {
+               return ts_to_keep.indexOf(y);
+            }).filter(z => z >= 0);
+        });
+    }
+    return [triangles, edge_to_triangle];
+}
+
 function matmul(a, b) {
     if (a[0].length != b.length) {
         return null;
@@ -493,11 +596,13 @@ function QPFromTriangulation(t) {
     var pt = [];
 
     if (t != null) {
+        var R = Math.max(...t[1].map(x => Math.max(...x)));
         var edges = t[0];
         var coordinates = t[1];
         var extremal_edges = edges.map(function(e, ei) {if (coordinates[e[0]].includes(R) && coordinates[e[1]].includes(R)) {return ei;}}).filter(y => y != null);
         coordinates = rotateSimplexToPlane(coordinates).map(c => [c[0], c[1]]);
         var tri = makeTriangulation(edges, extremal_edges);
+
         var triangles = tri[0];
         var edge_to_triangle = tri[1];
 
