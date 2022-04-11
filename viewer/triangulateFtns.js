@@ -41,7 +41,8 @@ function argsort(arr) {
     // dsu algorithm for argsort
     let decor = (v, i) => [v, i];
     let undecor = a => a[1];
-    return arr.map(decor).sort().map(undecor);
+    let arrcpy = [...arr];
+    return arrcpy.map(decor).sort(function(a, b){return a[0]-b[0];}).map(undecor);
 }
 
 function callTriangulation() {
@@ -207,7 +208,7 @@ function generateInitialRays(R, eis, Li) {
 	newPts.unshift(pts[side1_closest_pt]);
 	newPts.push(pts[side2_closest_pt]);
         var Lis = newPts.map(function(x) {
-		return x.map((xp, xpi) => xp - eis[i][xpi]);
+            return x.map((xp, xpi) => xp - ei[xpi]);
 	});
 
         // generate initial rays and strengths for e_i
@@ -526,10 +527,10 @@ function nontriangulatedSides(segments, coordinates) {
     }
     return [all_edge_segments, hanging_segments, segment_neighbor_count];
 }
+
 function nonzeroAvg(a,b,c){
-    var cmax = Math.max(...c);
-    var idx = c.indexOf(cmax);
-    return (a[idx] + b[idx]) / cmax;
+    var idx = c.indexOf(c.find(x => (x > 0 || x < 0)));
+    return (a[idx] + b[idx]) / c[idx];
 }
 
 function orderedRays(L) {
@@ -549,11 +550,10 @@ function orderedRays(L) {
     if (iLs.length < 1) {
         return [[0,0],[1,0]];
     } else {
-        var angles = argsort(iLs.map(x => veclen(crossProduct(x, l0))));
-        var oLs = [l0, ...angles.map(x => iLs[x]), lk]
-        var toRet = oLs.slice(0, oLs.length - 2).map(function(oli, i) {
-            return [angles[i]+1, nonzeroAvg(oLs[i], oLs[i+2], oLs[i+1])];
-        });
+        var angles = iLs.map(x => veclen(crossProduct(x, l0)));
+        var indices = argsort(angles);
+        var oLs = [l0, ...indices.map(x => iLs[x]), lk];
+        var toRet = range(1, oLs.length - 1).map(i => [indices[i-1]+1, nonzeroAvg(oLs[i-1], oLs[i+1], oLs[i])]);
         toRet.unshift([0,0]);
         return toRet.concat([L.length - 1, 0]);
     }
@@ -726,9 +726,11 @@ function ReidsRecipe(segments, strengths, potential_segments, longest_extension,
         still_updating = false;
 
         // order segments by their strengths
-        var current_segs = segments.map((s, si) => [s[s.length - 1], si]).sort().reverse();
+        var current_segs = segments.map((s, si) => [s[s.length - 1], si]);
+        current_segs.sort(function(a,b){return a[0]-b[0];});
+
         for (let cs = 0; cs < current_segs.length; cs++) {
-            var seg_i = current_segs[cs][1];
+            var seg_i = current_segs[current_segs.length - cs - 1][1];
             var segment = segments[seg_i];
             var seg_i_strength = segments[seg_i][segments[seg_i].length - 1];
             // check if this segment has nonzero strength, and that it has possible extensions
@@ -798,10 +800,12 @@ function tesselate(triangle, coordinates) {
         side3 = s2;
     }
     if (side2[side2.length - 1][1] == side1[0][0]) {
-        side2 = side2.reverse().map(y => [y[1],y[0]]);
+        side2.reverse();
+        side2 = side2.map(y => [y[1],y[0]]);
     }
     if (side3[side3.length - 1][1] == side1[side1.length - 1][1]) {
-        side3 = side3.reverse().map(y => [y[1],y[0]]);
+        side3.reverse();
+        side3 = side3.map(y => [y[1],y[0]]);
     }
 
     // generate new points
@@ -814,7 +818,7 @@ function tesselate(triangle, coordinates) {
             var dx = (row_endpoints[1][0] - row_endpoints[0][0]) / (num_pts_in_row + 1);
             var dy = (row_endpoints[1][1] - row_endpoints[0][1]) / (num_pts_in_row + 1);
             var dz = (row_endpoints[1][2] - row_endpoints[0][2]) / (num_pts_in_row + 1);
-            var interior_points = [...Array(num_pts_in_row).keys()].map(function(i) {
+            var interior_points = range(0, num_pts_in_row).map(function(i) {
                 return [row_endpoints[0][0] + (i+1)*dx, 
                         row_endpoints[0][1] + (i+1)*dy, 
                         row_endpoints[0][2] + (i+1)*dz];
@@ -831,7 +835,7 @@ function tesselate(triangle, coordinates) {
 
     // create lookup table o findex points for new_segments and new_points
     let last_entry = side1[side1.length - 1][1];
-    var vertex_map = side1.map(s => s[0]).push(last_entry);
+    var vertex_map = side1.map(s => s[0]).concat(last_entry);
     var b = 0;
     for (let row = 0; row < r; row++) {
         vertex_map.push(side2[row][1]);
@@ -852,7 +856,7 @@ function tesselate(triangle, coordinates) {
         new_segments.push(...range(1, r+1-row).map(c => [vertex_map[offset+(r+2-row)+c-1], vertex_map[offset+(r+2-row)+c]]));
         offset += r + 2 - row;
     }
-    return [new_points, unique(new_segments.map(x => [Math.min(x), Math.max(x)]))];
+    return [new_points, unique(new_segments.map(x => [Math.min(...x), Math.max(...x)]))];
 }
 
 function triangulation(R,a,b,c) {
@@ -919,7 +923,7 @@ function triangulation(R,a,b,c) {
             var extra_points = tesselate_output[0];
             var extra_segments = tesselate_output[1];
 
-            for (let esi = 0; esi < extra_segments.length; sei++) {
+            for (let esi = 0; esi < extra_segments.length; esi++) {
                 var es = extra_segments[esi];
                 var reindexed_segment = [es[0] >= 0 ? es[0] : coordinates.length - (es[0]+1), es[1] >= 0 ? es[1] : coordinates.length - (es[1]+1)];
                 segments.push(reindexed_segment);
