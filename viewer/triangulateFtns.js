@@ -1,9 +1,10 @@
 var globalTriangulation = [
 	[[0,5],[5,4],[4,1],[1,2],[2,6],[6,0],
 	[6,5],[5,3],[4,3],[1,3],[2,3],[6,3]], 
-	[[600,0,0],[0,600,0],[0,0,600],
-	[100,200,300],[200,400,0],[400,200,0],[300,0,300]]
+	[[6,0,0],[0,6,0],[0,0,6],
+	[1,2,3],[2,4,0],[4,2,0],[3,0,3]]
 ];
+const tolerance = 0.00001;
 
 function allCycles(segments) {
     // find all cycles in an undirected graph defined by the list of segments 
@@ -55,7 +56,7 @@ function callTriangulation() {
     viewTriangulation();
 }
 
-function containsZero(l, tol=0.00001) {
+function containsZero(l, tol=tolerance) {
     var squared = l.map(x => x*x);
     return Math.min(...squared) < tol;
 }
@@ -86,8 +87,43 @@ function crossProduct(v1, v2) {
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-function curveType(edges, triangles, edge_to_triangle, coordinates, e) {
-    return [0,0];
+function curveType(edges, triangles, edge_to_triangle, coordinates, edge_index) {
+    const e = edges[edge_index];
+    const e2t = edge_to_triangle[edge_index];
+    if (e2t.length < 2) { // check if edge is on the boundary
+        return 0;
+    }
+    var vertex_indices = [];
+    for (let ti = 0; ti < 2; ti++) {
+	let t = triangles[e2t[ti]];
+	for (ei = 0; ei < 3; ei++) {
+	    let edgei = edges[t[ei]];
+	    if (!vertex_indices.includes(edgei[0])) { vertex_indices.push(edgei[0]);}
+	    if (!vertex_indices.includes(edgei[1])) { vertex_indices.push(edgei[1]);}
+	    //vertex_indices.add(edgei[1]);
+        }
+    }
+    let o_verts = vertex_indices.filter(p => !e.includes(p));
+
+    var v1 = coordinates[e[0]];
+    var v2 = coordinates[o_verts[0]];
+    var v3 = coordinates[e[1]];
+    var v4 = coordinates[o_verts[1]];
+    
+    // solve -Nv2 + Nv4 = v1 + v3 - (v2 + v4)
+    var idx = 0;
+    for (let i = 0; i < 3; i++) {
+        if ( (v4[i] - v2[i])*(v4[i] - v2[i]) > 0 ) {
+            idx = i;
+            break;
+	}
+    }
+    var rhs = v1[idx] + v3[idx] - (v2[idx] + v4[idx]);
+    var N = Math.abs(rhs / (v4[idx] - v2[idx]));
+    if (N > 0) {
+        N = Math.max(parseInt(N), parseInt(1/N+0.5));
+    }
+    return N;
 }
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
@@ -299,7 +335,7 @@ function intersects(seg1, seg2, coordinates) {
     return false;
 }
 
-function isCollinear(ray, point, tol=0.00001) {
+function isCollinear(ray, point, tol=tolerance) {
     /*
     * this routine checks if a point lies along the line 
     * defined by the two n-dimensional points: 
@@ -369,23 +405,23 @@ function makeTriangulation(edges, boundary_edges=null){
         }
     }
 
-    var triangles = [];
-    var edge_to_triangle = edges.map(x=>[]);
-
     // create set of triples that comprise all possible triangles
     var triples = [];
+    var triangles = [];
+    var edge_to_triangle = edges.map(x=>[]);
     var triangle_ctr = 0;
     for (let edge1 = 0; edge1 < edges.length; edge1++) {
         let e = edges[edge1];
         let h = e[0]; let t = e[1];
-
         // loop over all edges that connect to one endpoint of edge1
-        for (let edge2i = 0; edge2i < nbrs[t]; edge2i++) {
+        for (let edge2i = 0; edge2i < nbrs[t].length; edge2i++) {
             let edge2 = nbrs[t][edge2i];
-
-            if (edge2 != edge1) {
+            if (edge1 != edge2) {
                 let p0 = edges[edge2][0]; let p1 = edges[edge2][1];
-                let p = (p0 == t) ? p1 : p0;
+		var p = p0;
+		if (p0 == t) {
+                    p = p1;
+		}
 
                 // if the neighboring edge connects to one of the neighbors
                 // of the second endpoint, then we have a triangle.
@@ -438,8 +474,8 @@ function makeTriangulation(edges, boundary_edges=null){
             }
         }
         var ts_to_keep = [];
-        for (ti = 0; ti < triangles.length; ti++) {
-            let t = triangles[t];
+        for (let ti = 0; ti < triangles.length; ti++) {
+            let t = triangles[ti];
             if (!t.every(e => (edge_to_triangle[e].length != 2))) {
                 ts_to_keep.push(ti);
             }
@@ -609,7 +645,6 @@ function QPFromTriangulation(t) {
         var edges = t[0];
         var coordinates = t[1];
         var extremal_edges = edges.map(function(e, ei) {if (coordinates[e[0]].includes(R) && coordinates[e[1]].includes(R)) {return ei;}}).filter(y => y != null);
-        coordinates = rotateSimplexToPlane(coordinates).map(c => [c[0], c[1]]);
         var tri = makeTriangulation(edges, extremal_edges);
 
         var triangles = tri[0];
@@ -627,14 +662,10 @@ function QPFromTriangulation(t) {
             }
         }
         for (let i = 0; i < edges.length; i++) {
-            var e = edges[i];
             if (edge_to_triangle[i].length > 1) {
-                if (curve_type(edges, triangles, edge_to_triangle, coordinates) == [-2,0]) {
-                    QP_edges.push([i,i]);
-                }
-                if (curve_type(edges, triangles, edge_to_triangle, coordinates) == [-3,0]) {
-                    QP_edges.push([i,i]);
-                    QP_edges.push([i,i]);
+		let ct = curveType(edges, triangles, edge_to_triangle, coordinates, i);
+		for (let j = 0; j < ct; j++) {
+                    QP_edges.push([i, i]);
                 }
             }
         }
@@ -642,6 +673,7 @@ function QPFromTriangulation(t) {
         QP_edges = QP_edges.map(x => [e_reorder.indexOf(x[0]), e_reorder.indexOf(x[1])]);
         var p = new Set();
 
+        coordinates = rotateSimplexToPlane(coordinates).map(c => [c[0], c[1]]);
         var positions = edges.map(function(e, ei) {
             if (edge_to_triangle[ei].length > 1) {
                 return [0.5*(coordinates[e[0]][0] + coordinates[e[1]][0]), 0.5*(coordinates[e[0]][1] + coordinates[e[1]][1])];
