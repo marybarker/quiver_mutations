@@ -68,12 +68,13 @@ function convexHull(planar_points) {
     // two points in the set of planar_points forms an edge of the 
     // convex hull. The more general version defines the initial starting 
     // points p0 and p1 as any two points with maximal distance between them
+    var strVersion = planar_points.map(x => JSON.stringify(x));
     var p0 = planar_points[0];
     var p1 = planar_points[1];
     var s1 = findHull(planar_points.slice(2), p0, p1);
     var s2 = findHull(planar_points.slice(2), p1, p0);
-    var points = unique(s1.concat(s2)).map(p => planar_points.indexOf(p));
-    return [...points].sort().map(p => planar_points[p]);
+    var points = unique(s1.concat(s2)).map(p => strVersion.indexOf(JSON.stringify(p)));
+    return points.map(p => planar_points[p]);
 }
 
 function count(l, v) {
@@ -704,9 +705,8 @@ function ReidsRecipe(segments, strengths, potential_segments, longest_extension,
             if (extensions_for_s.length > 0) {
 		var indices_from = [];
 		if (extensions_for_s.length > 1) {
-                    indices_from = range(0, extensions_for_s.length).map(j => new_segments.length + j);
+                    indices_from = [si, ...range(0, extensions_for_s.length - 1).map(j => new_segments.length + j)];
 		}
-                indices_from.unshift(si);
                 extensions_for_s = extensions_for_s.map(function(e, i) {
                     return [indices_from[i], e[0], e[1], e[2]];
 		});
@@ -734,20 +734,20 @@ function ReidsRecipe(segments, strengths, potential_segments, longest_extension,
         still_updating = false;
 
         // order segments by their strengths
-        var current_segs = segments.map((s, si) => [s[s.length - 1], si]);
-        current_segs.sort(function(a,b){return a[0]-b[0];});
+        var current_segs = [...segments].map((s, si) => [s[3], si]);
+        current_segs.sort(function(a,b){return a[0] - b[0];}).reverse();
 
         for (let cs = 0; cs < current_segs.length; cs++) {
-            var seg_i = current_segs[current_segs.length - cs - 1][1];
-            var segment = segments[seg_i];
-            var seg_i_strength = segments[seg_i][segments[seg_i].length - 1];
+            var seg_i = current_segs[cs][1];
+            var segment = [...segments[seg_i]];
+            var seg_i_strength = segments[seg_i][3];
             // check if this segment has nonzero strength, and that it has possible extensions
             if ((seg_i_strength >= 0) && (children[seg_i].length > 0)) {
-                var segments_at_endpoint = segs_at_pt[segment[2]].filter(s => segments[s][segments[s].length - 1] >= 0);
-                var strengths_at_endpoint = segments_at_endpoint.map(s => segments[s][segments[s].length - 1]);
+                var segments_at_endpoint = segs_at_pt[segment[2]].filter(s => segments[s][3] >= 0);
+                var strengths_at_endpoint = segments_at_endpoint.map(s => segments[s][3]);
                 var first_child = children[seg_i][0];
-                if (segment[segment.length - 1] < Math.max(...strengths_at_endpoint)) {
-                    if (segments[first_child][segments[first_child].length - 1]) {
+                if (segment[3] < Math.max(...strengths_at_endpoint)) {
+                    if (segments[first_child][3] >= 0) {
                         still_updating = true;
                     }
                     for (let ci = 0; ci < children[seg_i].length; ci++) {
@@ -757,10 +757,29 @@ function ReidsRecipe(segments, strengths, potential_segments, longest_extension,
                 } else {
                     if (count(strengths_at_endpoint, Math.max(...strengths_at_endpoint)) < 2) {
                         // add check for intersections here!!!!
-                        var child_strength = segment[segment.length - 1] + 1 - segments_at_endpoint.length;
-                        if (child_strength != segments[first_child][segments[first_child].length - 1]) {
-                            segments[first_child] = [segments[first_child][0], segments[first_child][1], segments[first_child][2], child_strength];
-                            still_updating = true;
+                        not_intersects = true;
+                        for (let sj = 0; sj < segments.legnth; sj++) {
+                            let s = segments[sj];
+                            if ((sj != first_child) && (s[3] > 0)) {
+                                if (intersects([s[1], s[2]], [segments[first_child][1], segments[first_child][2]], coordinates)) {
+                                    not_intersects = false; break;
+                                }
+                            }
+                        }
+                        if (not_intersects) {
+                            var child_strength = segment[3] + 1 - segments_at_endpoint.length;
+                            if (child_strength != segments[first_child][3]) {
+                                segments[first_child] = [segments[first_child][0], segments[first_child][1], segments[first_child][2], child_strength];
+                                still_updating = true;
+                            }
+                        } else {
+                            if (segments[first_child][-1] >= 0) {
+                                still_updating = true;
+                            }
+                            for (let ci = 0; ci < children[seg_i].length; ci++) {
+                                let c = children[seg_i][ci];
+                                segments[c] = [segments[c][0], segments[c][1], segments[c][2], -1];
+                            }
                         }
                     }
                 }
@@ -770,7 +789,7 @@ function ReidsRecipe(segments, strengths, potential_segments, longest_extension,
             }
         }
     }
-    return segments.filter(si => si[si.length - 1] > 0).map(s => [s[1],s[2]]);
+    return segments.filter(function(si) {return si[3] > 0;}).map(s => [s[1], s[2]]);
 }
 
 function rotateSimplexToPlane(coordinates) {
@@ -894,6 +913,7 @@ function triangulation(R,a,b,c) {
 	            }
                 }).filter(y => y != null);
             points_along_r.unshift([0, segments[ir][1]]);
+            points_along_r.sort(function(a, b) {return a[0] - b[0]});
             potential_segments.push(...points_along_r.map(
                 function(v, i) {
                     if (i < points_along_r.length - 1) {
