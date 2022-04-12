@@ -55,6 +55,11 @@ function callTriangulation() {
     viewTriangulation();
 }
 
+function containsZero(l, tol=0.00001) {
+    var squared = l.map(x => x*x);
+    return Math.min(...squared) < tol;
+}
+
 function convexHull(planar_points) {
     // performs a quickhull search to find which points in the set of 
     // planar_points form the convex hull.
@@ -203,7 +208,7 @@ function generateInitialRays(R, eis, Li) {
 	    return [veclen(vl), pi];
 	}).sort()[0][1];
 
-        var side_pts = pts.map(function(p, i) { if (p.includes(0)) {return i;}}).filter(j => j != null);
+        var side_pts = pts.map(function(p, i) { if (containsZero(p)) {return i;}}).filter(j => j != null);
 	var newPts = range(0,pts.length).filter(x => !side_pts.includes(x)).map(y => pts[y]);
 	newPts.unshift(pts[side1_closest_pt]);
 	newPts.push(pts[side2_closest_pt]);
@@ -233,7 +238,10 @@ function identifyRegularTriangles(segments, segment_adjacency_count, coordinates
     var ts = [];
     // make a list of the semgents that already have 2 neighbors (i.e. they're done)
     var completed_segments = segment_adjacency_count.map(x => x > 1);
-    var interior_segments = segments.map(function(y, i) {if (!(coordinates[y[0]].includes(0) && coordinates[y[1]].includes(0))) {return i;}}).filter(x => x != null);
+    var interior_segments = range(0, segments.length).filter(function(si) {
+             let s = segments[si];
+             return (!containsZero(coordinates[s[0]])) || (!containsZero(coordinates[s[1]]));
+        });
 
     // add in all the segments that are on an edge and already have a neighbor
     for (let si = 0; si < segments.length; si++) {
@@ -520,7 +528,7 @@ function nontriangulatedSides(segments, coordinates) {
         var s = segments[si];
         if (segment_neighbor_count[si] < 2) {
             hanging_segments.push(s);
-            if (s.filter(p => coordinates[p].includes(0)).length < s.length) {
+            if (s.filter(p => containsZero(coordinates[p])).length < s.length) {
                 all_edge_segments = false;
             }
         }
@@ -738,7 +746,7 @@ function ReidsRecipe(segments, strengths, potential_segments, longest_extension,
                 var segments_at_endpoint = segs_at_pt[segment[2]].filter(s => segments[s][segments[s].length - 1] >= 0);
                 var strengths_at_endpoint = segments_at_endpoint.map(s => segments[s][segments[s].length - 1]);
                 var first_child = children[seg_i][0];
-                if (segment[segment.length - 1] < Math.max(strengths_at_endpoint)) {
+                if (segment[segment.length - 1] < Math.max(...strengths_at_endpoint)) {
                     if (segments[first_child][segments[first_child].length - 1]) {
                         still_updating = true;
                     }
@@ -747,7 +755,7 @@ function ReidsRecipe(segments, strengths, potential_segments, longest_extension,
                         segments[c] = [segments[c][0], segments[c][1], segments[c][2], -1];
                     }
                 } else {
-                    if (count(strengths_at_endpoint, Math.max(strengths_at_endpoint)) < 2) {
+                    if (count(strengths_at_endpoint, Math.max(...strengths_at_endpoint)) < 2) {
                         // add check for intersections here!!!!
                         var child_strength = segment[segment.length - 1] + 1 - segments_at_endpoint.length;
                         if (child_strength != segments[first_child][segments[first_child].length - 1]) {
@@ -900,7 +908,7 @@ function triangulation(R,a,b,c) {
     segments = ReidsRecipe(segments, strengths, potential_segments, longest_extension, coordinates);
     // add segments that lie along the sides of the simplex
     for (let i = 0; i < 3; i++) {
-        var points_along_side = coordinates.filter(x => x[i] == 0).sort();
+        var points_along_side = coordinates.filter(x => x[i] == 0).sort(function(a, b) {return a[(i+1)%3]-b[(i+1)%3]});
         var segments_along_side = points_along_side.map(function(p, pi) {
             if (pi < points_along_side.length - 1) {
                 return [strCoords.indexOf(JSON.stringify(p)), strCoords.indexOf(JSON.stringify(points_along_side[pi+1]))];
