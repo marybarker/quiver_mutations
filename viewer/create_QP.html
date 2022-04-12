@@ -12,14 +12,7 @@
                  overflow-y:scroll;
 		 padding:5px;
              }
-             #mynetwork {/* quiver: width, side of page, color of border*/
-                 width:100%;
-                 height:400px;
-                 margin:1px;
-                 border-style:outset;
-                 border-color:gray;
-             }
-             #menuBar{/*sidebar that has button for generating quiver and 
+             .menuBar{/*sidebar that has button for generating quiver and 
        		 adding to it: width, side of page, border, etc*/
                  width:100%;
                  height:400px;
@@ -56,6 +49,36 @@
                  height:400px;
     	         overflow-y:scroll;
              }
+	     .tablink {
+		 overflow: hidden;
+                 background-color: #222222;
+                 color: white;
+                 float: left;
+                 border: none;
+                 outline: none;
+                 cursor: pointer;
+                 padding: 14px 16px;
+                 font-size: 17px;
+                 width: 50%;
+             }
+	     .tablink:hover {
+                 background-color: #ddd;
+             }
+	     .tabcontent {
+                 color: black;
+                 display: none;
+                 padding: 100px 20px;
+                 height: 100%;
+             }
+	     .Anetwork {
+                 width:100%;
+                 height:400px;
+                 margin:1px;
+                 border-style:outset;
+                 border-color:gray;
+	     }
+	     #QP {background-color: white;}
+	     #TRI {background-color: white;}
         </style>
 
         <script
@@ -68,14 +91,25 @@
             src="./quiverFtns.js">
         </script>
 
+        <script 
+            type="text/javascript"
+            src="./triangulateFtns.js">
+        </script>
+
 	<script>
-            let saveFile = () => {
-                let data = JSON.stringify({
+            function saveFile(fmt='globalQP') {
+                var data = JSON.stringify({
                     "nodes": nodes.get(),
                     "edges": edges.get(),
                     "frozenNodes": frozen_nodes.get(),
                     "potential": potential.get()
                 });
+
+	        if (fmt == 'globalTriangulation') {
+                    data = JSON.stringify(globalTriangulation);
+		} else {
+                    data = QPFromTriangulation(globalTriangulation);
+		}
 
                 const textToBLOB = new Blob([data], {type: "text/plain"});
                 const sFileName = "outputs.JSON";
@@ -92,7 +126,8 @@
                     document.body.appendChild(newLink);
                 }
                 newLink.click();
-            };
+            }
+
 	    let uploadFile = () => {
                 var files = document.getElementById("jsonupload").files;
                 if (files.length <= 0) {
@@ -107,92 +142,143 @@
 	    };
 	</script>
 
+        <script>
+            function openPage(pageName, elmnt) {
+              // Hide all elements with class="tabcontent" by default */
+              var i, tabcontent, tablinks;
+              tabcontent = document.getElementsByClassName("tabcontent");
+              for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+              }
+            
+              // Remove the background color of all tablinks/buttons
+              tablinks = document.getElementsByClassName("tablink");
+              for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].style.backgroundColor = "";
+              }
+            
+              // Show the specific tab content
+              document.getElementById(pageName).style.display = "block";
+            
+              // Add the specific color to the button used to open the tab content
+            }
+        </script>
+
     </head>
 
-    <body onload="draw()">
-        <h2>
-           Manipulate QPs interactively
-        </h2>
-        <table class="view">
+    <body onload="openPage('QP', this); draw()">
+        <button class="tablink" onclick="openPage('QP', this); draw()" id="defaultOpen">Manipulate QPs interactively</button>
+        <button class="tablink" onclick="openPage('TRI', this); viewTriangulation()">Generate Triangulation</button>
 
-	    <! ROW 1: VIS OF QUIVER AND EDITING OPTIONS>
-  	    <tr>
-  	        <td width="50%">
-                    <div id="mynetwork"></div>
-  	        </td>
-  	        <td width="50%" id="menuBar">
-		    <div id="instructions">Click on the canvas to add a node</div>
-		    <h3>Edit Quiver</h3>
-                    <label for="editQuiverMenu">Options:</label>
-                    <select id="edit-quiver-type" name="editQuiverMenu" onchange="updateInstructions()">
-                        <option value="add-node">Add Nodes</option>
-                        <option value="remove-node">Remove Nodes</option>
-                        <option value="add-edge">Add Edges(nonloops)</option>
-                        <option value="add-loop">Add Edges(loops)</option>
-                        <option value="remove-edge">Remove Edges</option>
-                        <option value="freeze-node">Freeze Nodes</option>
-                        <option value="unfreeze-node">Unfreeze Nodes</option>
-                        <option value="mutate">Mutate</option>
-                    </select>
-                    <br><br>
-		    <h3>Edit Potential</h3>
-		    <label for="coefficient-input">Coefficient:</label>
-		    <input id="coefficient-input" type="text" size=3 value=1>
-		    <label for="term-input"> Edges in cycle:</label>
-		    <input id="term-input" type="text" size=10 value="0,1">
-		    <button onclick="updatePotential()">Add Term</button>
-		    <br><br>
-		    <button onclick="clearQP()">Clear Quiver</button>
-		    <button onclick="clearPotential()">Clear Potential</button>
-		    <button onclick="generateRandomPotential()">Random Potential</button>
+	<div id="QP" class="tabcontent">
+            <table>
+                <! ROW 1: VIS OF QUIVER AND EDITING OPTIONS>
+                <tr>
+                    <td width="50%">
+                        <div class="Anetwork" id="mynetwork"></div>
+                    </td>
+                    <td width="50%" class="menuBar">
+            	    <div id="instructions">Click on the canvas to add a node</div>
+            	    <h3>Edit Quiver</h3>
+                        <label for="editQuiverMenu">Options:</label>
+                        <select id="edit-quiver-type" name="editQuiverMenu" onchange="updateInstructions()">
+                            <option value="add-node">Add Nodes</option>
+                            <option value="remove-node">Remove Nodes</option>
+                            <option value="add-edge">Add Edges(nonloops)</option>
+                            <option value="add-loop">Add Edges(loops)</option>
+                            <option value="remove-edge">Remove Edges</option>
+                            <option value="freeze-node">Freeze Nodes</option>
+                            <option value="unfreeze-node">Unfreeze Nodes</option>
+                            <option value="mutate">Mutate</option>
+                        </select>
+                        <br><br>
+            	    <h3>Edit Potential</h3>
+            	    <label for="coefficient-input">Coefficient:</label>
+            	    <input id="coefficient-input" type="text" size=3 value=1>
+            	    <label for="term-input"> Edges in cycle:</label>
+            	    <input id="term-input" type="text" size=10 value="0,1">
+            	    <button onclick="updatePotential()">Add Term</button>
+            	    <br><br>
+            	    <button onclick="clearQP()">Clear Quiver</button>
+            	    <button onclick="clearPotential()">Clear Potential</button>
+            	    <button onclick="generateRandomPotential()">Random Potential</button>
+            
+                <h3>Exchange number</h3>
+                    <span id="exchange-number-output">--</span>
+                    &nbsp;
+                    <button onclick="showExchangeNumber()">Calculate</button>
+                    </td>
+                </tr>
+            </table>
+            
+            <table>
+                <tr>
+            	<td width="50%">
+                        <label for="jsonupload">Upload QP from JSON format file</label>
+                        <input type="file"
+                               accept=".json, .JSON"
+                               id="jsonupload"
+                               value="Import"/>
+                        <div>
+                            <button id="import" onclick="uploadFile()">Import</button>
+                        </div>
+                    </td>
+            
+                    <td width="50%">
+            	    <input type="button" id="jsondwnload" value="Download QP to file" onclick="saveFile()"/>
+            	</td>
+                </tr>
+            </table>
+            
+            
+            <table id="view_json">
+                <! ROW 2: DISPLAY JSON DATA OF QP>
+                <tr>
+                    <td width="30%">
+                        <h3>Nodes</h3>
+                        <pre id="nodes"></pre>
+                    </td>
+                    <td width="30%">
+                        <h3>Edges</h3>
+                        <pre id="edges"></pre>
+                    </td>
+                    <td width="30%">
+                        <h3>Potential</h3>
+                        <pre id="potential"></pre>
+                        <h3>Frozen Nodes</h3>
+                        <pre id="frozen_nodes"></pre>
+                    </td>
+                </tr>
+            </table>
+	</div>
 
-            <h3>Exchange number</h3>
-                <span id="exchange-number-output">--</span>
-                &nbsp;
-                <button onclick="showExchangeNumber()">Calculate</button>
-                </td>
-            </tr>
-	</table>
 
-	<table>
-	    <tr>
-		<td width="50%">
-                    <label for="jsonupload">Upload QP from JSON format file</label>
-                    <input type="file"
-                           accept=".json, .JSON"
-                           id="jsonupload"
-                           value="Import"/>
-                    <div>
-                        <button id="import" onclick="uploadFile()">Import</button>
-                    </div>
-	        </td>
+        <div id="TRI" class="tabcontent">
+	    <table>
+                <tr>
+                    <td width="50%">
+                        <div class="Anetwork" id="triangulationView"></div>
+                    </td>
+                    <td width="50%" class="menuBar">
+                        <label for="A_value">Value for a:</label>
+			<input id="A_value" type="number" value="1"><br><br>
 
-	        <td width="50%">
-		    <input type="button" id="jsondwnload" value="Download QP to file" onclick="saveFile()"/>
-		</td>
-	    </tr>
-	</table>
+                        <label for="B_value">Value for b:</label>
+			<input id="B_value" type="number" value="2"><br><br>
 
+                        <label for="C_value">Value for c:</label>
+			<input id="C_value" type="number" value="3"><br><br>
 
-	<table class="view" id="view_json">
-            <! ROW 2: DISPLAY JSON DATA OF QP>
-	    <tr>
-                <td width="30%">
-                    <h3>Nodes</h3>
-                    <pre id="nodes"></pre>
-                </td>
-                <td width="30%">
-                    <h3>Edges</h3>
-                    <pre id="edges"></pre>
-                </td>
-                <td width="30%">
-                    <h3>Potential</h3>
-                    <pre id="potential"></pre>
-                    <h3>Frozen Nodes</h3>
-                    <pre id="frozen_nodes"></pre>
-                </td>
-	    </tr>
-        </table>
+                        <button onclick="callTriangulation()">Generate Triangulation</button>
+
+                        <input type="button" id="TRIjsondwnload" value="Download triangulation to file" onclick="saveFile(fmt = 'globalTriangulation')"/>
+
+                        <input type="button" id="QPjsondwnload" value="Download QP to file" onclick="saveFile(fmt = 'QPFromTriangulation')"/>
+                    </td>
+	        </tr>
+	    </table>
+	</div>
+
     </body>
 </html>
 
