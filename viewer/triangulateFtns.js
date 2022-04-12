@@ -461,12 +461,22 @@ function makeTriangulation(edges, boundary_edges=null){
         if (boundary_edges != null) {
             if (boundary_edges.length == 3) {
                 var boundary_triangle = edge_to_triangle[boundary_edges[0]].filter(function (be0) {
-                     return (boundary_edges[1].includes(be0) && boundary_edges[2].includes(be0));
+                     return (edge_to_triangle[boundary_edges[1]].includes(be0) && 
+			     edge_to_triangle[boundary_edges[2]].includes(be0));
                 }).pop();
                 if (boundary_triangle != null) {
-                    triangles = triangles.splice(boundary_triangle, 1);
+                    //triangles = triangles.splice(boundary_triangle, 1);
+                    triangles = triangles.filter(function(t, ti) {return ti != boundary_triangle;});
                     edge_to_triangle = edge_to_triangle.map(function(x) {
-                        return x.map(y => y > extremal_triangle ? y - 1 : y);
+                        return x.map(function(y) {
+                            if (y > boundary_triangle) {
+                                return y - 1;
+			    } else {
+                                if (y < boundary_triangle) {
+				    return y;
+			        }
+			    }
+			}).filter(z => z != null);
                     });
                 }
             }
