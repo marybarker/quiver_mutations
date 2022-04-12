@@ -86,7 +86,6 @@ function crossProduct(v1, v2) {
     return [v1[1]*v2[2] - v1[2]*v2[1], v1[2]*v2[0] - v1[0]*v2[2], v1[0]*v2[1] - v1[1]*v2[0]];
 }
 
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 function curveType(edges, triangles, edge_to_triangle, coordinates, edge_index) {
     const e = edges[edge_index];
     const e2t = edge_to_triangle[edge_index];
@@ -121,11 +120,10 @@ function curveType(edges, triangles, edge_to_triangle, coordinates, edge_index) 
     var rhs = v1[idx] + v3[idx] - (v2[idx] + v4[idx]);
     var N = Math.abs(rhs / (v4[idx] - v2[idx]));
     if (N > 0) {
-        N = Math.max(parseInt(N), parseInt(1/N+0.5));
+        N = Math.max(Math.floor(N), Math.floor(1.1/N));
     }
     return N;
 }
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 function dfsAllCycles(segments, es_at, start_vertex, end_vertex) {
     // helper function for allCycles routine
@@ -669,9 +667,8 @@ function QPFromTriangulation(t) {
                 }
             }
         }
-        var e_reorder = range(0, edges.length).filter(i => edge_to_triangle[i] > 1);
+        var e_reorder = range(0, edges.length).filter(i => edge_to_triangle[i].length > 1);
         QP_edges = QP_edges.map(x => [e_reorder.indexOf(x[0]), e_reorder.indexOf(x[1])]);
-        var p = new Set();
 
         coordinates = rotateSimplexToPlane(coordinates).map(c => [c[0], c[1]]);
         var positions = edges.map(function(e, ei) {
@@ -689,7 +686,7 @@ function QPFromTriangulation(t) {
                 "x":(1000.0/xscaling)*p[0], "y":(1000.0/yscaling)*p[1],
     	    };
         });
-        es = edges.map(function(e, i) {
+        es = QP_edges.map(function(e, i) {
             return {
     		"id": i.toString(), "title": "edge "+i.toString(), 
     		"from": e[0].toString(), "to": e[1].toString(), 
