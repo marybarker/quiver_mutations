@@ -237,11 +237,11 @@ function generateInitialRays(R, eis, Li) {
         var side1_closest_pt = side_point_indices[1].map(function(pi) {
             var vl = pts[pi].map((p, k) => p - ei[k]);
 	    return [veclen(vl), pi];
-	}).sort()[0][1];
+	}).sort(function(a, b) {return a[0] - b[0];})[0][1];
         var side2_closest_pt = side_point_indices[2].map(function(pi) {
             var vl = pts[pi].map((p, k) => p - ei[k]);
 	    return [veclen(vl), pi];
-	}).sort()[0][1];
+	}).sort(function(a, b) {return a[0] - b[0];})[0][1];
 
         var side_pts = pts.map(function(p, i) { if (containsZero(p)) {return i;}}).filter(j => j != null);
 	var newPts = range(0,pts.length).filter(x => !side_pts.includes(x)).map(y => pts[y]);
