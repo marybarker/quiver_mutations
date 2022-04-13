@@ -908,7 +908,7 @@ function potentialSearch(qp, searchExchangeNum, maxCycleLength=5, testRate=0.2) 
             var constructedPotential = deepCopy(template).filter(t => t[0] !== 0);
             qpt.potential = constructedPotential
             try {
-                console.log(JSON.stringify(constructedPotential))
+                //console.log(JSON.stringify(constructedPotential))
                 var exchangeNumResult = getAllMutationsForQP(qpt, searchExchangeNum + 1)
                 var exchangeNum = exchangeNumResult.quivers.length
             } catch (e) {
@@ -967,7 +967,7 @@ function potentialSearch(qp, searchExchangeNum, maxCycleLength=5, testRate=0.2) 
 
 function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, numberToTest=5000) {
    // var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
-   var cyclesWithoutQuadratics = findAllCycles(qp, maxCycleLength).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
+   var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
 
     var testedPotentials = [];
 
@@ -981,7 +981,7 @@ function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, numberTo
     })
     console.log('testing with terms', cyclesWithoutQuadratics)
 
-    const weightsToTest = [0, 1, 2.5]
+    const weightsToTest = [0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 1, 2.5]
 
     let skipped = 0;
     let tested = 0;
@@ -1011,29 +1011,28 @@ function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, numberTo
                 console.log(JSON.stringify(constructedPotential))
                 var exchangeNumResult = getAllMutationsForQP(qpt, searchExchangeNum + 1)
                 var exchangeNum = exchangeNumResult.quivers.length
+
+                if (chainsByExchangeNum[exchangeNum]) {
+                    chainsByExchangeNum[exchangeNum].push(exchangeNumResult.chains)
+                } else {
+                    chainsByExchangeNum[exchangeNum] = [exchangeNumResult.chains]
+                }
+    
+                if (exchangeNumBuckets[exchangeNum]) {
+                    exchangeNumBuckets[exchangeNum]++;
+                } else {
+                    exchangeNumBuckets[exchangeNum] = 1;
+                }
+    
+                if (!resultsByExchangeNum[exchangeNum]) {
+                    resultsByExchangeNum[exchangeNum] = []
+                }
+                resultsByExchangeNum[exchangeNum].push(constructedPotential)
             } catch (e) {
                 console.log(e)
                 errored++;
                 erroredResults.push(constructedPotential)
-                return;
             }
-
-            if (chainsByExchangeNum[exchangeNum]) {
-                chainsByExchangeNum[exchangeNum].push(exchangeNumResult.chains)
-            } else {
-                chainsByExchangeNum[exchangeNum] = [exchangeNumResult.chains]
-            }
-
-            if (exchangeNumBuckets[exchangeNum]) {
-                exchangeNumBuckets[exchangeNum]++;
-            } else {
-                exchangeNumBuckets[exchangeNum] = 1;
-            }
-
-            if (!resultsByExchangeNum[exchangeNum]) {
-                resultsByExchangeNum[exchangeNum] = []
-            }
-            resultsByExchangeNum[exchangeNum].push(constructedPotential)
 
             tested++;
            // console.log(tested);
@@ -1247,6 +1246,9 @@ function reduce(QP) {
 	    }
 	}
 
+    const maxTermsForE = 1000
+    const maxEdgesPerTerm = 1000
+
         // update lookup table of replacements for each edge to be removed so that
         // each replacement term only contains edges that are not in edgesToRemove
         for (let etri = 0; etri < edgesToRemove.length; etri++) {
@@ -1256,12 +1258,16 @@ function reduce(QP) {
             var ctr = 0;
 
             do {
+                if (termsForE.length > maxTermsForE) {
+                    throw new Error("reduction timeout")
+                }
 		// stopping criteria
                 foundReplacement = true; ctr++;
                 // placeholder for holding non-edgesToRemove lookup values for edge e
                 var altTermsForE = []
                 for (let cti = 0; cti < termsForE.length; cti++) {
                     let currentTerm = termsForE[cti];
+
                     if (currentTerm.length > 0) {
                         var altTerm = [[currentTerm[0], currentTerm[1]]];
                       
@@ -1280,6 +1286,11 @@ function reduce(QP) {
                                     for (let rdi = 0; rdi < reduceDict[tt].length; rdi++) {
                                         let rd = reduceDict[tt][rdi];
 		                        for (let nt1i = 0; nt1i < newTerm.length; nt1i++) {
+
+                                    if (currentTerm[1].length > maxEdgesPerTerm || newTerm.length > maxEdgesPerTerm) {
+                                        throw new Error("reduction timeout - 2")
+                                    }
+
                                             let nt1 = newTerm[nt1i];
                                             var nt11 = rd[1];
                                             if (nt1[1].length > 0) { 
@@ -1313,6 +1324,8 @@ function reduce(QP) {
 	    reduceDict[e] = termsForE;
         }
 
+        const maxTermLength = 1000
+
         // reduce the potential by replacing each of the terms with its 
         // image in the replacement dictionary.
         var wPrime = [];
@@ -1327,6 +1340,9 @@ function reduce(QP) {
 
                 var thisLevel = [];
                 for (let nt1i = 0; nt1i < newTerm.length; nt1i++) {
+                    if (term.length > maxTermLength || newTerm.length > maxTermLength) {
+                        throw new Error("term too big");
+                    }
                     var nt1 = newTerm[nt1i];
 
                     for (let rdi = 0; rdi < reduceDict[tt].length; rdi++) {
@@ -1347,6 +1363,9 @@ function reduce(QP) {
         // (cycles are written with minimal element first)
 	wPrime = [];
 	for (let i = 0; i < wp.length; i++) {
+        if (i > 1000) {
+            throw new Error("wP too large")
+        }
             let x = wp[i];
 	    let c = x[0];
 	    let t = cycleOrder(x[1]).toString();
