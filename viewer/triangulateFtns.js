@@ -104,10 +104,10 @@ function curveType(edges, triangles, edge_to_triangle, coordinates, edge_index) 
     }
     let o_verts = vertex_indices.filter(p => !e.includes(p));
 
-    var v1 = coordinates[e[0]];
-    var v2 = coordinates[o_verts[0]];
-    var v3 = coordinates[e[1]];
-    var v4 = coordinates[o_verts[1]];
+    var v1 = coordinates[o_verts[0]];
+    var v2 = coordinates[e[0]];
+    var v3 = coordinates[o_verts[1]];
+    var v4 = coordinates[e[1]];
     
     // solve -Nv2 + Nv4 = v1 + v3 - (v2 + v4)
     var idx = 0;
@@ -1057,6 +1057,13 @@ function viewTriangulation() {
             },
  	    physics: {enabled:false},
         },
+        edges: {
+            "smooth": {
+                "type": "continuous",
+                "forceDirection": "none",
+                "roundness": 0
+            },
+	},
     };
     localNetwork = new vis.Network(localContainer, data, options);
 }
