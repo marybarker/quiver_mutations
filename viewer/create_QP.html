@@ -80,22 +80,6 @@
 	     #QP {background-color: white;}
 	     #TRI {background-color: white;}
         </style>
-
-        <script
-            type="text/javascript"
-            src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"
-        ></script>
-
-        <script 
-            type="text/javascript"
-            src="./quiverFtns.js">
-        </script>
-
-        <script 
-            type="text/javascript"
-            src="./triangulateFtns.js">
-        </script>
-
 	<script>
             function saveFile(fmt='globalQP') {
                 var data = JSON.stringify({
@@ -210,6 +194,18 @@
                     </td>
                 </tr>
             </table>
+
+            <table style="margin-bottom: 0.5em">
+                <tr>
+                    <td>
+                        Show:
+                        <input type="radio" id="graph-data-edges" name="graph-data-option" value="edges" checked/>
+                        <label for="graph-data-edges">All edges</label>
+                        <input type="radio" id="graph-data-potential" name="graph-data-option" value="potential"/>
+                        <label for="graph-data-potential">Potential</label>
+                    </td>
+                </tr>
+            </table>
             
             <table>
                 <tr>
@@ -278,6 +274,22 @@
 	        </tr>
 	    </table>
 	</div>
+
+
+        <script
+        type="text/javascript"
+        src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"
+    ></script>
+
+    <script 
+        type="text/javascript"
+        src="./quiverFtns.js">
+    </script>
+
+    <script 
+        type="text/javascript"
+        src="./triangulateFtns.js">
+    </script>
 
     </body>
 </html>

@@ -1,7 +1,20 @@
 var nodes, edges, network;
 var frozen_nodes;
 var potential;
+var potentialVisualization;
 var output_fields = ["id", "from", "to", "coef"] // which data objects to print to screen
+
+document.getElementById('graph-data-edges').addEventListener('change', function() {
+    if (this.checked) {
+        network.setData({nodes: nodes, edges: edges})
+    }
+})
+
+document.getElementById('graph-data-potential').addEventListener('change', function() {
+    if (this.checked) {
+        network.setData({nodes: nodes, edges: potentialVisualization})
+    }
+})
 
 function updateInstructions() {
     let click_mode = document.getElementById("edit-quiver-type").value;
@@ -384,6 +397,23 @@ function draw() {
           output_fields,
 	  4);
     });
+
+    potentialVisualization = new vis.DataSet();
+    potential.on("*", function() {
+        potentialVisualization.clear();
+        potential.get().forEach(function(term) {
+            var termEdges = term.id.split(",")
+            var termColor = "rgb(" + [Math.round(100 + Math.random() * 100),Math.round(100 + Math.random() * 100),Math.round(100 + Math.random() * 100)].join(",") + ")"
+            for(var i = 0; i < termEdges.length; i++) {
+                potentialVisualization.add(Object.assign({}, edges.get(termEdges[i]), {
+                    id: null, //need to remove the original edge ID so that each item here gets assigned a new unique ID
+                    color: termColor,
+                    label: term.coef,
+                }))
+            }
+        })
+    })
+
     potential.add([
         { id: "0,2,5", coef: "1"},
         { id: "1,4,3", coef: "1"},
@@ -1008,7 +1038,6 @@ function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, numberTo
             var constructedPotential = deepCopy(template).filter(t => t[0] !== 0);
             qpt.potential = constructedPotential
             try {
-                console.log(JSON.stringify(constructedPotential))
                 var exchangeNumResult = getAllMutationsForQP(qpt, searchExchangeNum + 1)
                 var exchangeNum = exchangeNumResult.quivers.length
 
