@@ -401,14 +401,16 @@ function draw() {
     potentialVisualization = new vis.DataSet();
     potential.on("*", function() {
         potentialVisualization.clear();
-        potential.get().forEach(function(term) {
+        potential.get().forEach(function(term, idx) {
             var termEdges = term.id.split(",")
-            var termColor = "rgb(" + [Math.round(100 + Math.random() * 100),Math.round(100 + Math.random() * 100),Math.round(100 + Math.random() * 100)].join(",") + ")"
+            var termColor = "rgb(" + [Math.round(50 + Math.random() * 150),Math.round(50 + Math.random() * 150),Math.round(50 + Math.random() * 150)].join(",") + ")"
             for(var i = 0; i < termEdges.length; i++) {
                 potentialVisualization.add(Object.assign({}, edges.get(termEdges[i]), {
                     id: null, //need to remove the original edge ID so that each item here gets assigned a new unique ID
                     color: termColor,
                     label: term.coef,
+                    font: {size: 40},
+                    selfReference: {size: 40 + (5 * idx)}
                 }))
             }
         })
@@ -826,15 +828,19 @@ function findAllCycles(qp, maxCycleLength=Infinity) {
 /*
 Takes output from findAllCycles, and expands the cycles to have any available combination of self-loops
 */
-function extendCyclesWithSelfLoops(cycles, qp) {
+function extendCyclesWithSelfLoops(cycles, qp, maxCycleLength) {
     var cyclesOut = deepCopy(cycles)
 
-    //TODO  this should be recursive to generate all terms, but doing so generates terms that cause mutation to hang
-   // for (var i = 0; i < cyclesOut.length; i++) {
-   //     var cycle = cyclesOut[i]
+    for (var i = 0; i < cyclesOut.length; i++) {
+        var cycle = cyclesOut[i]
 
-   for (var i = 0; i < cycles.length; i++) {
-    var cycle = cycles[i]
+        if (cycle.length >= maxCycleLength) {
+            continue
+        }
+
+    //uncomment to make this non-recursive (limit of 1 self-loop added per cycle)
+    // for (var i = 0; i < cycles.length; i++) {
+   // var cycle = cycles[i]
 
         //find if there's a point a self-loop can be inserted here
         for (var e = 0; e < cycle.length; e++) {
@@ -997,7 +1003,7 @@ function potentialSearch(qp, searchExchangeNum, maxCycleLength=5, testRate=0.2) 
 
 function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, numberToTest=5000) {
    // var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
-   var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
+   var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp, maxCycleLength).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
 
     var testedPotentials = [];
 
@@ -1011,7 +1017,7 @@ function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, numberTo
     })
     console.log('testing with terms', cyclesWithoutQuadratics)
 
-    const weightsToTest = [0, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 1, 2.5]
+    const weightsToTest = [0, 0, 0, 0, 0, 0, 0, 1, 2.5]
 
     let skipped = 0;
     let tested = 0;
@@ -1058,7 +1064,7 @@ function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, numberTo
                 }
                 resultsByExchangeNum[exchangeNum].push(constructedPotential)
             } catch (e) {
-                console.log(e)
+             //   console.log(e)
                 errored++;
                 erroredResults.push(constructedPotential)
             }
@@ -1275,8 +1281,8 @@ function reduce(QP) {
 	    }
 	}
 
-    const maxTermsForE = 1000
-    const maxEdgesPerTerm = 1000
+    const maxTermsForE = 250
+    const maxEdgesPerTerm = 250
 
         // update lookup table of replacements for each edge to be removed so that
         // each replacement term only contains edges that are not in edgesToRemove
@@ -1353,7 +1359,7 @@ function reduce(QP) {
 	    reduceDict[e] = termsForE;
         }
 
-        const maxTermLength = 1000
+        const maxTermLength = 250
 
         // reduce the potential by replacing each of the terms with its 
         // image in the replacement dictionary.
@@ -1392,7 +1398,7 @@ function reduce(QP) {
         // (cycles are written with minimal element first)
 	wPrime = [];
 	for (let i = 0; i < wp.length; i++) {
-        if (i > 1000) {
+        if (i > 250) {
             throw new Error("wP too large")
         }
             let x = wp[i];
