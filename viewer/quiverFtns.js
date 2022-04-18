@@ -1017,7 +1017,7 @@ function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, numberTo
     })
     console.log('testing with terms', cyclesWithoutQuadratics)
 
-    const weightsToTest = [0, 0, 0, 0, 0, 0, 0, 1, 2.5]
+    const weightsToTest = [1, 2.5]
 
     let skipped = 0;
     let tested = 0;
@@ -1030,8 +1030,14 @@ function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, numberTo
 
     for (var i = 0; i < numberToTest; i++) {
         var template = deepCopy(potentialTemplate)
+
+        //this makes the generated potentials linearly distributed with respect to their size
+        var thisPotentialFactor = Math.random()
+        
         for (var t = 0; t < template.length; t++) {
-            template[t][0] = weightsToTest[Math.floor(Math.random() * weightsToTest.length)]
+            if (Math.random() < thisPotentialFactor) {
+                template[t][0] = weightsToTest[Math.floor(Math.random() * weightsToTest.length)]
+            }
         }
 
         var templateStr = JSON.stringify(template)
