@@ -14,7 +14,7 @@ function displayMinimalFor(results, exchangeNum, idx=0) {
     var filtered = sorted.filter(i => i.length === sorted[0].length)
 
     potential.clear()
-    filtered[idx].forEach(function(term) {
-        potential.add({id: term[1], coef: term[0].toString()})
-    })
+    potential.add(filtered[idx].map(function(term) {
+        return {id: term[1], coef: term[0].toString()}
+    }))
 }
