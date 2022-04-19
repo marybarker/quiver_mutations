@@ -1032,7 +1032,7 @@ function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, numberTo
         var template = deepCopy(potentialTemplate)
 
         //this makes the generated potentials linearly distributed with respect to their size
-        var thisPotentialFactor = Math.random()
+        var thisPotentialFactor = Math.random() * 0.2;
         
         for (var t = 0; t < template.length; t++) {
             if (Math.random() < thisPotentialFactor) {
@@ -1040,11 +1040,11 @@ function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, numberTo
             }
         }
 
-        var templateStr = JSON.stringify(template)
-        if(testedPotentials.includes(templateStr)) {
-            continue;
-        }
-        testedPotentials.push(templateStr);
+       // var templateStr = JSON.stringify(template)
+       // if(testedPotentials.includes(templateStr)) {
+       //     continue;
+       // }
+       // testedPotentials.push(templateStr);
 
         var qpt = deepCopy(qp)
             var constructedPotential = deepCopy(template).filter(t => t[0] !== 0);
