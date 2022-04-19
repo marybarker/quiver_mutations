@@ -1001,7 +1001,7 @@ function potentialSearch(qp, searchExchangeNum, maxCycleLength=5, testRate=0.2) 
     }
 }
 
-function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, numberToTest=5000) {
+function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, approximateMaxPotentialTerms=100, numberToTest=5000) {
    // var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
    var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp, maxCycleLength).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
 
@@ -1025,14 +1025,17 @@ function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, numberTo
     let erroredResults = []
     //exchange num: count of succeeded
     let exchangeNumBuckets = {};
-    let resultsByExchangeNum = {};
+    let minimalResultsByExchangeNum = {};
     let chainsByExchangeNum = {};
+
+    //limits the terms in the generated potentials to approximately this size
+    const potentialAdjustFactor = Math.min(1, approximateMaxPotentialTerms / cyclesWithoutQuadratics.length);
 
     for (var i = 0; i < numberToTest; i++) {
         var template = deepCopy(potentialTemplate)
 
         //this makes the generated potentials linearly distributed with respect to their size
-        var thisPotentialFactor = Math.random() * 0.2;
+        var thisPotentialFactor = Math.random() * potentialAdjustFactor;
         
         for (var t = 0; t < template.length; t++) {
             if (Math.random() < thisPotentialFactor) {
@@ -1040,6 +1043,7 @@ function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, numberTo
             }
         }
 
+        //uncomment to skip duplicate potentials
        // var templateStr = JSON.stringify(template)
        // if(testedPotentials.includes(templateStr)) {
        //     continue;
@@ -1065,14 +1069,17 @@ function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, numberTo
                     exchangeNumBuckets[exchangeNum] = 1;
                 }
     
-                if (!resultsByExchangeNum[exchangeNum]) {
-                    resultsByExchangeNum[exchangeNum] = []
+                if (!minimalResultsByExchangeNum[exchangeNum]) {
+                    minimalResultsByExchangeNum[exchangeNum] = [constructedPotential]
+                } else if (constructedPotential.length < minimalResultsByExchangeNum[exchangeNum][0].length) {
+                    minimalResultsByExchangeNum[exchangeNum] = [constructedPotential]
+                } else if (constructedPotential.length === minimalResultsByExchangeNum[exchangeNum][0].length) {
+                    minimalResultsByExchangeNum[exchangeNum].push(constructedPotential)
                 }
-                resultsByExchangeNum[exchangeNum].push(constructedPotential)
             } catch (e) {
              //   console.log(e)
                 errored++;
-                erroredResults.push(constructedPotential)
+              //  erroredResults.push(constructedPotential)
             }
 
             tested++;
@@ -1082,15 +1089,21 @@ function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, numberTo
             }
     }
 
+    for (var key in minimalResultsByExchangeNum) {
+        //deduplicate the minimal results
+        var stringifiedResults = minimalResultsByExchangeNum[key].map(i => JSON.stringify(i))
+        minimalResultsByExchangeNum[key] = minimalResultsByExchangeNum[key].filter((item, idx) => stringifiedResults.indexOf(JSON.stringify(item)) === idx)
+    }
+
     return {
         stats: {
             tested,
             skipped,
             errored,
         },
-        erroredResults,
+       // erroredResults,
         exchangeNumBuckets,
-        resultsByExchangeNum,
+        minimalResultsByExchangeNum,
         chainsByExchangeNum
     }
 }
