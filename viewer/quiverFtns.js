@@ -1057,11 +1057,11 @@ function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, approxim
                 var exchangeNumResult = getAllMutationsForQP(qpt, searchExchangeNum + 1)
                 var exchangeNum = exchangeNumResult.quivers.length
 
-                if (chainsByExchangeNum[exchangeNum]) {
-                    chainsByExchangeNum[exchangeNum].push(exchangeNumResult.chains)
-                } else {
-                    chainsByExchangeNum[exchangeNum] = [exchangeNumResult.chains]
-                }
+                //if (chainsByExchangeNum[exchangeNum]) {
+                //    chainsByExchangeNum[exchangeNum].push(exchangeNumResult.chains)
+                //} else {
+                //    chainsByExchangeNum[exchangeNum] = [exchangeNumResult.chains]
+                //}
     
                 if (exchangeNumBuckets[exchangeNum]) {
                     exchangeNumBuckets[exchangeNum]++;
