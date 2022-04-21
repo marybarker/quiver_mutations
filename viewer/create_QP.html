@@ -100,10 +100,18 @@
                     "potential": potential.get()
                 });
 
-	        if (fmt == 'globalTriangulation') {
+                if (fmt == 'globalTriangulation') {
                     data = JSON.stringify(globalTriangulation);
-		} else {
-                    data = QPFromTriangulation(globalTriangulation);
+                } else {
+                    if (fmt == 'QPFromTriangulation') {
+                        data = QPFromTriangulation(globalTriangulation);
+                    } else {
+                        data = allUniqueTriangulations(globalTriangulation, globalBoundaryEdges);
+                        const cs = data.coordinates.map(y => y.map(z=>parseFloat(z)));
+                        data = data.triangulations.map(x => JSON.parse(x));
+                        data = data.map(t => t.map(e => JSON.parse(e)));
+                        data = data.map(x => QPFromTriangulation([x, cs]));
+                    }
 		}
 
                 const textToBLOB = new Blob([data], {type: "text/plain"});
@@ -113,7 +121,7 @@
                 newLink.download = sFileName;
 
                 if (window.webkitURL != null) {
-                	   newLink.href = window.webkitURL.createObjectURL(textToBLOB);
+                    newLink.href = window.webkitURL.createObjectURL(textToBLOB);
                 }
                 else {
                     newLink.href = window.URL.createObjectURL(textToBLOB);
@@ -249,21 +257,27 @@
 
 
         <div id="TRI" class="tabcontent">
-	    <h3>Click on an edge to flip it</h3>
 	    <table>
                 <tr>
                     <td width="50%">
                         <div class="Anetwork" id="triangulationView"></div>
                     </td>
                     <td width="50%" class="menuBar">
+			<p>
+			    Click on an edge to flip it. Edges that cannot be flipped are ignored.<br><br>
+
+			    To generate G-Hilb for <sup>1</sup>&frasl;<sub>r</sub> (a,b,c) 
+			    where r = a + b + c, enter the chosen values of a, b, and c in the input spaces:
+			</p>
+
                         <label for="A_value">Value for a:</label>
-			<input id="A_value" type="number" value="1"><br><br>
+			<input id="A_value" type="number" value="1" size=4><br><br>
 
                         <label for="B_value">Value for b:</label>
-			<input id="B_value" type="number" value="2"><br><br>
+			<input id="B_value" type="number" value="2" size=4><br><br>
 
                         <label for="C_value">Value for c:</label>
-			<input id="C_value" type="number" value="3"><br><br>
+			<input id="C_value" type="number" value="3" size=4><br><br>
 
                         <button onclick="callTriangulation()">Generate Triangulation</button>
 
@@ -272,9 +286,14 @@
                         <input type="button" id="QPjsondwnload" value="Download QP to file" onclick="saveFile(fmt = 'QPFromTriangulation')"/>
 
 			<br><br>
+			<p>
+			    To generate all possible triangulations and download their associated quivers, click the button &quot;Download all QPs to file&quot;.
+			</p>
                         <span id="tri-exchange-number-output">--</span>
                         &nbsp;
                         <button onclick="showTriExchangeNumber()">Calculate Exchange Number</button>
+ 
+            	        <input type="button" id="listjsondwnload" value="Download all QPs to file" onclick="saveFile(fmt = 'allQPsFromTriangulation')"/>
                     </td>
 	        </tr>
 	    </table>

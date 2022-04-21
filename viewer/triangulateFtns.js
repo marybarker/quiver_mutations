@@ -94,7 +94,7 @@ function allUniqueTriangulations(t, boundary_edges) {
 
     var uniqueList = [sortedString(edges)];
     tryFlippingAllEdges(edges, triangles, edge_to_triangle, uniqueList);
-    return {triangulations: uniqueList, timeout: Date.now() - beginTime > maxRuntime};
+    return {triangulations: uniqueList, coordinates: coords, timeout: Date.now() - beginTime > maxRuntime};
 }
 
 function argsort(arr) {
