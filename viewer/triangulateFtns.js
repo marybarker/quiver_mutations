@@ -340,13 +340,11 @@ function flip(edge_index, edges, coordinates, triangles=[], edge_to_triangle=[],
                     if (ti == nbr1) {
 			var a = [e0p2, edge_index, e0p1];
                         return a.sort()
+	            } else if (ti == nbr2) {
+                        var a = [e1p2, edge_index, e1p1];
+                        return a.sort();
 	            } else {
-	                if (ti == nbr2) {
-                            var a = [e1p2, edge_index, e1p1];
-			    return a.sort();
-	                } else {
-                            return [...t].sort();
-	                }
+                        return [...t].sort();
 	            }
 	        });
                 var new_edges = range(0, edges.length).map(function(edgei) {
@@ -359,12 +357,10 @@ function flip(edge_index, edges, coordinates, triangles=[], edge_to_triangle=[],
 		var new_edge_to_triangle = edge_to_triangle.map(function(e2t, e2ti) {
 		    if (e2ti == e1p1) {
                         return e2t.map(function(y){if(y != nbr1){return y;} else {return nbr2;}});
-		    } else {
-		        if (e2ti == e0p2) {
-                            return e2t.map(function(y){if(y != nbr2){return y;} else {return nbr1;}});
-		        } else {
-                            return [...e2t];
-		        }
+		    } else if (e2ti == e0p2) {
+                        return e2t.map(function(y){if(y != nbr2){return y;} else {return nbr1;}});
+                    } else {
+                        return [...e2t];
 		    }
 		});
 
@@ -1054,7 +1050,7 @@ function rotateSimplexToPlane(coordinates) {
 function showTriExchangeNumber() {
     const output = document.getElementById('tri-exchange-number-output')
     try {
-        const result = allUniqueTriangulations(globalTriangulation);
+        const result = allUniqueTriangulations(globalTriangulation, globalBoundaryEdges);
         if (result.timeout) {
             output.textContent = "Timed out"
         } else {
