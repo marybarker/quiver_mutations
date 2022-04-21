@@ -1,12 +1,16 @@
+// triangulation information
 var globalBoundaryEdges = [0,1,2,3,4,5];
 var globalCoords = [[6,0,0],[0,6,0],[0,0,6], [1,2,3],[2,4,0],[4,2,0],[3,0,3]];
 var globalEdges = [[0,5],[5,4],[4,1],[1,2],[2,6],[6,0],[6,5],[5,3],[4,3],[1,3],[2,3],[6,3]];
-var globalTriangulation = [
-    globalEdges, globalCoords
-];
+var globalTriangulation = [globalEdges, globalCoords];
+
+// allows checking if things are the same in euclidean space within this given tolerance
 const tolerance = 0.00001;
+
+// information for canvas drawing
 var network_nodes, network_edges, triangulate_network;
 var output_fields = ["id", "from", "to", "edge1","edge2","edge3"] // which data objects to print to screen
+
 
 function allCycles(segments) {
     // find all cycles in an undirected graph defined by the list of segments 
@@ -146,11 +150,11 @@ function convexHull(planar_points) {
     return points.map(p => planar_points[p]);
 }
 
-function count(l, v) {
+function count(l, v) { // return the number of instances of value v in list l
     return l.filter(x => x == v).length;
 }
 
-function crossProduct(v1, v2) {
+function crossProduct(v1, v2) { // 3d cross product
     return [v1[1]*v2[2] - v1[2]*v2[1], v1[2]*v2[0] - v1[0]*v2[2], v1[0]*v2[1] - v1[1]*v2[0]];
 }
 
@@ -216,11 +220,11 @@ function dfsAllCycles(segments, es_at, start_vertex, end_vertex) {
     return toRet;
 }
 
-function dotProduct(v1, v2) {
+function dotProduct(v1, v2) { // n dimensional dot product (assumes length of v1 = length of v2)
     return v1.map((x, i) => v1[i] * v2[i]).reduce((m, n) => m + n);
 }
 
-function findHull(point_set, a, b) {
+function findHull(point_set, a, b) { // this is a helper function for the convexhull algorithm
     // line segment from a to b and its length
     var AB = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
     var rays = point_set.map(p => [p[0] - a[0], p[1] - a[1], p[2] - a[2]]);
@@ -284,6 +288,8 @@ function findLinearGroups(edge_indices, segments, coordinates) {
 }
 
 function flip(edge_index, edges, coordinates, triangles=[], edge_to_triangle=[], boundary_edges=null, inplace=false) {
+    // this routine flips an edge in a given triangulation
+
     if (boundary_edges != null) {
         if (boundary_edges.includes(edge_index)) {
             return [false, edges, triangles, edge_to_triangle];
@@ -539,7 +545,11 @@ function latticePoints(r=6,a=1,b=2,c=3,nonunit=true) {
 }
 
 function makeTriangulation(edges, boundary_edges=null){
-    
+    // this routine takes a set of edges (given as lists of pairs [p1,p2]
+    // where p1 and p2 denote the indices for the vertices that make the endpoints of the given edge
+    // and it returns a list of all the triangles that can be generated from that configuration 
+    // of edges. NOTE: if the set of boundary edges is not provided, then the triangulation might 
+    // contain extra triangles (see the comment below)
     var num_vertices = Math.max(...edges.map(e=>Math.max(e)))+1;
     var nbrs = range(0, num_vertices).map(x => null);
     for (let i = 0; i < edges.length; i++) {
@@ -654,6 +664,7 @@ function makeTriangulation(edges, boundary_edges=null){
 }
 
 function matmul(a, b) {
+    // matrix multiplication (oh, how I miss numpy...)
     if (a[0].length != b.length) {
         return null;
     }
@@ -737,6 +748,7 @@ function nontriangulatedSides(segments, coordinates) {
 }
 
 function nonzeroAvg(a,b,c){
+    // helper function for orderedRays routine
     var idx = c.indexOf(c.find(x => (x > 0 || x < 0)));
     return (a[idx] + b[idx]) / c[idx];
 }
@@ -768,6 +780,8 @@ function orderedRays(L) {
 }
 
 function orderSegments(segs) {
+    // takes a list of edges (given in pairwise-vertex index format)
+    // and returns the list, ordered such that the edges form a conesecutive series
     var b = segs[0][0];
     var e = segs[0][1];
     var l = [segs[0]];
@@ -798,6 +812,7 @@ function orderSegments(segs) {
 }
 
 function QPFromTriangulation(t) {
+    // calculate the quiver from a given triangulation
     var ns = [];
     var es = [];
     var fn = [];
@@ -862,12 +877,13 @@ function QPFromTriangulation(t) {
     return JSON.stringify({"nodes": ns, "edges": es, "frozenNodes": fn, "potential": pt});
 }
 
-function range(start, stop, step=1) {
+function range(start, stop, step=1) { // trying to be as python-ish as I can
     return Array.from({ length: (stop - start) / step}, (_, i) => start + (i * step));
 }
 
 
 function ReidsRecipe(segments, strengths, potential_segments, longest_extension, coordinates) {
+    // Reid's recipe helper function
     var new_segments = segments.map((s, si) => [-1, s[0], s[1], strengths[si]]);
     var children = segments.map(x => []);
 
@@ -987,6 +1003,7 @@ function ReidsRecipe(segments, strengths, potential_segments, longest_extension,
 }
 
 function resolveNetworkFlip(n, p) {
+    // this routine flips the clicked edge on the canvas, and updates globals accordingly
     var e = p.edges[0].toString();
     var tri = makeTriangulation(globalTriangulation[0], globalBoundaryEdges);
     var opt = flip(parseInt(e), globalTriangulation[0], globalTriangulation[1], tri[0], tri[1], globalBoundaryEdges);
@@ -1012,6 +1029,7 @@ function resolveNetworkFlip(n, p) {
 }
 
 function rotateSimplexToPlane(coordinates) {
+    // helper function for viewing the canvas
     var n = [1/Math.pow(3,0.5),1/Math.pow(3,0.5),1/Math.pow(3,0.5)];
     var m1 = [
                  [ n[0] / (n[0]*n[0] + n[1]*n[1]), n[1] / (n[0]*n[0] + n[1]*n[1]), 0],
@@ -1049,6 +1067,7 @@ function showTriExchangeNumber() {
 }
 
 function tesselate(triangle, coordinates) {
+    // this routine takes a regular triangle and subdivides it into unit-segment triangles. 
     var r = triangle[0].length - 1;
     // order the segments along each side so that side1 and side2 emanate from 
     // the same vertex, and so that side3 begins at the end of side1. 
@@ -1121,6 +1140,7 @@ function tesselate(triangle, coordinates) {
 }
 
 function triangulation(R,a,b,c) {
+    /* this routine generates the G-Hilb triangulation for the group 1/R(a,b,c) */
     // vertices defining the junior simplex (scaled by length R so we deal with integers)
     var eis = [[R,0,0],[0,R,0],[0,0,R]];
     // interior lattice points for junior simplex (also scaled by R)
@@ -1200,12 +1220,13 @@ function triangulation(R,a,b,c) {
 }
 
 function unique(L) {
+    // get unique values in list
     var toRet = new Set(L);
     return Array.from(toRet);
 }
 
 function updateNetworkFromGlobals() {
-
+    // update the canvas to mirror the global edge/coordinates data
     network_nodes.clear();
     network_edges.clear();
 
@@ -1227,7 +1248,7 @@ function updateNetworkFromGlobals() {
     }
 }
 
-function veclen(v) {
+function veclen(v) { // returns the length of a vector v
     return Math.pow(dotProduct(v,v), 0.5);
 }
 
