@@ -1,10 +1,10 @@
+var globalCoords = [[6,0,0],[0,6,0],[0,0,6], [1,2,3],[2,4,0],[4,2,0],[3,0,3]];
+var globalEdges = [[0,5],[5,4],[4,1],[1,2],[2,6],[6,0],[6,5],[5,3],[4,3],[1,3],[2,3],[6,3]];
 var globalTriangulation = [
-	[[0,5],[5,4],[4,1],[1,2],[2,6],[6,0],
-	[6,5],[5,3],[4,3],[1,3],[2,3],[6,3]], 
-	[[6,0,0],[0,6,0],[0,0,6],
-	[1,2,3],[2,4,0],[4,2,0],[3,0,3]]
+    globalEdges, globalCoords
 ];
 const tolerance = 0.00001;
+var networkNodes, networkEdges, triangulateNetwork;
 
 function allCycles(segments) {
     // find all cycles in an undirected graph defined by the list of segments 
@@ -52,8 +52,14 @@ function callTriangulation() {
     var c = parseFloat(document.getElementById("C_value").value);
     var r = a + b + c;
     var t = triangulation(r,a,b,c);
-    globalTriangulation = t;
+    globalEdges = t[0];
+    globalCoords = t[1];
+    globalTriangulation = [t[0], t[1]];
     viewTriangulation();
+}
+
+function canFlip(edge_index, nbr1, nbr2, edges, edge_to_triangle, triangles, coordinates) {
+    return curveType(edges, triangles, edge_to_triangle, coordinates, edge_index) < 1;
 }
 
 function containsZero(l, tol=tolerance) {
@@ -214,6 +220,73 @@ function findLinearGroups(edge_indices, segments, coordinates) {
         }
     }
     return toRet;
+}
+
+function flip(edge_index, edges, coordinates, triangles=[], edge_to_triangle=[], inplace=false) {
+    var e = edges[edge_index];
+    if ((triangles.length < 1) || (edge_to_triangle.length < 1)) {
+        var t = makeTriangulation(edges);
+        triangles = t[0];
+        edge_to_triangle = t[1];
+    }
+    if (edge_to_triangle[edge_index].length > 1) {
+        // find the two triangles that share edge edge_index
+        var nbrs = edge_to_triangle[edge_index];
+        var nbr1 = nbrs[0]; var nbr2 = nbrs[1];
+
+        if (canFlip(edge_index, nbr1, nbr2, edges, edge_to_triangle, triangles, coordinates)) {
+            // get the points p1, p2 'opposite' to edge e
+            //    p1-------e[1]
+            //    |       /  |
+            //    | nbr1 /   |
+            //    |     /e   |
+            //    |    /     |
+            //    |   / nbr2 |
+            //    |  /       |
+            //   e[0]-------p2
+            var nb1_edges = triangles[nbr1].filter(y => y != edge_index);
+            var nb2_edges = triangles[nbr2].filter(y => y != edge_index);
+
+            var p1 = edges[nb1_edges[0]].filter(x => !e.includes(x));
+            var p2 = edges[nb2_edges[0]].filter(x => !e.includes(x));
+
+            // find the edge indices for e[0]--p2 and e[1]--p1 and other 2 as well.
+            var e1p1 = nb1_edges[0];
+            var e0p1 = nb1_edges[1];
+            var e0p2 = nb2_edges[0];
+            var e1p2 = nb2_edges[1];
+
+            if (inplace) {
+                return [true, edges, triangles, edge_to_triangle];
+	    } else {
+                var new_triangles = triangles.map(function(t, ti) {
+                    if (ti == nbr1) {
+                        return [e0p2, edge_index, e0p1];
+	            } else {
+	                if (ti == nbr2) {
+                            return [e1p2, edge_index, e1p1];
+	                } else {
+                            return [...t];
+	                }
+	            }
+	        });
+                var new_edges = edges.map(function(edge, edgei) {if (edgei == edge_index) {return [p2,p1];} else {return [...edge];}});
+		var new_edge_to_triangle = edge_to_triangle.map(function(e2t, e2ti) {
+		    if (e2ti == e1p1) {
+                        return e2t.map(function(y){if(y != nbr1){return y;} else {return nbr2;}});
+		    } else {
+		        if (e2ti == e0p2) {
+                            return e2t.map(function(y){if(y != nbr2){return y;} else {return nbr1;}});
+		        } else {
+                            return [...e2t];
+		        }
+		    }
+		});
+                return [true, new_edges, new_triangles, new_edge_to_triangle];
+	    }
+        }
+    }
+    return [false, edges, triangles, edge_to_triangle];
 }
 
 function generateInitialRays(R, eis, Li) {
@@ -831,6 +904,20 @@ function ReidsRecipe(segments, strengths, potential_segments, longest_extension,
     return segments.filter(function(si) {return si[3] > 0;}).map(s => [s[1], s[2]]);
 }
 
+function resolveNetworkFlip(n, p) {
+    var e = p.edges[0].toString();
+    var opt = flip(parseInt(e), globalTriangulation[0], globalTriangulation[1], inplace=false);
+    if (opt[0]) {
+	var es = JSON.parse(JSON.stringify(opt[1])).map(
+            function(x) {
+	        return x.map(y => parseInt(y));
+	    });
+	globalEdges = es;
+	globalTriangulation = [globalEdges, globalCoords];
+    }
+    updateNetworkFromGlobals();
+}
+
 function rotateSimplexToPlane(coordinates) {
     var n = [1/Math.pow(3,0.5),1/Math.pow(3,0.5),1/Math.pow(3,0.5)];
     var m1 = [
@@ -1009,13 +1096,36 @@ function unique(L) {
     return Array.from(toRet);
 }
 
+function updateNetworkFromGlobals() {
+
+    networkNodes.clear();
+    networkEdges.clear();
+
+    let rotatedNodes = rotateSimplexToPlane(globalTriangulation[1]);
+    var xscaling = Math.max(...rotatedNodes.map(x => x[0])) - Math.min(...rotatedNodes.map(x => x[0]));
+    var yscaling = Math.max(...rotatedNodes.map(x => x[1])) - Math.min(...rotatedNodes.map(x => x[1]));
+    for (let n = 0; n < rotatedNodes.length; n++) {
+        let xy = rotatedNodes[n];
+        networkNodes.add({
+            id: n.toString(),
+            label: n.toString(),
+            x: (1000/xscaling)*parseFloat(xy[0]), 
+            y: (1000/yscaling)*parseFloat(xy[1])
+	});
+    }
+    for (let e = 0; e < globalTriangulation[0].length; e++) {
+        let s = globalTriangulation[0][e];
+        networkEdges.add({id: e.toString(), from: s[0].toString(), to: s[1].toString()});
+    }
+}
+
 function veclen(v) {
     return Math.pow(dotProduct(v,v), 0.5);
 }
 
 function viewTriangulation() {
-    var localNodes = new vis.DataSet();
-    var localEdges = new vis.DataSet();
+    networkNodes = new vis.DataSet();
+    networkEdges = new vis.DataSet();
     if (globalTriangulation != null) {
         var ln = []
         var le = [];
@@ -1024,28 +1134,28 @@ function viewTriangulation() {
         var xscaling = Math.max(...rotatedNodes.map(x => x[0])) - Math.min(...rotatedNodes.map(x => x[0]));
         var yscaling = Math.max(...rotatedNodes.map(x => x[1])) - Math.min(...rotatedNodes.map(x => x[1]));
         for (let n = 0; n < rotatedNodes.length; n++) {
-    	let xy = rotatedNodes[n];
+    	    let xy = rotatedNodes[n];
             ln.push({
     		id: n.toString(),
     		label: n.toString(),
     		x: (1000/xscaling)*parseFloat(xy[0]), 
     		y: (1000/yscaling)*parseFloat(xy[1])
-    	});
+    	    });
         }
         for (let e = 0; e < globalTriangulation[0].length; e++) {
-    	let s = globalTriangulation[0][e];
+    	    let s = globalTriangulation[0][e];
             le.push({id: e.toString(), from: s[0].toString(), to: s[1].toString()});
         }
 
-        localNodes.add(ln);
-        localEdges.add(le);
+        networkNodes.add(ln);
+        networkEdges.add(le);
     }
 
     // create a network
     var localContainer = document.getElementById("triangulationView");
     var data = {
-        nodes: localNodes,
-        edges: localEdges
+        nodes: networkNodes,
+        edges: networkEdges
     };
     var options = {
         nodes: {
@@ -1065,5 +1175,8 @@ function viewTriangulation() {
             },
 	},
     };
-    localNetwork = new vis.Network(localContainer, data, options);
+    triangulateNetwork = new vis.Network(localContainer, data, options);
+    triangulateNetwork.on('click',function(params){
+        resolveNetworkFlip(triangulateNetwork, params);
+    });
 }
