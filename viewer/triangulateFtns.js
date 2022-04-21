@@ -38,6 +38,10 @@ function allCycles(segments) {
     return cycles;
 }
 
+function allUniqueTriangulations(t) {
+
+}
+
 function argsort(arr) {
     // dsu algorithm for argsort
     let decor = (v, i) => [v, i];
@@ -47,6 +51,7 @@ function argsort(arr) {
 }
 
 function callTriangulation() {
+    // function that draws initial configuration for triangulate tab of window
     var a = parseFloat(document.getElementById("A_value").value);
     var b = parseFloat(document.getElementById("B_value").value);
     var c = parseFloat(document.getElementById("C_value").value);
@@ -86,6 +91,10 @@ function convexHull(planar_points) {
 
 function count(l, v) {
     return l.filter(x => x == v).length;
+}
+
+function countTriangulations(t) {
+    return allUniqueTriangulations(t).length;
 }
 
 function crossProduct(v1, v2) {
@@ -1102,15 +1111,17 @@ function updateNetworkFromGlobals() {
     networkEdges.clear();
 
     let rotatedNodes = rotateSimplexToPlane(globalTriangulation[1]);
-    var xscaling = Math.max(...rotatedNodes.map(x => x[0])) - Math.min(...rotatedNodes.map(x => x[0]));
-    var yscaling = Math.max(...rotatedNodes.map(x => x[1])) - Math.min(...rotatedNodes.map(x => x[1]));
+    let xmax = Math.max(...rotatedNodes.map(x => x[0])); var xmin = Math.min(...rotatedNodes.map(x => x[0]));
+    let ymax = Math.max(...rotatedNodes.map(x => x[1])); var ymin = Math.min(...rotatedNodes.map(x => x[1]));
+    let xscaling = xmax - xmin;
+    let yscaling = ymax - ymin;
     for (let n = 0; n < rotatedNodes.length; n++) {
         let xy = rotatedNodes[n];
         networkNodes.add({
             id: n.toString(),
             label: n.toString(),
-            x: (1000/xscaling)*parseFloat(xy[0]), 
-            y: (1000/yscaling)*parseFloat(xy[1])
+            x: -50 + (300/xscaling)*parseFloat(xy[0]),
+            y: -50 + (300/yscaling)*parseFloat(xy[1])
 	});
     }
     for (let e = 0; e < globalTriangulation[0].length; e++) {
@@ -1131,15 +1142,17 @@ function viewTriangulation() {
         var le = [];
 
         let rotatedNodes = rotateSimplexToPlane(globalTriangulation[1]);
-        var xscaling = Math.max(...rotatedNodes.map(x => x[0])) - Math.min(...rotatedNodes.map(x => x[0]));
-        var yscaling = Math.max(...rotatedNodes.map(x => x[1])) - Math.min(...rotatedNodes.map(x => x[1]));
+	let xmax = Math.max(...rotatedNodes.map(x => x[0])); var xmin = Math.min(...rotatedNodes.map(x => x[0]));
+	let ymax = Math.max(...rotatedNodes.map(x => x[1])); var ymin = Math.min(...rotatedNodes.map(x => x[1]));
+        let xscaling = xmax - xmin;
+        let yscaling = ymax - ymin;
         for (let n = 0; n < rotatedNodes.length; n++) {
     	    let xy = rotatedNodes[n];
             ln.push({
     		id: n.toString(),
     		label: n.toString(),
-    		x: (1000/xscaling)*parseFloat(xy[0]), 
-    		y: (1000/yscaling)*parseFloat(xy[1])
+    		x: -50 + (300/xscaling)*parseFloat(xy[0]),
+    		y: -50 + (300/yscaling)*parseFloat(xy[1])
     	    });
         }
         for (let e = 0; e < globalTriangulation[0].length; e++) {
