@@ -40,7 +40,7 @@ function addTermToPotential(t, coef=1) {
     } else {
         alert("Error updating potential: term "+t+" contains an invalid edge");
     }
-    updateNetworkQPFromGlobal();
+    updateGlobalQPFromNetwork();
 }
 
 function allCycles(segments) {
@@ -848,7 +848,7 @@ function generateInitialRays(R, eis, Li) {
 }
 
 function generateRandomPotential() {
-    var np = randomPotential(QPNetworkNodes, QPNEtworkEdges);
+    var np = randomPotential(QPNetworkNodes, QPNetworkEdges);
 
     QPNetworkPotential.clear();
     for (let i = 0; i < np.length; i++) {
@@ -857,6 +857,7 @@ function generateRandomPotential() {
             addTermToPotential(x[1], x[0]);
 	}
     }
+    updateGlobalQPFromNetwork();
 }
 
 function getAllMutationsForQP(qp, maxMutationsToFind) {
@@ -1559,7 +1560,7 @@ function potentialSearch(qp, searchExchangeNum, maxCycleLength=5, testRate=0.2) 
 
 function potentialTermIsSubsetOfEdges(term) {
     var esInTerm = term.split(",");
-    var currentEdges = QPNEtworkEdges.getIds();
+    var currentEdges = QPNetworkEdges.getIds();
     return (esInTerm.filter(x => !currentEdges.includes(x.toString())).length < 1);
 }
 
@@ -2024,6 +2025,89 @@ function removeEdges(edgeIndices, QP, altPotential="None") {
     return makeQP(newEdges, QP.nodes, QP.frozenNodes, newPotential, inputType="fromQP");
 }
 
+function removeGlobalTerms(nodeIdsToRemove=[], edgeIdsToRemove=[], potentialIdsToRemove=[]) {
+    // removes nodes, edges, and potential terms and updates the index/label ordering on edges and nodes
+
+    var oldNodeIds = QPNetworkNodes.getIds();
+    var newNodeIndexing = [];
+
+    if (nodeIdsToRemove.length > 0) {
+        for (let ni = 0; ni < nodeIdsToRemove.length; ni++) {
+	    let n = nodeIdsToRemove[ni].toString();
+            var extraEdgesToRemove = QPNetworkEdges.getIds().filter(x => ((QPNetworkEdges.get(x).to == n) || (QPNetworkEdges.get(x).from == n))); 
+            for (let ei = 0; ei < extraEdgesToRemove.length; ei++) {
+	        let e = extraEdgesToRemove[ei].toString();
+                if (!edgeIdsToRemove.includes(e)) {
+                    edgeIdsToRemove.push(e);
+                }
+            }
+	}
+	// reindex/relabel nodes
+        oldNodeIds = QPNetworkNodes.getIds().filter(x => !nodeIdsToRemove.includes(x));
+        newNodeIndexing = oldNodeIds.map(function(i) {
+            return {
+                id: oldNodeIds.indexOf(i).toString(), 
+                label: oldNodeIds.indexOf(i).toString(), 
+                x: QPNetworkNodes.get(i).x, 
+                y: QPNetworkNodes.get(i).y
+            };
+	});
+    }
+
+    var oldEdgeIds = QPNetworkEdges.getIds();
+    var newEdgeIndexing = [];
+    var newPotentialTerms = [];
+    if (edgeIdsToRemove.length > 0) {
+        for (let ei = 0; ei < edgeIdsToRemove.length; ei++) {
+	    let e = edgeIdsToRemove[ei].toString();
+            QPNetworkEdges.remove({id:e});
+        }
+	// reindex/relabel edges
+        oldEdgeIds = QPNetworkEdges.getIds();
+        newEdgeIndexing = oldEdgeIds.map(function(i) {
+	    return {
+		    id:     oldEdgeIds.indexOf(i).toString(), 
+	            from:   oldNodeIds.indexOf(QPNetworkEdges.get(i).from).toString(),
+	            to:     oldNodeIds.indexOf(QPNetworkEdges.get(i).to).toString(),
+	            arrows: "to",
+	            title:  "edge "+oldEdgeIds.indexOf(i).toString()
+	        };
+	    });
+
+        var potentialTermsToRemove = QPNetworkPotential.getIds().filter(x => !potentialTermIsSubsetOfEdges(x));
+        // remove terms from potential
+        for (let pt = 0; pt < potentialTermsToRemove.length; pt++) {
+            QPNetworkPotential.remove({id:potentialTermsToRemove[pt].toString()});
+        }
+    }
+    for (let pt = 0; pt < potentialIdsToRemove.length; pt++) {
+        QPNetworkPotential.remove({id:potentialIdsToRemove[pt].toString()});
+    }
+    // relabel edges in potential by their new numbering
+    for (let pt = 0; pt < QPNetworkPotential.getIds().length; pt++) {
+        let t = QPNetworkPotential.getIds()[pt];
+        newPotentialTerms.push({id: t.split(",").map(x => oldEdgeIds.indexOf(x.toString())).toString(), coef: QPNetworkPotential.get(t).coef});
+    }
+    var newFn = QPNetworkFrozenNodes.getIds().filter(x => oldNodeIds.includes(x)).map(x => {id: oldNodeIds.indexOf(x).toString()});
+    if (newNodeIndexing.length > 0) {
+	QPNetworkNodes.clear();
+        QPNetworkNodes.add(newNodeIndexing);
+    }
+    if (newEdgeIndexing.length > 0) {
+	QPNetworkEdges.clear();
+        QPNetworkEdges.add(newEdgeIndexing);
+    }
+    if (newPotentialTerms.length > 0) {
+	QPNetworkPotential.clear();
+        QPNetworkPotential.add(newPotentialTerms);
+    }
+    if (newFn.legnth > 0) {
+	QPNetworkFrozenNodes.clear();
+        QPNetworkFrozenNodes.add(newFn);
+    }
+    updateGlobalQPFromNetwork();
+}
+
 function resolveClickEvent(n, p) {
     var click_mode = "NONE";
     try {
@@ -2074,10 +2158,12 @@ function resolveClickEvent(n, p) {
             var mQP = makeQP(QPNetworkEdges, QPNetworkNodes, QPNetworkFrozenNodes, QPNetworkPotential);
 
             mQP = mutateQP(current_node, mQP);
-	    updateGlobalsFromQP(mQP);
+	    updateNetworkQPFromLocalQP(mQP);
         }
     }
+    updateGlobalQPFromNetwork();
 }
+
 function resolveNetworkFlip(n, p) {
     // this routine flips the clicked edge on the canvas, and updates globals accordingly
     var e = p.edges[0].toString();
@@ -2349,30 +2435,6 @@ function unique(L) {
     return Array.from(toRet);
 }
 
-function updateGlobalsFromQP(QP) {
-    // NOTE: this routine does not update nodes global. 
-    var outputs = [];
-    for (let i = 0; i < QP.edges.length; i++) {
-        outputs.push({
-	    id: i.toString(), 
-	    to: QP.edges[i][1].toString(), 
-	    from: QP.edges[i][0].toString(), 
-	    arrows: "to",
-	    title: "edge "+i.toString()
-	});
-    }
-    QPNEtworkEdges.clear();
-    QPNEtworkEdges.add(outputs);
-
-    QPNetworkPotential.clear();
-    QPNetworkPotential.add(QP.potential.filter(x => (x[1] != ",")).map(function(x) {
-        return {
-            id: x[1],
-            coef: x[0].toString(),
-        };
-    }));
-}
-
 function updateInstructions() {
     let click_mode = document.getElementById("edit-quiver-type").value;
     var textOutput = "Click on canvas to add a node";
@@ -2391,7 +2453,11 @@ function updateInstructions() {
     document.getElementById("instructions").innerText = textOutput;
 }
 
-function updateGlobalQPFromNetwork(){
+function updateGlobalQPFromNetwork() {
+    QPglobalNodes = QPNetworkNodes.getIds().map(x => [Number(QPNetworkNodes.get(x).x), Number(QPNetworkNodes.get(x).y)]);
+    QPglobalEdges = QPNetworkEdges.getIds().map(x => [Number(QPNetworkEdges.get(x).from), Number(QPNetworkEdges.get(x).to)]);
+    QPglobalPotential = QPNetworkPotential.getIds().map(function(x) {return {"id": QPNetworkPotential.get(x).id, "coef": QPNetworkPotential.get(x).coef};});
+    QPglobalFrozenNodes = QPNetworkFrozenNodes.getIds().map(x => Number(x));
 }
 
 function updateGlobalTriFromNetwork(){
@@ -2432,6 +2498,31 @@ function updateNetworkQPFromGlobal(){
     }
 }
 
+function updateNetworkQPFromLocalQP(QP) {
+    // NOTE: this routine does not update nodes global. 
+    var outputs = [];
+    for (let i = 0; i < QP.edges.length; i++) {
+        outputs.push({
+	    id: i.toString(),
+	    to: QP.edges[i][1].toString(),
+	    from: QP.edges[i][0].toString(),
+	    arrows: "to",
+	    title: "edge "+i.toString()
+	});
+    }
+    QPNetworkEdges.clear();
+    QPNetworkEdges.add(outputs);
+
+    QPNetworkPotential.clear();
+    QPNetworkPotential.add(QP.potential.filter(x => (x[1] != ",")).map(function(x) {
+        return {
+            id: x[1],
+            coef: x[0].toString(),
+        };
+    }));
+    updateGlobalQPFromNetwork();
+}
+
 function updateNetworkTriFromGlobal() {
     // update the canvas to mirror the global edge/coordinates data
     TriNetworkNodes.clear();
@@ -2463,7 +2554,7 @@ function updatePotential() {
 
 function updateQPFromJSON(JSONData) {
     clearQP();
-    QPNEtworkEdges.add(JSONData.edges.map(function(x){
+    QPNetworkEdges.add(JSONData.edges.map(function(x){
         const i = x.id;
         const f = x.from;
         const t = x.to;
