@@ -83,21 +83,16 @@
 
         <script 
             type="text/javascript"
-            src="./viewer/quiverFtns.js">
-        </script>
-
-        <script 
-            type="text/javascript"
-            src="./viewer/triangulateFtns.js">
+            src="./quiver_library.js">
         </script>
 
 	<script>
             function saveFile(fmt='globalQP') {
                 var data = JSON.stringify({
-                    "nodes": nodes.get(),
-                    "edges": edges.get(),
-                    "frozenNodes": frozen_nodes.get(),
-                    "potential": potential.get()
+                    "nodes": QPNetworkNodes.get(),
+                    "edges": QPNetworkEdges.get(),
+                    "frozenNodes": QPNetworkFrozenNodes.get(),
+                    "potential": QPNetworkPotential.get()
                 });
 
                 if (fmt == 'globalTriangulation') {
@@ -169,7 +164,7 @@
 
     </head>
 
-    <body onload="openPage('QP', this); draw()">
+    <body onload="openPage('QP', this); drawQPNetwork()">
         <button class="tablink" onclick="openPage('QP', this); draw()" id="defaultOpen">Manipulate QPs interactively</button>
         <button class="tablink" onclick="openPage('TRI', this); viewTriangulation()">Generate Triangulation</button>
 
@@ -209,7 +204,7 @@
                 <h3>Exchange number</h3>
                     <span id="exchange-number-output">--</span>
                     &nbsp;
-                    <button onclick="showExchangeNumber()">Calculate</button>
+                    <button onclick="showQPExchangeNumber()">Calculate</button>
                     </td>
                 </tr>
             </table>
