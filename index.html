@@ -89,24 +89,22 @@
 	<script>
             function saveFile(fmt='globalQP') {
                 var data = JSON.stringify({
-                    "nodes": QPNetworkNodes.get(),
-                    "edges": QPNetworkEdges.get(),
-                    "frozenNodes": QPNetworkFrozenNodes.get(),
-                    "potential": QPNetworkPotential.get()
+                    "nodes": QPglobalNodes,
+                    "edges": QPglobalEdges,
+                    "frozenNodes": QPglobalFrozenNodes,
+                    "potential": QPglobalPotential
                 });
 
                 if (fmt == 'globalTriangulation') {
                     data = JSON.stringify(globalTriangulation);
-                } else {
-                    if (fmt == 'QPFromTriangulation') {
+                } else if (fmt == 'QPFromTriangulation') {
                         data = QPFromTriangulation(globalTriangulation);
-                    } else {
-                        data = allUniqueTriangulations(globalTriangulation, globalBoundaryEdges);
-                        const cs = data.coordinates.map(y => y.map(z=>parseFloat(z)));
-                        data = data.triangulations.map(x => JSON.parse(x));
-                        data = data.map(t => t.map(e => JSON.parse(e)));
-                        data = data.map(x => QPFromTriangulation([x, cs]));
-                    }
+                } else {
+                    data = allUniqueTriangulations(globalTriangulation, globalBoundaryEdges);
+                    const cs = data.coordinates.map(y => y.map(z=>parseFloat(z)));
+                    data = data.triangulations.map(x => JSON.parse(x));
+                    data = data.map(t => t.map(e => JSON.parse(e)));
+                    data = data.map(x => QPFromTriangulation([x, cs]));
 		}
 
                 const textToBLOB = new Blob([data], {type: "text/plain"});
