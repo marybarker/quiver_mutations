@@ -10,7 +10,7 @@
                  margin:1px;
                  border:0;
                  overflow-y:scroll;
-		 padding:5px;
+                 padding:5px;
              }
              .menuBar{/*sidebar that has button for generating quiver and 
        		 adding to it: width, side of page, border, etc*/
@@ -25,26 +25,26 @@
                  padding:5px;
                  font-size:10pt;
              }
-	     .json_box_tall {
+             .json_box_tall {
                  height:400px;
-    	         overflow-y:scroll;
+                 overflow-y:scroll;
                  color:gray;
-	     }
-	     .json_box_short {
+             }
+             .json_box_short {
                  height:170px;
                  overflow-y:scroll;
                  color:gray;
-	     }
-	     .view_json_sty {
-		 width:100%;
+             }
+             .view_json_sty {
+                 width:100%;
                  color:gray;
                  margin:5px;
-		 padding:10px;
+                 padding:10px;
                  border-style:outset;
                  border-color:gray;
-	     }
-	     .tablink {
-		 overflow: hidden;
+             }
+             .tablink {
+                 overflow: hidden;
                  background-color: #222222;
                  color: white;
                  float: left;
@@ -56,24 +56,24 @@
                  color:gray;
                  width: 50%;
              }
-	     .tablink:hover {
+             .tablink:hover {
                  background-color: #ddd;
              }
-	     .tabcontent {
+             .tabcontent {
                  color: gray;
                  display: none;
                  padding: 100px 20px;
                  height: 100%;
              }
-	     .Anetwork {
+             .Anetwork {
                  width:100%;
                  height:400px;
                  margin:1px;
                  border-style:outset;
                  border-color:gray;
-	     }
-	     #QP {background-color: white;}
-	     #TRI {background-color: white;}
+             }
+             #QP {background-color: white;}
+             #TRI {background-color: white;}
         </style>
 
         <script
@@ -165,8 +165,8 @@
     </head>
 
     <body onload="openPage('QP', this); drawQPNetwork()">
-        <button class="tablink" onclick="openPage('QP', this); draw()" id="defaultOpen">Manipulate QPs interactively</button>
-        <button class="tablink" onclick="openPage('TRI', this); viewTriangulation()">Generate Triangulation</button>
+        <button class="tablink" onclick="openPage('QP', this); drawQPNetwork()" id="defaultOpen">Manipulate QPs interactively</button>
+        <button class="tablink" onclick="openPage('TRI', this); drawTriNetwork()">Generate Triangulation</button>
 
 	<div id="QP" class="tabcontent">
             <table>

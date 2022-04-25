@@ -1,5 +1,12 @@
 // QP globals
 var QPNetworkNodes, QPNetworkEdges, QPNetworkFrozenNodes, QPNetworkPotential, QPNetwork;
+var QPglobalNodes = [[-100,0],[0,100],[100,0],[100,-100],[0,-200],[-100,-100]];
+var QPglobalEdges = [[0,1],[1,0],[1,2],[2,1],[0,2],[2,0],[2,3],[3,2],[3,3],
+                     [3,4],[4,3],[4,4],[4,5],[5,4],[5,5],[5,5],[5,0],[0,5]];
+var QPglobalFrozenNodes = [];
+var QPglobalPotential = [{"id": "0,2,5", "coef": "1"}, {"id": "1,4,3", "coef": "1"},
+        {"id": "8,9,10", "coef": "1"}, {"id": "2,6,7,3", "coef": "1"},
+        {"id": "0,1,17,16", "coef": "1"}, {"id": "6,8,7", "coef": "1"}];
 
 // triangulation globals
 var TRIglobalBoundaryEdges = [0,1,2,3,4,5];
@@ -33,6 +40,7 @@ function addTermToPotential(t, coef=1) {
     } else {
         alert("Error updating potential: term "+t+" contains an invalid edge");
     }
+    updateNetworkQPFromGlobal();
 }
 
 function allCycles(segments) {
@@ -190,7 +198,7 @@ function callTriangulation() {
     var gb3 = range(0, TRIglobalEdges.length).filter(e => (isCollinear([[0,0,r], [r,0,0]], TRIglobalCoords[TRIglobalEdges[e][0]]) && isCollinear([[0,0,r], [r,0,0]], TRIglobalCoords[TRIglobalEdges[e][1]])));
     TRIglobalBoundaryEdges = gb1.concat(gb2).concat(gb3);
 
-    viewTriangulation();
+    drawTriNetwork();
 }
 
 function canFlip(edge_index, nbr1, nbr2, edges, edge_to_triangle, triangles, coordinates) {
@@ -289,6 +297,216 @@ function deepCopy(A) {
     return JSON.parse(JSON.stringify(A));
 }
 
+function dfsAllCycles(segments, es_at, start_vertex, end_vertex) {
+    // helper function for allCycles routine
+    var toRet = [];
+    var the_list = [[start_vertex, []]];
+    while (the_list.length > 0) {
+        var output = the_list.pop();
+        var state = output[0];
+        var path = output[1];
+        if ((path.length > 0) && (state == end_vertex)) {
+            toRet.push(path);
+            continue;
+        } 
+        for (let nei = 0; nei < es_at[state].length; nei++) {
+            let next_edge = es_at[state][nei];
+            if (path.includes(next_edge)) {
+                continue;
+            }
+            var next_state = segments[next_edge].filter(x => x != state)[0];
+            the_list.push([next_state, path.concat(next_edge)]);
+        }
+    }
+    return toRet;
+}
+
+function dotProduct(v1, v2) { // n dimensional dot product (assumes length of v1 = length of v2)
+    return v1.map((x, i) => v1[i] * v2[i]).reduce((m, n) => m + n);
+}
+
+function drawQPNetwork() {
+    QPNetworkNodes = new vis.DataSet();
+    QPNetworkEdges = new vis.DataSet();
+    QPNetworkFrozenNodes = new vis.DataSet();
+    QPNetworkPotential = new vis.DataSet();
+
+    QPNetworkNodes.on("*", function () {
+        document.getElementById("nodes").innerText = JSON.stringify(
+            QPNetworkNodes.get(),
+            output_fields,
+            4
+        );
+    });
+    QPNetworkEdges.on("*", function () {
+        document.getElementById("edges").innerText = JSON.stringify(
+            QPNetworkEdges.get(),
+            output_fields,
+            4
+        );
+    });
+    QPNetworkFrozenNodes.on("*", function () {
+    document.getElementById("frozen_nodes").innerText = JSON.stringify(
+          QPNetworkFrozenNodes.get(),
+          output_fields,
+	  4);
+    });
+    QPNetworkPotential.on("*", function () {
+    document.getElementById("potential").innerText = JSON.stringify(
+          QPNetworkPotential.get(),
+          output_fields,
+	  4);
+    });
+    updateNetworkQPFromGlobal();
+
+    //assigns each self-loop a unique radius so that they don't overlap
+    function updateEdgeRadii(id) {
+        var thisEdge = QPNetworkEdges.get(id);
+
+        if (thisEdge.from === thisEdge.to) {
+            var count = QPNetworkEdges.get().filter(function (otherEdge) {
+                return otherEdge.from === thisEdge.from & otherEdge.to === thisEdge.to && parseInt(otherEdge.id) < parseInt(thisEdge.id)
+            }).length
+
+            thisEdge.selfReference = {
+                size: 15 + (count * 5)
+            }
+
+            QPNetworkEdges.update(thisEdge)
+        }
+    }
+
+    //update the initial dataset
+    QPNetworkEdges.get().forEach(edge => updateEdgeRadii(edge.id))
+
+    //and whenever an edge is added
+    QPNetworkEdges.on("add", function (event, properties, senderId) {
+        properties.items.forEach(function(i) {
+            updateEdgeRadii(i);
+        })
+    })
+
+    // create a QPNetwork
+    var container = document.getElementById("mynetwork");
+    var data = {
+        nodes: QPNetworkNodes,
+        edges: QPNetworkEdges,
+    };
+    var options = {
+	interaction: { hover: true },
+        nodes: {
+            borderWidth:1,
+            size:45,
+            color: {
+                border: '#222222',
+                background: 'grey'
+            },
+            font:{color:'black',
+            size: 11,
+            face :'arial',
+            },
+ 	   physics: {enabled:false},
+        },
+        edges: {
+            arrows: {
+                to:{enabled: true},
+            },
+            color: {
+                color:'#848484',
+                highlight:'#848484',
+                hover: '#848484',
+            },
+            font: {
+                color: '#343434',
+                size: 11, // px
+                face: 'arial',
+                background: 'none',
+                strokeWidth: 5, // px
+                strokeColor: '#ffffff',
+                align:'vertical'
+            },
+ 	   //physics: {enabled:true},
+        },
+	interaction: { multiselect: true},
+	navigation: true,
+     };
+     QPNetwork = new vis.Network(container, data, options);
+
+     QPNetwork.on('click',function(params){
+	 resolveClickEvent(QPNetwork, params);
+     });
+}
+
+function drawTriNetwork() {
+    TriNetworkNodes = new vis.DataSet();
+    TRINetworkEdges = new vis.DataSet();
+
+    if (TRIglobalTriangulation != null) {
+        var ln = []
+        var le = [];
+
+        let rotatedNodes = rotateSimplexToPlane(TRIglobalTriangulation[1]);
+	let xscaling = Math.max(...rotatedNodes.map(x => x[0])) - Math.min(...rotatedNodes.map(x => x[0]));
+	let yscaling = Math.max(...rotatedNodes.map(x => x[1])) - Math.min(...rotatedNodes.map(x => x[1]));
+        for (let n = 0; n < rotatedNodes.length; n++) {
+    	    let xy = rotatedNodes[n];
+            ln.push({
+    		id: n.toString(),
+    		label: n.toString(),
+    		x: -50 + (300/xscaling)*parseFloat(xy[0]),
+    		y: -50 + (300/yscaling)*parseFloat(xy[1])
+    	    });
+        }
+        for (let e = 0; e < TRIglobalTriangulation[0].length; e++) {
+    	    let s = TRIglobalTriangulation[0][e];
+            le.push({id: e.toString(), from: s[0].toString(), to: s[1].toString()});
+        }
+
+        TriNetworkNodes.add(ln);
+        TRINetworkEdges.add(le);
+    }
+
+    // create a network
+    var localContainer = document.getElementById("triangulationView");
+    var data = {
+        nodes: TriNetworkNodes,
+        edges: TRINetworkEdges
+    };
+    var options = {
+        nodes: {
+            borderWidth:1,
+            size:10,
+            color: {
+                border: '#222222',
+                background: 'grey'
+            },
+ 	    physics: {enabled:false},
+        },
+        edges: {
+            "smooth": {
+                "type": "continuous",
+                "forceDirection": "none",
+                "roundness": 0
+            },
+	},
+    };
+    TRINetwork = new vis.Network(localContainer, data, options);
+    TRINetwork.on('click',function(params){
+        resolveNetworkFlip(TRINetwork, params);
+    });
+
+    document.getElementById("tri-edges").innerText = JSON.stringify(TRINetworkEdges.get(),output_fields, 4);
+    var opt = makeTriangulation(TRIglobalEdges, TRIglobalBoundaryEdges);
+    var tri = opt[0].map(function(t) {
+	    return {
+	        edge1: "index: "+t[0].toString() + ", "+JSON.stringify(TRIglobalEdges[t[0]]), 
+                edge2: "index: "+t[1].toString() + ", "+JSON.stringify(TRIglobalEdges[t[1]]), 
+                edge3: "index: "+t[2].toString() + ", "+JSON.stringify(TRIglobalEdges[t[2]])
+	    };
+    });
+    document.getElementById("tri-triangles").innerText = JSON.stringify(tri,output_fields, 4);
+}
+
 function edgesOutOf(vertex, edge_list) {
     return Array.from(Array(edge_list.length).keys()).map(x => parseInt(x)).filter(x => edge_list[x][0] == vertex);
 }
@@ -362,185 +580,6 @@ function extendCyclesWithSelfLoops(cycles, qp) {
     }
 
     return cyclesOut.map(cycle => cycleOrder(cycle))
-}
-
-function dfsAllCycles(segments, es_at, start_vertex, end_vertex) {
-    // helper function for allCycles routine
-    var toRet = [];
-    var the_list = [[start_vertex, []]];
-    while (the_list.length > 0) {
-        var output = the_list.pop();
-        var state = output[0];
-        var path = output[1];
-        if ((path.length > 0) && (state == end_vertex)) {
-            toRet.push(path);
-            continue;
-        } 
-        for (let nei = 0; nei < es_at[state].length; nei++) {
-            let next_edge = es_at[state][nei];
-            if (path.includes(next_edge)) {
-                continue;
-            }
-            var next_state = segments[next_edge].filter(x => x != state)[0];
-            the_list.push([next_state, path.concat(next_edge)]);
-        }
-    }
-    return toRet;
-}
-
-function dotProduct(v1, v2) { // n dimensional dot product (assumes length of v1 = length of v2)
-    return v1.map((x, i) => v1[i] * v2[i]).reduce((m, n) => m + n);
-}
-
-function drawQPNetwork() {
-    // create an array with nodes
-    QPNetworkNodes = new vis.DataSet();
-    QPNetworkNodes.on("*", function () {
-        document.getElementById("nodes").innerText = JSON.stringify(
-            QPNetworkNodes.get(),
-            output_fields,
-            4
-        );
-    });
-    QPNetworkNodes.add([
-        { id: "0", label: "0", x:-100, y: 0},
-        { id: "1", label: "1", x: 0, y: 100},
-        { id: "2", label: "2", x: 100, y: 0},
-        { id: "3", label: "3", x: 100, y:-100},
-        { id: "4", label: "4", x: 0, y:-200},
-        { id: "5", label: "5", x:-100, y:-100},
-    ]);
-
-    // create an array with edges
-    QPNetworkEdges = new vis.DataSet();
-    QPNetworkEdges.on("*", function () {
-        document.getElementById("edges").innerText = JSON.stringify(
-            QPNetworkEdges.get(),
-            output_fields,
-            4
-        );
-    });
-    QPNetworkEdges.add([
-        { id:  "0", from: "0", to: "1", arrows: "to", title: "edge 0"},
-        { id:  "1", from: "1", to: "0", arrows: "to", title: "edge 1"},
-        { id:  "2", from: "1", to: "2", arrows: "to", title: "edge 2"},
-        { id:  "3", from: "2", to: "1", arrows: "to", title: "edge 3"},
-        { id:  "4", from: "0", to: "2", arrows: "to", title: "edge 4"},
-        { id:  "5", from: "2", to: "0", arrows: "to", title: "edge 5"},
-        { id:  "6", from: "2", to: "3", arrows: "to", title: "edge 6"},
-        { id:  "7", from: "3", to: "2", arrows: "to", title: "edge 7"},
-        { id:  "8", from: "3", to: "3", arrows: "to", title: "edge 8"},
-        { id:  "9", from: "3", to: "4", arrows: "to", title: "edge 9"},
-        { id: "10", from: "4", to: "3", arrows: "to", title: "edge 10"},
-        { id: "11", from: "4", to: "4", arrows: "to", title: "edge 11"},
-        { id: "12", from: "4", to: "5", arrows: "to", title: "edge 12"},
-        { id: "13", from: "5", to: "4", arrows: "to", title: "edge 13"},
-        { id: "14", from: "5", to: "5", arrows: "to", title: "edge 14"},
-        { id: "15", from: "5", to: "5", arrows: "to", title: "edge 15"},
-        { id: "16", from: "5", to: "0", arrows: "to", title: "edge 16"},
-        { id: "17", from: "0", to: "5", arrows: "to", title: "edge 17"},
-    ]);
-
-    //assigns each self-loop a unique radius so that they don't overlap
-    function updateEdgeRadii(id) {
-        var thisEdge = QPNetworkEdges.get(id);
-
-        if (thisEdge.from === thisEdge.to) {
-            var count = QPNetworkEdges.get().filter(function (otherEdge) {
-                return otherEdge.from === thisEdge.from & otherEdge.to === thisEdge.to && parseInt(otherEdge.id) < parseInt(thisEdge.id)
-            }).length
-
-            thisEdge.selfReference = {
-                size: 15 + (count * 5)
-            }
-
-            QPNetworkEdges.update(thisEdge)
-        }
-    }
-
-    //update the initial dataset
-
-    QPNetworkEdges.get().forEach(edge => updateEdgeRadii(edge.id))
-
-    //and whenever an edge is added
-    QPNetworkEdges.on("add", function (event, properties, senderId) {
-        properties.items.forEach(function(i) {
-            updateEdgeRadii(i);
-        })
-    })
-
-    QPNetworkFrozenNodes = new vis.DataSet();
-    QPNetworkFrozenNodes.on("*", function () {
-    document.getElementById("frozen_nodes").innerText = JSON.stringify(
-          QPNetworkFrozenNodes.get(),
-          output_fields,
-	  4);
-    });
-    QPNetworkPotential = new vis.DataSet();
-    QPNetworkPotential.on("*", function () {
-    document.getElementById("potential").innerText = JSON.stringify(
-          QPNetworkPotential.get(),
-          output_fields,
-	  4);
-    });
-    QPNetworkPotential.add([
-        { id: "0,2,5", coef: "1"},
-        { id: "1,4,3", coef: "1"},
-        { id: "8,9,10", coef: "1"},
-        { id: "2,6,7,3", coef: "1"},
-        { id: "0,1,17,16", coef: "1"},
-        { id: "6,8,7", coef: "1"},
-    ]);
-
-    // create a QPNetwork
-    var container = document.getElementById("mynetwork");
-    var data = {
-        nodes: QPNetworkNodes,
-        edges: QPNetworkEdges,
-    };
-    var options = {
-	interaction: { hover: true },
-        nodes: {
-            borderWidth:1,
-            size:45,
-            color: {
-                border: '#222222',
-                background: 'grey'
-            },
-            font:{color:'black',
-            size: 11,
-            face :'arial',
-            },
- 	   physics: {enabled:false},
-        },
-        edges: {
-            arrows: {
-                to:{enabled: true},
-            },
-            color: {
-                color:'#848484',
-                highlight:'#848484',
-                hover: '#848484',
-            },
-            font: {
-                color: '#343434',
-                size: 11, // px
-                face: 'arial',
-                background: 'none',
-                strokeWidth: 5, // px
-                strokeColor: '#ffffff',
-                align:'vertical'
-            },
- 	   //physics: {enabled:true},
-        },
-	interaction: { multiselect: true},
-	navigation: true,
-     };
-     QPNetwork = new vis.Network(container, data, options);
-     //QPNetwork.setOptions({physics:{enabled:false}});
-     QPNetwork.on('click',function(params){
-	 resolveClickEvent(QPNetwork, params);
-     });
 }
 
 // https://stackoverflow.com/questions/546655/finding-all-cycles-in-a-directed-graph
@@ -2052,7 +2091,7 @@ function resolveNetworkFlip(n, p) {
 	TRIglobalEdges = es;
 	TRIglobalTriangulation = [TRIglobalEdges, TRIglobalCoords];
     }
-    updateNetworkFromGlobals();
+    updateNetworkTriFromGlobal();
 
     document.getElementById("tri-edges").innerText = JSON.stringify(TRINetworkEdges.get(),output_fields, 4);
     var tri = opt[2].map(function(t) {
@@ -2352,7 +2391,48 @@ function updateInstructions() {
     document.getElementById("instructions").innerText = textOutput;
 }
 
-function updateNetworkFromGlobals() {
+function updateGlobalQPFromNetwork(){
+}
+
+function updateGlobalTriFromNetwork(){
+}
+
+function updateNetworkQPFromGlobal(){
+    clearQP();
+    if (QPglobalNodes.length > 0) {
+        var nn = [];
+        for (let ni = 0; ni < QPglobalNodes.length; ni++) {
+            let n = QPglobalNodes[ni];
+            nn.push({id: ni.toString(), label: ni.toString(), x: parseFloat(n[0]), y: parseFloat(n[1])});
+        }
+        QPNetworkNodes.add(nn);
+    }
+    if (QPglobalEdges.length > 0) {
+        var ne = [];
+        for (let e = 0; e < QPglobalEdges.length; e++) {
+            let s = QPglobalEdges[e];
+            ne.push({id: e.toString(), from: s[0].toString(), to: s[1].toString(), arrows: "to", title: "edge "+e.toString()});
+        }
+        QPNetworkEdges.add(ne);
+    }
+    if (QPglobalPotential.length > 0) {
+        var p = [];
+        for (let pti = 0; pti < QPglobalPotential.length; pti++) {
+            let pt = QPglobalPotential[pti];
+            p.push({id: pt.id, coef: pt.coef});
+        }
+        QPNetworkPotential.add(p);
+    }
+    if (QPglobalFrozenNodes.length > 0) {
+        var fn = [];
+        for (let fni = 0; fni < QPglobalFrozenNodes.length; fni++) {
+            fn.push({id: QPglobalFrozenNodes[fni].toString()});
+        }
+        QPNetworkFrozenNodes.add(fn);
+    }
+}
+
+function updateNetworkTriFromGlobal() {
     // update the canvas to mirror the global edge/coordinates data
     TriNetworkNodes.clear();
     TRINetworkEdges.clear();
@@ -2416,75 +2496,5 @@ function updateQPFromJSON(JSONData) {
 
 function veclen(v) { // returns the length of a vector v
     return Math.pow(dotProduct(v,v), 0.5);
-}
-
-function viewTriangulation() {
-    TriNetworkNodes = new vis.DataSet();
-    TRINetworkEdges = new vis.DataSet();
-
-    if (TRIglobalTriangulation != null) {
-        var ln = []
-        var le = [];
-
-        let rotatedNodes = rotateSimplexToPlane(TRIglobalTriangulation[1]);
-	let xscaling = Math.max(...rotatedNodes.map(x => x[0])) - Math.min(...rotatedNodes.map(x => x[0]));
-	let yscaling = Math.max(...rotatedNodes.map(x => x[1])) - Math.min(...rotatedNodes.map(x => x[1]));
-        for (let n = 0; n < rotatedNodes.length; n++) {
-    	    let xy = rotatedNodes[n];
-            ln.push({
-    		id: n.toString(),
-    		label: n.toString(),
-    		x: -50 + (300/xscaling)*parseFloat(xy[0]),
-    		y: -50 + (300/yscaling)*parseFloat(xy[1])
-    	    });
-        }
-        for (let e = 0; e < TRIglobalTriangulation[0].length; e++) {
-    	    let s = TRIglobalTriangulation[0][e];
-            le.push({id: e.toString(), from: s[0].toString(), to: s[1].toString()});
-        }
-
-        TriNetworkNodes.add(ln);
-        TRINetworkEdges.add(le);
-    }
-
-    // create a network
-    var localContainer = document.getElementById("triangulationView");
-    var data = {
-        nodes: TriNetworkNodes,
-        edges: TRINetworkEdges
-    };
-    var options = {
-        nodes: {
-            borderWidth:1,
-            size:10,
-            color: {
-                border: '#222222',
-                background: 'grey'
-            },
- 	    physics: {enabled:false},
-        },
-        edges: {
-            "smooth": {
-                "type": "continuous",
-                "forceDirection": "none",
-                "roundness": 0
-            },
-	},
-    };
-    TRINetwork = new vis.Network(localContainer, data, options);
-    TRINetwork.on('click',function(params){
-        resolveNetworkFlip(TRINetwork, params);
-    });
-
-    document.getElementById("tri-edges").innerText = JSON.stringify(TRINetworkEdges.get(),output_fields, 4);
-    var opt = makeTriangulation(TRIglobalEdges, TRIglobalBoundaryEdges);
-    var tri = opt[0].map(function(t) {
-	    return {
-	        edge1: "index: "+t[0].toString() + ", "+JSON.stringify(TRIglobalEdges[t[0]]), 
-                edge2: "index: "+t[1].toString() + ", "+JSON.stringify(TRIglobalEdges[t[1]]), 
-                edge3: "index: "+t[2].toString() + ", "+JSON.stringify(TRIglobalEdges[t[2]])
-	    };
-    });
-    document.getElementById("tri-triangles").innerText = JSON.stringify(tri,output_fields, 4);
 }
 
