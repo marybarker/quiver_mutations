@@ -25,7 +25,17 @@
                  padding:5px;
                  font-size:10pt;
              }
-	     #view_json {
+	     .json_box_tall {
+                 height:400px;
+    	         overflow-y:scroll;
+                 color:gray;
+	     }
+	     .json_box_short {
+                 height:170px;
+                 overflow-y:scroll;
+                 color:gray;
+	     }
+	     .view_json_sty {
 		 width:100%;
                  color:gray;
                  margin:5px;
@@ -33,22 +43,6 @@
                  border-style:outset;
                  border-color:gray;
 	     }
-             #potential {
-                 height:170px;
-                 overflow-y:scroll;
-             }
-             #frozen_nodes {
-                 height:170px;
-                 overflow-y:scroll;
-             }
-             #nodes {
-                 height:400px;
-    	         overflow-y:scroll;
-             }
-             #edges {
-                 height:400px;
-    	         overflow-y:scroll;
-             }
 	     .tablink {
 		 overflow: hidden;
                  background-color: #222222;
@@ -59,13 +53,14 @@
                  cursor: pointer;
                  padding: 14px 16px;
                  font-size: 17px;
+                 color:gray;
                  width: 50%;
              }
 	     .tablink:hover {
                  background-color: #ddd;
              }
 	     .tabcontent {
-                 color: black;
+                 color: gray;
                  display: none;
                  padding: 100px 20px;
                  height: 100%;
@@ -89,10 +84,18 @@
                     "potential": potential.get()
                 });
 
-	        if (fmt == 'globalTriangulation') {
+                if (fmt == 'globalTriangulation') {
                     data = JSON.stringify(globalTriangulation);
-		} else {
-                    data = QPFromTriangulation(globalTriangulation);
+                } else {
+                    if (fmt == 'QPFromTriangulation') {
+                        data = QPFromTriangulation(globalTriangulation);
+                    } else {
+                        data = allUniqueTriangulations(globalTriangulation, globalBoundaryEdges);
+                        const cs = data.coordinates.map(y => y.map(z=>parseFloat(z)));
+                        data = data.triangulations.map(x => JSON.parse(x));
+                        data = data.map(t => t.map(e => JSON.parse(e)));
+                        data = data.map(x => QPFromTriangulation([x, cs]));
+                    }
 		}
 
                 const textToBLOB = new Blob([data], {type: "text/plain"});
@@ -102,7 +105,7 @@
                 newLink.download = sFileName;
 
                 if (window.webkitURL != null) {
-                	   newLink.href = window.webkitURL.createObjectURL(textToBLOB);
+                    newLink.href = window.webkitURL.createObjectURL(textToBLOB);
                 }
                 else {
                     newLink.href = window.URL.createObjectURL(textToBLOB);
@@ -227,22 +230,22 @@
             </table>
             
             
-            <table id="view_json">
+            <table id="view_json" class="view_json_sty">
                 <! ROW 2: DISPLAY JSON DATA OF QP>
                 <tr>
                     <td width="30%">
                         <h3>Nodes</h3>
-                        <pre id="nodes"></pre>
+                        <pre id="nodes" class="json_box_tall"></pre>
                     </td>
                     <td width="30%">
                         <h3>Edges</h3>
-                        <pre id="edges"></pre>
+                        <pre id="edges" class="json_box_tall"></pre>
                     </td>
                     <td width="30%">
                         <h3>Potential</h3>
-                        <pre id="potential"></pre>
+                        <pre id="potential" class="json_box_short"></pre>
                         <h3>Frozen Nodes</h3>
-                        <pre id="frozen_nodes"></pre>
+                        <pre id="frozen_nodes" class="json_box_short"></pre>
                     </td>
                 </tr>
             </table>
@@ -256,23 +259,54 @@
                         <div class="Anetwork" id="triangulationView"></div>
                     </td>
                     <td width="50%" class="menuBar">
+			<p>
+			    Click on an edge to flip it. Edges that cannot be flipped are ignored.<br><br>
+
+			    To generate G-Hilb for <sup>1</sup>&frasl;<sub>r</sub> (a,b,c) 
+			    where r = a + b + c, enter the chosen values of a, b, and c in the input spaces:
+			</p>
+
                         <label for="A_value">Value for a:</label>
-			<input id="A_value" type="number" value="1"><br><br>
+			<input id="A_value" type="number" value="1" size=4><br><br>
 
                         <label for="B_value">Value for b:</label>
-			<input id="B_value" type="number" value="2"><br><br>
+			<input id="B_value" type="number" value="2" size=4><br><br>
 
                         <label for="C_value">Value for c:</label>
-			<input id="C_value" type="number" value="3"><br><br>
+			<input id="C_value" type="number" value="3" size=4><br><br>
 
                         <button onclick="callTriangulation()">Generate Triangulation</button>
 
                         <input type="button" id="TRIjsondwnload" value="Download triangulation to file" onclick="saveFile(fmt = 'globalTriangulation')"/>
 
                         <input type="button" id="QPjsondwnload" value="Download QP to file" onclick="saveFile(fmt = 'QPFromTriangulation')"/>
+
+			<br><br>
+			<p>
+			    To generate all possible triangulations and download their associated quivers, click the button &quot;Download all QPs to file&quot;.
+			</p>
+                        <span id="tri-exchange-number-output">--</span>
+                        &nbsp;
+                        <button onclick="showTriExchangeNumber()">Calculate Exchange Number</button>
+ 
+            	        <input type="button" id="listjsondwnload" value="Download all QPs to file" onclick="saveFile(fmt = 'allQPsFromTriangulation')"/>
                     </td>
 	        </tr>
 	    </table>
+
+            <table id="tri-view_json" class="view_json_sty" width="100%">
+                <! ROW 2: DISPLAY JSON DATA OF TRIANGULATION>
+                <tr>
+                    <td width="50%">
+                        <h3>Edges</h3>
+                        <pre id="tri-edges" class="json_box_tall"></pre>
+                    </td>
+                    <td width="50%">
+                        <h3>Triangles</h3>
+                        <pre id="tri-triangles" class="json_box_tall"></pre>
+                    </td>
+                </tr>
+            </table>
 	</div>
 
 

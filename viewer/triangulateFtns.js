@@ -1,10 +1,16 @@
-var globalTriangulation = [
-	[[0,5],[5,4],[4,1],[1,2],[2,6],[6,0],
-	[6,5],[5,3],[4,3],[1,3],[2,3],[6,3]], 
-	[[6,0,0],[0,6,0],[0,0,6],
-	[1,2,3],[2,4,0],[4,2,0],[3,0,3]]
-];
+// triangulation information
+var globalBoundaryEdges = [0,1,2,3,4,5];
+var globalCoords = [[6,0,0],[0,6,0],[0,0,6], [1,2,3],[2,4,0],[4,2,0],[3,0,3]];
+var globalEdges = [[0,5],[5,4],[4,1],[1,2],[2,6],[6,0],[6,5],[5,3],[4,3],[1,3],[2,3],[6,3]];
+var globalTriangulation = [globalEdges, globalCoords];
+
+// allows checking if things are the same in euclidean space within this given tolerance
 const tolerance = 0.00001;
+
+// information for canvas drawing
+var network_nodes, network_edges, triangulate_network;
+var output_fields = ["id", "from", "to", "edge1","edge2","edge3"] // which data objects to print to screen
+
 
 function allCycles(segments) {
     // find all cycles in an undirected graph defined by the list of segments 
@@ -38,6 +44,59 @@ function allCycles(segments) {
     return cycles;
 }
 
+function allUniqueTriangulations(t, boundary_edges) {
+    // return a list of all of the unique triangulations to be obtained by 
+    // flipping sequences of edges for the triangulation t. 
+    // (the output is represented as JSON stringified lists of edges, 
+    // with one such stringifiedlist for each distinct triangulation)
+
+    // order the vertices for each edge so we don't double count edges
+    var edges = t[0].map(x => x.sort());
+    var coords = t[1];
+
+    // generate initial triangles and edge-to-triangles lists
+    var tri = makeTriangulation(edges, boundary_edges);
+    var triangles = tri[0].map(x => [...x].sort());
+    var edge_to_triangle = tri[1];
+
+    // timeout catch
+    var maxRuntime = 10000;
+    var beginTime = Date.now();
+
+    // function to convert edges to string of sorted list of sorted lists 
+    // (this gives well-posedness when comparing triangulations)
+    function sortedString(listOfLists) {
+        let tl = listOfLists.map(x => JSON.stringify(x));
+        tl.sort();
+        return JSON.stringify(tl);
+    }
+
+    // recursive function for flipping arbitrarily-long sequences of edges 
+    // in the triangulation to obtain "new" triangulations
+    function tryFlippingAllEdges(es, ts, e2ts, alreadyMet) {
+        if (Date.now() - beginTime > maxRuntime) {
+            return;
+        }
+        for (let e = 0; e < es.length; e++) {
+            var flipped = flip(e, es, coords, ts, e2ts, boundary_edges);
+
+            if (flipped[0]) {//check if that edge could be flipped
+                var sflipped = sortedString(flipped[1]);
+    
+                if (alreadyMet.includes(sflipped)) {//check if the current state has already been met
+    	        } else {// if it's a new triangulation, add it, and try flipping all edges for this one
+    	            alreadyMet.push(sflipped);
+                    tryFlippingAllEdges(flipped[1], flipped[2], flipped[3], alreadyMet);
+    	        }
+    	    }
+        }
+    }
+
+    var uniqueList = [sortedString(edges)];
+    tryFlippingAllEdges(edges, triangles, edge_to_triangle, uniqueList);
+    return {triangulations: uniqueList, coordinates: coords, timeout: Date.now() - beginTime > maxRuntime};
+}
+
 function argsort(arr) {
     // dsu algorithm for argsort
     let decor = (v, i) => [v, i];
@@ -47,13 +106,26 @@ function argsort(arr) {
 }
 
 function callTriangulation() {
+    // function that draws initial configuration for triangulate tab of window
     var a = parseFloat(document.getElementById("A_value").value);
     var b = parseFloat(document.getElementById("B_value").value);
     var c = parseFloat(document.getElementById("C_value").value);
     var r = a + b + c;
     var t = triangulation(r,a,b,c);
-    globalTriangulation = t;
+    globalEdges = t[0];
+    globalCoords = t[1];
+    globalTriangulation = [t[0], t[1]];
+
+    var gb1 = range(0, globalEdges.length).filter(e => (isCollinear([[r,0,0], [0,r,0]], globalCoords[globalEdges[e][0]]) && isCollinear([[r,0,0], [0,r,0]], globalCoords[globalEdges[e][1]])));
+    var gb2 = range(0, globalEdges.length).filter(e => (isCollinear([[0,r,0], [0,0,r]], globalCoords[globalEdges[e][0]]) && isCollinear([[0,r,0], [0,0,r]], globalCoords[globalEdges[e][1]])));
+    var gb3 = range(0, globalEdges.length).filter(e => (isCollinear([[0,0,r], [r,0,0]], globalCoords[globalEdges[e][0]]) && isCollinear([[0,0,r], [r,0,0]], globalCoords[globalEdges[e][1]])));
+    globalBoundaryEdges = gb1.concat(gb2).concat(gb3);
+
     viewTriangulation();
+}
+
+function canFlip(edge_index, nbr1, nbr2, edges, edge_to_triangle, triangles, coordinates) {
+    return curveType(edges, triangles, edge_to_triangle, coordinates, edge_index) < 1;
 }
 
 function containsZero(l, tol=tolerance) {
@@ -78,11 +150,11 @@ function convexHull(planar_points) {
     return points.map(p => planar_points[p]);
 }
 
-function count(l, v) {
+function count(l, v) { // return the number of instances of value v in list l
     return l.filter(x => x == v).length;
 }
 
-function crossProduct(v1, v2) {
+function crossProduct(v1, v2) { // 3d cross product
     return [v1[1]*v2[2] - v1[2]*v2[1], v1[2]*v2[0] - v1[0]*v2[2], v1[0]*v2[1] - v1[1]*v2[0]];
 }
 
@@ -99,15 +171,14 @@ function curveType(edges, triangles, edge_to_triangle, coordinates, edge_index) 
 	    let edgei = edges[t[ei]];
 	    if (!vertex_indices.includes(edgei[0])) { vertex_indices.push(edgei[0]);}
 	    if (!vertex_indices.includes(edgei[1])) { vertex_indices.push(edgei[1]);}
-	    //vertex_indices.add(edgei[1]);
         }
     }
     let o_verts = vertex_indices.filter(p => !e.includes(p));
 
-    var v1 = coordinates[e[0]];
-    var v2 = coordinates[o_verts[0]];
-    var v3 = coordinates[e[1]];
-    var v4 = coordinates[o_verts[1]];
+    var v1 = coordinates[o_verts[0]];
+    var v2 = coordinates[e[0]];
+    var v3 = coordinates[o_verts[1]];
+    var v4 = coordinates[e[1]];
     
     // solve -Nv2 + Nv4 = v1 + v3 - (v2 + v4)
     var idx = 0;
@@ -149,11 +220,11 @@ function dfsAllCycles(segments, es_at, start_vertex, end_vertex) {
     return toRet;
 }
 
-function dotProduct(v1, v2) {
+function dotProduct(v1, v2) { // n dimensional dot product (assumes length of v1 = length of v2)
     return v1.map((x, i) => v1[i] * v2[i]).reduce((m, n) => m + n);
 }
 
-function findHull(point_set, a, b) {
+function findHull(point_set, a, b) { // this is a helper function for the convexhull algorithm
     // line segment from a to b and its length
     var AB = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
     var rays = point_set.map(p => [p[0] - a[0], p[1] - a[1], p[2] - a[2]]);
@@ -214,6 +285,90 @@ function findLinearGroups(edge_indices, segments, coordinates) {
         }
     }
     return toRet;
+}
+
+function flip(edge_index, edges, coordinates, triangles=[], edge_to_triangle=[], boundary_edges=null, inplace=false) {
+    // this routine flips an edge in a given triangulation
+
+    if (boundary_edges != null) {
+        if (boundary_edges.includes(edge_index)) {
+            return [false, edges, triangles, edge_to_triangle];
+        }
+    }
+    var e = edges[edge_index];
+    if ((triangles.length < 1) || (edge_to_triangle.length < 1)) {
+        var t = makeTriangulation(edges, boundary_edges);
+        triangles = t[0];
+        edge_to_triangle = t[1];
+    }
+    if (edge_to_triangle[edge_index].length > 1) {
+        // find the two triangles that share edge edge_index
+        var nbrs = edge_to_triangle[edge_index];
+        var nbr1 = nbrs[0]; var nbr2 = nbrs[1];
+
+        if (canFlip(edge_index, nbr1, nbr2, edges, edge_to_triangle, triangles, coordinates)) {
+            // get the points p1, p2 'opposite' to edge e
+            //    p1-------e[1]
+            //    |       /  |
+            //    | nbr1 /   |
+            //    |     /e   |
+            //    |    /     |
+            //    |   / nbr2 |
+            //    |  /       |
+            //   e[0]-------p2
+            var nb1_edges = triangles[nbr1].filter(y => y != edge_index);
+            var nb2_edges = triangles[nbr2].filter(y => y != edge_index);
+
+            var p1 = edges[nb1_edges[0]].filter(x => !e.includes(x));
+            var p2 = edges[nb2_edges[0]].filter(x => !e.includes(x));
+
+            // find the edge indices for e[0]--p2 and e[1]--p1 and other 2 as well.
+            var e0p1 = nb1_edges[0];
+            var e1p1 = nb1_edges[1];
+            var e0p2 = nb2_edges.filter(y => (edges[e0p1].includes(edges[y][0]) || edges[e0p1].includes(edges[y][1])))[0];
+            var e1p2 = nb2_edges.filter(y => y != e0p2)[0];
+
+            if (inplace) {
+		edges[edge_index] = [Math.min(p1,p2), Math.max(p1,p2)];
+		triangles[nbr1] = [e0p2,e0p1,edge_index].sort();
+		triangles[nbr2] = [e1p2,e1p1,edge_index].sort();
+                edge_to_triangle[e1p1] = edge_to_triangle[e1p1].map(function(y){if(y != nbr1){return y;} else {return nbr2;}});
+                edge_to_triangle[e0p2] = edge_to_triangle[e0p2].map(function(y){if(y != nbr2){return y;} else {return nbr1;}});
+                return [true, edges, triangles, edge_to_triangle];
+	    } else {
+                var new_triangles = triangles.map(function(t, ti) {
+                    if (ti == nbr1) {
+			var a = [e0p2, edge_index, e0p1];
+                        return a.sort()
+	            } else if (ti == nbr2) {
+                        var a = [e1p2, edge_index, e1p1];
+                        return a.sort();
+	            } else {
+                        return [...t].sort();
+	            }
+	        });
+                var new_edges = range(0, edges.length).map(function(edgei) {
+                    if ((edgei > edge_index) || edgei < edge_index) {
+                        return [...edges[edgei]];
+		    } else {
+                        return [Math.min(p1,p2), Math.max(p1,p2)];
+		    }
+		});
+		var new_edge_to_triangle = edge_to_triangle.map(function(e2t, e2ti) {
+		    if (e2ti == e1p1) {
+                        return e2t.map(function(y){if(y != nbr1){return y;} else {return nbr2;}});
+		    } else if (e2ti == e0p2) {
+                        return e2t.map(function(y){if(y != nbr2){return y;} else {return nbr1;}});
+                    } else {
+                        return [...e2t];
+		    }
+		});
+
+                return [true, new_edges, new_triangles, new_edge_to_triangle];
+	    }
+        }
+    }
+    return [false, edges, triangles, edge_to_triangle];
 }
 
 function generateInitialRays(R, eis, Li) {
@@ -386,7 +541,11 @@ function latticePoints(r=6,a=1,b=2,c=3,nonunit=true) {
 }
 
 function makeTriangulation(edges, boundary_edges=null){
-    
+    // this routine takes a set of edges (given as lists of pairs [p1,p2]
+    // where p1 and p2 denote the indices for the vertices that make the endpoints of the given edge
+    // and it returns a list of all the triangles that can be generated from that configuration 
+    // of edges. NOTE: if the set of boundary edges is not provided, then the triangulation might 
+    // contain extra triangles (see the comment below)
     var num_vertices = Math.max(...edges.map(e=>Math.max(e)))+1;
     var nbrs = range(0, num_vertices).map(x => null);
     for (let i = 0; i < edges.length; i++) {
@@ -458,6 +617,7 @@ function makeTriangulation(edges, boundary_edges=null){
                  *-------------*
     */
     if (triangles.length > 1) {
+        var expected = range(0, edges.length).map(e => 2);
         if (boundary_edges != null) {
             if (boundary_edges.length == 3) {
                 var boundary_triangle = edge_to_triangle[boundary_edges[0]].filter(function (be0) {
@@ -465,7 +625,6 @@ function makeTriangulation(edges, boundary_edges=null){
 			     edge_to_triangle[boundary_edges[2]].includes(be0));
                 }).pop();
                 if (boundary_triangle != null) {
-                    //triangles = triangles.splice(boundary_triangle, 1);
                     triangles = triangles.filter(function(t, ti) {return ti != boundary_triangle;});
                     edge_to_triangle = edge_to_triangle.map(function(x) {
                         return x.map(function(y) {
@@ -480,13 +639,15 @@ function makeTriangulation(edges, boundary_edges=null){
                     });
                 }
             }
+            expected = range(0, edges.length).map(function(e) {if (boundary_edges.includes(e)) {return 1;} else {return 2;}});
         }
         var ts_to_keep = [];
         for (let ti = 0; ti < triangles.length; ti++) {
             let t = triangles[ti];
-            if (!t.every(e => (edge_to_triangle[e].length != 2))) {
+            if (!t.every(e => (edge_to_triangle[e].length != expected[e]))) {
                 ts_to_keep.push(ti);
-            }
+            } else {
+	    }
         }
         triangles = ts_to_keep.map(ti => triangles[ti]);
         edge_to_triangle = edge_to_triangle.map(function(x) {
@@ -499,6 +660,7 @@ function makeTriangulation(edges, boundary_edges=null){
 }
 
 function matmul(a, b) {
+    // matrix multiplication (oh, how I miss numpy...)
     if (a[0].length != b.length) {
         return null;
     }
@@ -582,6 +744,7 @@ function nontriangulatedSides(segments, coordinates) {
 }
 
 function nonzeroAvg(a,b,c){
+    // helper function for orderedRays routine
     var idx = c.indexOf(c.find(x => (x > 0 || x < 0)));
     return (a[idx] + b[idx]) / c[idx];
 }
@@ -613,6 +776,8 @@ function orderedRays(L) {
 }
 
 function orderSegments(segs) {
+    // takes a list of edges (given in pairwise-vertex index format)
+    // and returns the list, ordered such that the edges form a conesecutive series
     var b = segs[0][0];
     var e = segs[0][1];
     var l = [segs[0]];
@@ -643,6 +808,7 @@ function orderSegments(segs) {
 }
 
 function QPFromTriangulation(t) {
+    // calculate the quiver from a given triangulation
     var ns = [];
     var es = [];
     var fn = [];
@@ -707,12 +873,13 @@ function QPFromTriangulation(t) {
     return JSON.stringify({"nodes": ns, "edges": es, "frozenNodes": fn, "potential": pt});
 }
 
-function range(start, stop, step=1) {
+function range(start, stop, step=1) { // trying to be as python-ish as I can
     return Array.from({ length: (stop - start) / step}, (_, i) => start + (i * step));
 }
 
 
 function ReidsRecipe(segments, strengths, potential_segments, longest_extension, coordinates) {
+    // Reid's recipe helper function
     var new_segments = segments.map((s, si) => [-1, s[0], s[1], strengths[si]]);
     var children = segments.map(x => []);
 
@@ -831,7 +998,34 @@ function ReidsRecipe(segments, strengths, potential_segments, longest_extension,
     return segments.filter(function(si) {return si[3] > 0;}).map(s => [s[1], s[2]]);
 }
 
+function resolveNetworkFlip(n, p) {
+    // this routine flips the clicked edge on the canvas, and updates globals accordingly
+    var e = p.edges[0].toString();
+    var tri = makeTriangulation(globalTriangulation[0], globalBoundaryEdges);
+    var opt = flip(parseInt(e), globalTriangulation[0], globalTriangulation[1], tri[0], tri[1], globalBoundaryEdges);
+    if (opt[0]) {
+	var es = JSON.parse(JSON.stringify(opt[1])).map(
+            function(x) {
+	        return x.map(y => parseInt(y));
+	    });
+	globalEdges = es;
+	globalTriangulation = [globalEdges, globalCoords];
+    }
+    updateNetworkFromGlobals();
+
+    document.getElementById("tri-edges").innerText = JSON.stringify(network_edges.get(),output_fields, 4);
+    var tri = opt[2].map(function(t) {
+	    return {
+                edge1: "index: "+t[0].toString() + ", "+JSON.stringify(globalEdges[t[0]]), 
+                edge2: "index: "+t[1].toString() + ", "+JSON.stringify(globalEdges[t[1]]), 
+                edge3: "index: "+t[2].toString() + ", "+JSON.stringify(globalEdges[t[2]])
+	    };
+    });
+    document.getElementById("tri-triangles").innerText = JSON.stringify(tri,output_fields, 4);
+}
+
 function rotateSimplexToPlane(coordinates) {
+    // helper function for viewing the canvas
     var n = [1/Math.pow(3,0.5),1/Math.pow(3,0.5),1/Math.pow(3,0.5)];
     var m1 = [
                  [ n[0] / (n[0]*n[0] + n[1]*n[1]), n[1] / (n[0]*n[0] + n[1]*n[1]), 0],
@@ -853,7 +1047,23 @@ function rotateSimplexToPlane(coordinates) {
     return toRet;
 }
 
+function showTriExchangeNumber() {
+    const output = document.getElementById('tri-exchange-number-output')
+    try {
+        const result = allUniqueTriangulations(globalTriangulation, globalBoundaryEdges);
+        if (result.timeout) {
+            output.textContent = "Timed out"
+        } else {
+            output.textContent = result.triangulations.length;
+        }
+    } catch(e) {
+        console.error(e);
+        output.textContent = "Error"
+    }
+}
+
 function tesselate(triangle, coordinates) {
+    // this routine takes a regular triangle and subdivides it into unit-segment triangles. 
     var r = triangle[0].length - 1;
     // order the segments along each side so that side1 and side2 emanate from 
     // the same vertex, and so that side3 begins at the end of side1. 
@@ -926,6 +1136,7 @@ function tesselate(triangle, coordinates) {
 }
 
 function triangulation(R,a,b,c) {
+    /* this routine generates the G-Hilb triangulation for the group 1/R(a,b,c) */
     // vertices defining the junior simplex (scaled by length R so we deal with integers)
     var eis = [[R,0,0],[0,R,0],[0,0,R]];
     // interior lattice points for junior simplex (also scaled by R)
@@ -1005,58 +1216,104 @@ function triangulation(R,a,b,c) {
 }
 
 function unique(L) {
+    // get unique values in list
     var toRet = new Set(L);
     return Array.from(toRet);
 }
 
-function veclen(v) {
+function updateNetworkFromGlobals() {
+    // update the canvas to mirror the global edge/coordinates data
+    network_nodes.clear();
+    network_edges.clear();
+
+    let rotatedNodes = rotateSimplexToPlane(globalTriangulation[1]);
+    let xscaling = Math.max(...rotatedNodes.map(x => x[0])) - Math.min(...rotatedNodes.map(x => x[0]));
+    let yscaling = Math.max(...rotatedNodes.map(x => x[1])) - Math.min(...rotatedNodes.map(x => x[1]));
+    for (let n = 0; n < rotatedNodes.length; n++) {
+        let xy = rotatedNodes[n];
+        network_nodes.add({
+            id: n.toString(),
+            label: n.toString(),
+            x: -50 + (300/xscaling)*parseFloat(xy[0]),
+            y: -50 + (300/yscaling)*parseFloat(xy[1])
+	});
+    }
+    for (let e = 0; e < globalTriangulation[0].length; e++) {
+        let s = globalTriangulation[0][e];
+        network_edges.add({id: e.toString(), from: s[0].toString(), to: s[1].toString()});
+    }
+}
+
+function veclen(v) { // returns the length of a vector v
     return Math.pow(dotProduct(v,v), 0.5);
 }
 
 function viewTriangulation() {
-    var localNodes = new vis.DataSet();
-    var localEdges = new vis.DataSet();
+    network_nodes = new vis.DataSet();
+    network_edges = new vis.DataSet();
+
     if (globalTriangulation != null) {
         var ln = []
         var le = [];
 
         let rotatedNodes = rotateSimplexToPlane(globalTriangulation[1]);
-        var xscaling = Math.max(...rotatedNodes.map(x => x[0])) - Math.min(...rotatedNodes.map(x => x[0]));
-        var yscaling = Math.max(...rotatedNodes.map(x => x[1])) - Math.min(...rotatedNodes.map(x => x[1]));
+	let xscaling = Math.max(...rotatedNodes.map(x => x[0])) - Math.min(...rotatedNodes.map(x => x[0]));
+	let yscaling = Math.max(...rotatedNodes.map(x => x[1])) - Math.min(...rotatedNodes.map(x => x[1]));
         for (let n = 0; n < rotatedNodes.length; n++) {
-    	let xy = rotatedNodes[n];
+    	    let xy = rotatedNodes[n];
             ln.push({
     		id: n.toString(),
     		label: n.toString(),
-    		x: (1000/xscaling)*parseFloat(xy[0]), 
-    		y: (1000/yscaling)*parseFloat(xy[1])
-    	});
+    		x: -50 + (300/xscaling)*parseFloat(xy[0]),
+    		y: -50 + (300/yscaling)*parseFloat(xy[1])
+    	    });
         }
         for (let e = 0; e < globalTriangulation[0].length; e++) {
-    	let s = globalTriangulation[0][e];
+    	    let s = globalTriangulation[0][e];
             le.push({id: e.toString(), from: s[0].toString(), to: s[1].toString()});
         }
 
-        localNodes.add(ln);
-        localEdges.add(le);
+        network_nodes.add(ln);
+        network_edges.add(le);
     }
 
     // create a network
     var localContainer = document.getElementById("triangulationView");
     var data = {
-        nodes: localNodes,
-        edges: localEdges
+        nodes: network_nodes,
+        edges: network_edges
     };
     var options = {
         nodes: {
             borderWidth:1,
-            size:15,
+            size:10,
             color: {
                 border: '#222222',
                 background: 'grey'
             },
  	    physics: {enabled:false},
         },
+        edges: {
+            "smooth": {
+                "type": "continuous",
+                "forceDirection": "none",
+                "roundness": 0
+            },
+	},
     };
-    localNetwork = new vis.Network(localContainer, data, options);
+    triangulate_network = new vis.Network(localContainer, data, options);
+    triangulate_network.on('click',function(params){
+        resolveNetworkFlip(triangulate_network, params);
+    });
+
+    document.getElementById("tri-edges").innerText = JSON.stringify(network_edges.get(),output_fields, 4);
+    var opt = makeTriangulation(globalEdges, globalBoundaryEdges);
+    var tri = opt[0].map(function(t) {
+	    return {
+	        edge1: "index: "+t[0].toString() + ", "+JSON.stringify(globalEdges[t[0]]), 
+                edge2: "index: "+t[1].toString() + ", "+JSON.stringify(globalEdges[t[1]]), 
+                edge3: "index: "+t[2].toString() + ", "+JSON.stringify(globalEdges[t[2]])
+	    };
+    });
+    document.getElementById("tri-triangles").innerText = JSON.stringify(tri,output_fields, 4);
 }
