@@ -98,7 +98,7 @@
                 if (fmt == 'globalTriangulation') {
                     data = JSON.stringify(globalTriangulation);
                 } else if (fmt == 'QPFromTriangulation') {
-                        data = JSON.stringify(QPFromTriangulation(TRIglobalTriangulation));
+                        data = QPFromTriangulation(TRIglobalTriangulation);
                 } else {
                     data = allUniqueTriangulations(TRIglobalTriangulation, TRIglobalBoundaryEdges);
                     const cs = data.coordinates.map(y => y.map(z=>parseFloat(z)));
