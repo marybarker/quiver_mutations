@@ -117,6 +117,7 @@ function allThreeCycles (QP) {
     }
     return triples;
 }
+
 function allUniqueTriangulations(t, boundary_edges) {
     // return a list of all of the unique triangulations to be obtained by 
     // flipping sequences of edges for the triangulation t. 
