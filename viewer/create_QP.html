@@ -86,17 +86,17 @@
 
                 if (fmt == 'globalTriangulation') {
                     data = JSON.stringify(globalTriangulation);
-                } else {
-                    if (fmt == 'QPFromTriangulation') {
-                        data = QPFromTriangulation(globalTriangulation);
-                    } else {
+                } else if (fmt == 'QPFromTriangulation') {
+                        data = JSON.stringify(QPFromTriangulation(globalTriangulation));
+                } else if (fmt == 'allQPsFromTriangulation') {
                         data = allUniqueTriangulations(globalTriangulation, globalBoundaryEdges);
                         const cs = data.coordinates.map(y => y.map(z=>parseFloat(z)));
                         data = data.triangulations.map(x => JSON.parse(x));
                         data = data.map(t => t.map(e => JSON.parse(e)));
                         data = data.map(x => QPFromTriangulation([x, cs]));
+
+                        data = JSON.stringify(data)
                     }
-		}
 
                 const textToBLOB = new Blob([data], {type: "text/plain"});
                 const sFileName = "outputs.JSON";

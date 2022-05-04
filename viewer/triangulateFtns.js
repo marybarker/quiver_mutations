@@ -870,7 +870,7 @@ function QPFromTriangulation(t) {
     	    };
         });
     }
-    return JSON.stringify({"nodes": ns, "edges": es, "frozenNodes": fn, "potential": pt});
+    return JSON.parse(JSON.stringify({"nodes": ns, "edges": es, "frozenNodes": fn, "potential": pt}));
 }
 
 function range(start, stop, step=1) { // trying to be as python-ish as I can

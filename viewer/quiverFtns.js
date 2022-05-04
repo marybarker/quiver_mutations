@@ -643,6 +643,7 @@ function stringifyQP(qp, includePotential=false) {
   delete qpCopy.arrowsWithHead;
   delete qpCopy.arrowsWithTail;
   delete qpCopy.loopsAt;
+  delete qpCopy.canMutate;
 
   for (var key in qpCopy) {
     if (Array.isArray(qpCopy[key])) {
@@ -736,7 +737,7 @@ function mutateQP(vertex, QP) {
     }
 }
 
-function getAllMutationsForQP(qp, maxMutationsToFind) {
+function getAllMutationsForQP(qp, maxMutationsToFind=Infinity) {
     var alreadySeen = [stringifyQP(qp)]
     var chains = [''];
 
@@ -900,9 +901,11 @@ function extendCyclesWithSelfLoops(cycles, qp, maxCycleLength) {
     return cyclesOut.map(cycle => cycleOrder(cycle))
 }
 
-function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, approximateMaxPotentialTerms=100, numberToTest=5000) {
+function potentialRandomSearch(qp, expectedExchangeNum, expectedQuivers=[], maxCycleLength=5, approximateMaxPotentialTerms=100, numberToTest=5000) {
    // var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
    var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp, maxCycleLength).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
+
+   const expectedQuiverResult = expectedQuivers.map(qp => stringifyQP(qp)).sort().join(",")
 
     var testedPotentials = [];
 
@@ -926,6 +929,8 @@ function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, approxim
     let exchangeNumBuckets = {};
     let minimalResultsByExchangeNum = {};
     let chainsByExchangeNum = {};
+    let quiverMatchedPotentials = [];
+    let comp = []
 
     //limits the terms in the generated potentials to approximately this size
     const potentialAdjustFactor = Math.min(1, approximateMaxPotentialTerms / cyclesWithoutQuadratics.length);
@@ -953,8 +958,16 @@ function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, approxim
             var constructedPotential = deepCopy(template).filter(t => t[0] !== 0);
             qpt.potential = constructedPotential
             try {
-                var exchangeNumResult = getAllMutationsForQP(qpt, searchExchangeNum + 1)
+                var exchangeNumResult = getAllMutationsForQP(qpt)
                 var exchangeNum = exchangeNumResult.quivers.length
+
+                if (exchangeNum === expectedExchangeNum) {
+                    const thisQuiverResult = exchangeNumResult.quivers.map(qp => stringifyQP(qp)).sort().join(",")
+                    comp.push([thisQuiverResult, expectedQuiverResult])
+                    if (thisQuiverResult === expectedQuiverResult) {
+                        quiverMatchedPotentials.push(constructedPotential)
+                    }
+                }
 
                 //if (chainsByExchangeNum[exchangeNum]) {
                 //    chainsByExchangeNum[exchangeNum].push(exchangeNumResult.chains)
@@ -1003,7 +1016,9 @@ function potentialRandomSearch(qp, searchExchangeNum, maxCycleLength=5, approxim
        // erroredResults,
         exchangeNumBuckets,
         minimalResultsByExchangeNum,
-        chainsByExchangeNum
+        chainsByExchangeNum,
+        quiverMatchedPotentials,
+        comp
     }
 }
 
