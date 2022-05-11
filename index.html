@@ -9,7 +9,6 @@
                  height:100%; 
                  margin:1px;
                  border:0;
-                 overflow-y:scroll;
                  padding:5px;
              }
              .menuBar{/*sidebar that has button for generating quiver and 
@@ -54,7 +53,7 @@
                  padding: 14px 16px;
                  font-size: 17px;
                  color:gray;
-                 width: 50%;
+                 width: 33.3%;
              }
              .tablink:hover {
                  background-color: #ddd;
@@ -73,6 +72,7 @@
                  border-color:gray;
              }
              #QP {background-color: white;}
+             #multiQP {background-color: white;}
              #TRI {background-color: white;}
         </style>
 
@@ -96,7 +96,12 @@
                 });
 
                 if (fmt == 'globalTriangulation') {
-                    data = JSON.stringify(globalTriangulation);
+                    var opt = makeTriangulation(TRIglobalEdges, TRIglobalBoundaryEdges);
+                    data = JSON.stringify({
+                        "nodes": TRIglobalCoords,
+                        "edges": TRIglobalEdges,
+                        "triangles": opt[0]
+                    });
                 } else if (fmt == 'QPFromTriangulation') {
                         data = QPFromTriangulation(TRIglobalTriangulation);
                 } else {
@@ -146,17 +151,15 @@
               for (i = 0; i < tabcontent.length; i++) {
                 tabcontent[i].style.display = "none";
               }
-            
+      
               // Remove the background color of all tablinks/buttons
               tablinks = document.getElementsByClassName("tablink");
               for (i = 0; i < tablinks.length; i++) {
                 tablinks[i].style.backgroundColor = "";
               }
-            
+
               // Show the specific tab content
               document.getElementById(pageName).style.display = "block";
-            
-              // Add the specific color to the button used to open the tab content
             }
         </script>
 
@@ -165,6 +168,7 @@
     <body onload="openPage('QP', this); drawQPNetwork()">
         <button class="tablink" onclick="openPage('QP', this); drawQPNetwork()" id="defaultOpen">Manipulate QPs interactively</button>
         <button class="tablink" onclick="openPage('TRI', this); drawTriNetwork()">Generate Triangulation</button>
+        <button class="tablink" onclick="openPage('multiQP', this)">Compare Mutations/Flips</button>
 
 	<div id="QP" class="tabcontent">
             <table>
@@ -304,6 +308,9 @@
                     </td>
                 </tr>
             </table>
+	</div>
+
+	<div id="multiQP" class="tabcontent">
 	</div>
 
     </body>
