@@ -11,7 +11,7 @@ var TRIglobalBoundaryEdges = [0,1,2,3,4,5];
 var TRIglobalCoords = [[6,0,0],[0,6,0],[0,0,6], [1,2,3],[2,4,0],[4,2,0],[3,0,3]];
 var TRIglobalEdges = [[0,5],[5,4],[4,1],[1,2],[2,6],[6,0],[6,5],[5,3],[4,3],[1,3],[2,3],[6,3]];
 var TRIglobalTriangulation = [TRIglobalEdges, TRIglobalCoords];
-var TriNetworkNodes, TRINetworkEdges, TRINetwork;
+var TRINetworkNodes, TRINetworkEdges, TRINetwork;
 
 // allows checking if things are the same in euclidean space within this given tolerance
 const tolerance = 0.00001;
@@ -437,14 +437,17 @@ function drawQPNetwork() {
 }
 
 function drawTriNetwork() {
-    TriNetworkNodes = new vis.DataSet();
+    TRINetworkNodes = new vis.DataSet();
     TRINetworkEdges = new vis.DataSet();
 
     if (TRIglobalTriangulation != null) {
         var ln = []
         var le = [];
 
-        let rotatedNodes = rotateSimplexToPlane(TRIglobalTriangulation[1]);
+        var rotatedNodes = TRIglobalTriangulation[1];
+        if (rotatedNodes[0].length > 2) {
+            rotatedNodes = rotateSimplexToPlane(TRIglobalTriangulation[1]);
+	}
 	let xscaling = Math.max(...rotatedNodes.map(x => x[0])) - Math.min(...rotatedNodes.map(x => x[0]));
 	let yscaling = Math.max(...rotatedNodes.map(x => x[1])) - Math.min(...rotatedNodes.map(x => x[1]));
         for (let n = 0; n < rotatedNodes.length; n++) {
@@ -461,14 +464,14 @@ function drawTriNetwork() {
             le.push({id: e.toString(), from: s[0].toString(), to: s[1].toString()});
         }
 
-        TriNetworkNodes.add(ln);
+        TRINetworkNodes.add(ln);
         TRINetworkEdges.add(le);
     }
 
     // create a network
     var localContainer = document.getElementById("triangulationView");
     var data = {
-        nodes: TriNetworkNodes,
+        nodes: TRINetworkNodes,
         edges: TRINetworkEdges
     };
     var options = {
@@ -1578,7 +1581,14 @@ function QPFromTriangulation(t) {
         var R = Math.max(...t[1].map(x => Math.max(...x)));
         var edges = t[0];
         var coordinates = t[1];
-        var extremal_edges = edges.map(function(e, ei) {if (coordinates[e[0]].includes(R) && coordinates[e[1]].includes(R)) {return ei;}}).filter(y => y != null);
+        var extremal_edges = edges.map(function(e, ei) {
+	    e1 = isCollinear([[R,0,0],[0,R,0]], coordinates[e[0]]) && isCollinear([[R,0,0],[0,R,0]], coordinates[e[1]]);
+	    e2 = isCollinear([[0,R,0],[0,0,R]], coordinates[e[0]]) && isCollinear([[0,R,0],[0,0,R]], coordinates[e[1]]);
+	    e3 = isCollinear([[0,0,R],[R,0,0]], coordinates[e[0]]) && isCollinear([[0,0,R],[R,0,0]], coordinates[e[1]]);
+	    if (e1 || e2 || e3) {
+                return ei;
+	    }
+	}).filter(y => y != null);
         var tri = makeTriangulation(edges, extremal_edges);
 
         var triangles = tri[0];
@@ -1603,7 +1613,7 @@ function QPFromTriangulation(t) {
                 }
             }
         }
-        var e_reorder = range(0, edges.length).filter(i => edge_to_triangle[i].length > 1);
+        var e_reorder = range(0, edges.length).filter(i => !extremal_edges.includes(i));
         QP_edges = QP_edges.map(x => [e_reorder.indexOf(x[0]), e_reorder.indexOf(x[1])]);
 
         coordinates = rotateSimplexToPlane(coordinates).map(c => [c[0], c[1]]);
@@ -2183,6 +2193,7 @@ function resolveNetworkFlip(n, p) {
 	    };
     });
     document.getElementById("tri-triangles").innerText = JSON.stringify(tri,output_fields, 4);
+    updateGlobalTriFromNetwork();
 }
 
 function rotateSimplexToPlane(coordinates) {
@@ -2451,11 +2462,13 @@ function updateInstructions() {
 function updateGlobalQPFromNetwork() {
     QPglobalNodes = QPNetworkNodes.getIds().map(x => [Number(QPNetworkNodes.get(x).x), Number(QPNetworkNodes.get(x).y)]);
     QPglobalEdges = QPNetworkEdges.getIds().map(x => [Number(QPNetworkEdges.get(x).from), Number(QPNetworkEdges.get(x).to)]);
-    QPglobalPotential = QPNetworkPotential.getIds().map(function(x) {return [Number(QPNetworkPotential.get(x).coef), QPNetworkPotential.get(x).id];});
+    QPglobalPotential = QPNetworkPotential.getIds().map(function(x) {return [Number(QPNetworkPotential.get(x).coef), QPNetworkPotential.get(x).id.toString()];});
     QPglobalFrozenNodes = QPNetworkFrozenNodes.getIds().map(x => Number(x));
 }
 
 function updateGlobalTriFromNetwork(){
+    TRIglobalEdges = TRINetworkEdges.getIds().map(e => [Number(TRINetworkEdges.get(e).from), Number(TRINetworkEdges.get(e).to)]);
+    TRIglobalTriangulation = [TRIglobalEdges, TRIglobalCoords];
 }
 
 function updateNetworkQPFromGlobal(){
@@ -2516,15 +2529,18 @@ function updateNetworkQPFromLocalQP(QP) {
 
 function updateNetworkTriFromGlobal() {
     // update the canvas to mirror the global edge/coordinates data
-    TriNetworkNodes.clear();
+    TRINetworkNodes.clear();
     TRINetworkEdges.clear();
 
-    let rotatedNodes = rotateSimplexToPlane(TRIglobalTriangulation[1]);
+    var rotatedNodes = TRIglobalTriangulation[1];
+    if (rotatedNodes[0].length > 2) {
+        rotatedNodes = rotateSimplexToPlane(TRIglobalTriangulation[1]);
+    }
     let xscaling = Math.max(...rotatedNodes.map(x => x[0])) - Math.min(...rotatedNodes.map(x => x[0]));
     let yscaling = Math.max(...rotatedNodes.map(x => x[1])) - Math.min(...rotatedNodes.map(x => x[1]));
     for (let n = 0; n < rotatedNodes.length; n++) {
         let xy = rotatedNodes[n];
-        TriNetworkNodes.add({
+        TRINetworkNodes.add({
             id: n.toString(),
             label: n.toString(),
             x: -50 + (300/xscaling)*parseFloat(xy[0]),
