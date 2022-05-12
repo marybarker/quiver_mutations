@@ -92,12 +92,9 @@ function updateGlobalsFromQP(QP) {
     edges.add(outputs);
 
     potential.clear();
-    potential.add(QP.potential.filter(x => (x[1] != ",")).map(function(x) {
-        return {
-            id: x[1],
-            coef: x[0].toString(),
-        };
-    }));
+    for (let i = 0; i < QP.potential.length; i++) {
+        addTermToPotential(QP.potential[i][1].toString(), QP.potential[i][0]);
+    }
 }
 
 function updateQPFromJSON(JSONData) {
@@ -981,21 +978,25 @@ function potentialIncludesEveryVertex(qp, potential) {
     return nodesInPotential.length === qp.nodes.length
 }
 
-function pathDerivative(thisPotential, edgeIndex) {
-    var tp = thisPotential.map(
-	function(x) {
-            const inTerm = x[1].split(",").map(y => parseInt(y)).indexOf(parseInt(edgeIndex));
-            if (inTerm >= 0) {
-                const partial = x[1].split(',').map(
-                    function(y) {
-			if (y != edgeIndex.toString()) {
-			    return parseInt(y);
-			}
-		    }).filter(y => y != null);
-                return [x[0], partial];
-	    }
-	}).filter(y => (y != null));
-    if (tp != null) {return tp} else { return []}
+function pathDerivative(thisPotential, edgeIndex, fmt="string") {
+    if (fmt == "string") {
+        var tp = thisPotential.filter(function(termcoef) {
+            return termcoef[1].split(",").map(t => parseInt(t)).indexOf(parseInt(edgeIndex)) >= 0;
+        }).map(function(termcoef) {
+            const allTerms = termcoef[1].split(",").map(y => parseInt(y));
+            const ati = allTerms.indexOf(edgeIndex);
+            return [termcoef[0], allTerms.slice(ati+1).concat(...allTerms.slice(0, ati))];
+        });
+    } else {
+        var tp = thisPotential.filter(function(termcoef) {
+            return termcoef[1].indexOf(parseInt(edgeIndex)) >= 0;
+        }).map(function(termcoef) {
+            const allTerms = termcoef[1].map(y => parseInt(y));
+            const ati = allTerms.indexOf(edgeIndex);
+            return [termcoef[0], allTerms.slice(ati+1).concat(...allTerms.slice(0, ati))];
+        });
+    }
+    if (tp != null) {return tp} else {return []}
 }
 
 function randInt(range) {
@@ -1069,162 +1070,178 @@ function reduce(QP) {
             var y = x[1];
             if (y[0] == ",") { y = y.slice(1); }
             if (y[-1] == ",") { y = y.slice(0,-1); }
-            return [x[0], y];
+            return [Number(x[0]), y];
+        }).filter(termcoef => Math.abs((termcoef[0]) > 0) && (termcoef[1] != ","));
+
+    // extract the terms that show up as a singleton after taking a path derivative. (These terms are equivalent to 0)
+    var allPathDerivatives = range(0, QP.edges.length).map(e => pathDerivative(thePotential, e)).filter(pd => pd.length > 0);
+    var zeroTerms = allPathDerivatives.filter(pdterm => (pdterm.length == 1)).map(pdt => pdt[0][1]);
+    zeroTerms = zeroTerms.filter(t => (t.length == 1)).map(t => t[0]);
+
+    // now remove all terms that contain an edge equivalent to 0
+    if (zeroTerms.length > 0) {
+        thePotential = thePotential.filter(function(termcoef) {
+            return termcoef[1].split(",").some(t => zeroTerms.indexOf(parseInt(t)) < 0);
         });
-    // extract list of unique entries all edges that occur in quadratic terms in the potential
-    var squareTerms = thePotential.filter(x => x[1].split(",").length == 2).map(y => y[1]);
-    var squareCoefs = thePotential.filter(x => x[1].split(",").length == 2).map(y => y[0]);
+    }
 
-    // if there are enough quadratic terms to cancel them
+    function termsContainEdge(terms, edge) {
+        return terms.some(x => x[1].includes(edge));
+    }
+    thePotential = thePotential.map(x => [Number(x[0]), x[1].split(",").filter(y => y != null).map(z => parseInt(z))]);
+    var squareTerms = thePotential.filter(x => x[1].length == 2).map(y => y[1]);
+    var squareCoefs = thePotential.filter(x => x[1].length == 2).map(y => y[0]);
+    var edgesToRemove = unique(squareTerms.flat());
+
     if (squareTerms.length > 0) {
-        var edgesToRemove = new Array();
-        var reduceDict = [...Array(QP.edges.length).keys()].map(x => [[1, [parseInt(x)]]]);
-
+        // create a 'lookup dictionary' of replacement terms as follows:
+        // reduceDict[edge] = [...] where [...] is either:
+        //     1. e1 itself (if e1 is not an edge that occurs in a quadratic term, then we won't try to remove it)
+        //     2. a term that is equivalent to e1 in the jacobian algebra (if we're removing e1)
+        var reduceDict = range(0, QP.edges.length).map(x => [[1, [x]]]);
+        var alreadySeen = range(0, QP.edges.length).map(x => false);
         for (let ti = 0; ti < squareTerms.length; ti++) {
-            let t = squareTerms[ti];
-            let e1 = parseInt(t.slice(0, t.indexOf(',')));
-            let e2 = parseInt(t.slice(t.indexOf(',')+1));
-            let c = parseFloat(squareCoefs[ti]);
+	    let t = squareTerms[ti];
+	    let c = squareCoefs[ti];
+	    let e1 = t[0]; let e2 = t[1];
 
-            if (!edgesToRemove.includes(e1)) {edgesToRemove.push(e1);}
-            if (!edgesToRemove.includes(e2)) {edgesToRemove.push(e2);}
-
-            reduceDict[e1] = pathDerivative(thePotential, parseInt(e2)).map(
-                function(x) {
-                    if (!((x[1].filter(y => y != null).length < 2) && x[1].includes(e1))) {
-                        return [-parseFloat(x[0])/c, x[1]];
-                    }
+            if (!alreadySeen[e1]) {
+	        alreadySeen[e1] = true;
+                reduceDict[e1] = pathDerivative(thePotential, e2, fmt="list").map(
+                    function(x) {
+                        if (!((x[1].filter(y => y != null).length < 2) && x[1].includes(e1))) {
+                            return [-x[0]/c, x[1]];
+                        }
                 }).filter(y => (y != null));
-            reduceDict[e2] = pathDerivative(thePotential, parseInt(e1)).map(
-                function(x) {
-                    if (!((x[1].filter(y => y != null).length < 2) && x[1].includes(e2))) {
-                        return [-parseFloat(x[0])/c, x[1]];
-                    }
-                }).filter(y => (y != null));
-        }
-	// check if there is a circular dependency between any of the quadratic terms 
-        // (this makes it so that one edge at least cannot be deleted in the reduction process)
-        if (edgesToRemove.length%2 > 0) {
-            let lookups = [...Array(QP.edges.length).keys()].map(function(x) {
-                if (edgesToRemove.includes(parseInt(x))) {
-                    var toRet = [];
-                    for (let yi = 0; yi < reduceDict[parseInt(x)].length; yi++) {
-                        let y = reduceDict[parseInt(x)][yi][1];
-                        toRet.push(...y.filter(z => edgesToRemove.includes(z)));
-                    }
-                    return toRet;
-                } else { return [];}
-	    });
-	    var loopStarts = [];
-	    var added = [];
-            for (let ei = 0; ei < edgesToRemove.length; ei++) {
-                let e = edgesToRemove[ei];
-	        var opt = [];
-	        let outcomes = findDependencies(e, opt, lookups);
-                if (outcomes[0]) {
-	            var o1 = outcomes[1];
-		    o1.sort();
-		    let c1 = o1[0];
-		    o1 = o1.toString();
-                    if (!added.includes(o1)) {
-                        loopStarts.push(parseInt(c1));
-			added.push(o1);
-	            }
-	        }
-	    }
-	    if (loopStarts.length > 0) {
-                edgesToRemove = edgesToRemove.filter(x => !loopStarts.includes(x));
 
-	        for (let i = 0; i < loopStarts.length; i++) {
-                    reduceDict[loopStarts[i]] = [[1, [loopStarts[i]]]];
-	        }
-	    }
+                // double check that this new term term is not of the form A = AX + B
+                // (i.e. the replacement terms for edge A does not contain a term with A in it)
+                if (termsContainEdge(reduceDict[e1], e1)) {
+                    edgesToRemove.splice(edgesToRemove.indexOf(e1), 1);
+                    reduceDict[e1] = [[1, [e1]]];
+                }
+            }
+            if (!alreadySeen[e2]) {
+	        alreadySeen[e2] = true;
+                reduceDict[e2] = pathDerivative(thePotential, e1, fmt="list").map(
+                    function(x) {
+                        if (!((x[1].filter(y => y != null).length < 2) && x[1].includes(e2))) {
+                            return [-x[0]/c, x[1]];
+                        }
+                }).filter(y => (y != null));
+
+                if (termsContainEdge(reduceDict[e2], e2)) {
+                    edgesToRemove.splice(edgesToRemove.indexOf(e2), 1);
+                    reduceDict[e2] = [[1, [e2]]];
+                }
+            }
 	}
 
-        // update lookup table of replacements for each edge to be removed so that
-        // each replacement term only contains edges that are not in edgesToRemove
-        for (let etri = 0; etri < edgesToRemove.length; etri++) {
-            let e = parseInt(edgesToRemove[etri]);
-            var termsForE = deepCopy(reduceDict[e]);
+	// now recursively replace terms in reduceDict's values so that every edge-to-be-removed
+        // is replaced with terms that don't contain edges-to-be-removed.
+
+        var failedToReplace = [];
+        for (let edgeToRemovei = 0; edgeToRemovei < edgesToRemove.length; edgeToRemovei++) {
+            let e = edgesToRemove[edgeToRemovei];
+            var termsForE = reduceDict[e].map(x => [x[0], [...x[1]]]);
             var foundReplacement = true;
             var ctr = 0;
 
             do {
 		// stopping criteria
-                foundReplacement = true; ctr++;
+                ctr += 1; foundReplacement = true;
+
                 // placeholder for holding non-edgesToRemove lookup values for edge e
                 var altTermsForE = []
                 for (let cti = 0; cti < termsForE.length; cti++) {
                     let currentTerm = termsForE[cti];
                     if (currentTerm.length > 0) {
                         var altTerm = [[currentTerm[0], currentTerm[1]]];
-                      
+
                         // check if any of the terms in e's replacement
                         // terms also contains one of the edges to remove
                         if (currentTerm[1] != null) {
-                            if (currentTerm[1].some(x => (edgesToRemove.includes(parseInt(x))))) {
-                            foundReplacement = false
-                      
-                            // if so, then we need to replace that term
-                            var newTerm = [[1, []]];
-                            for (let ttt = 0; ttt < currentTerm[1].length; ttt++) {
-                                let tt = currentTerm[1][ttt];
-                                if (edgesToRemove.includes(tt)) {
-                                    var nt = [];
-                                    for (let rdi = 0; rdi < reduceDict[tt].length; rdi++) {
-                                        let rd = reduceDict[tt][rdi];
-		                        for (let nt1i = 0; nt1i < newTerm.length; nt1i++) {
-                                            let nt1 = newTerm[nt1i];
-                                            var nt11 = rd[1];
-                                            if (nt1[1].length > 0) { 
-                                                nt11 = nt1[1].concat(rd[1]);
-                                            }
-                                            nt.push([parseFloat(nt1[0])*parseFloat(rd[0]), nt11]);
-		            	      }
-		            	  }
-                                    if (nt.length > 0) { newTerm = nt; }
-                                } else {
-                                    newTerm = newTerm.map(
-                                        function(x) {
-                                            if (x[1].length > 0) {
-                                                return [x[0], x[1].concat(tt)];
-                                            } else {
-                                                return [x[0], [tt]];
-                                            }
-                                    });
-		                }
+                            if (currentTerm[1].some(x => (edgesToRemove.includes(x)))) {
+                                foundReplacement = false
+
+                                // if so, then we need to replace that term
+                                var newTerm = [[1, []]];
+                                for (let ttt = 0; ttt < currentTerm[1].length; ttt++) {
+                                    let tt = currentTerm[1][ttt];
+                                    if (edgesToRemove.includes(tt)) {
+                                        var nt = [];
+                                        for (let rdi = 0; rdi < reduceDict[tt].length; rdi++) {
+                                            let rd = reduceDict[tt][rdi];
+                                            for (let nt1i = 0; nt1i < newTerm.length; nt1i++) {
+                                                let nt1 = newTerm[nt1i];
+                                                var nt11 = rd[1];
+                                                if (nt1[1].length > 0) {
+                                                    nt11 = nt1[1].concat(rd[1]);
+                                                }
+                                                nt.push([parseFloat(nt1[0])*parseFloat(rd[0]), nt11]);
+                                          }
+                                      }
+                                      if (nt.length > 0) { newTerm = nt; }
+                                    } else {
+                                        newTerm = newTerm.map(
+                                            function(x) {
+                                                if (x[1].length > 0) {
+                                                    return [x[0], x[1].concat(tt)];
+                                                } else {
+                                                    return [x[0], [tt]];
+                                                }
+                                        });
+                                    }
+                                }
+                                if (newTerm[0][1].length > 0) {
+                                    altTerm = newTerm.map(x => [x[0]*currentTerm[0], x[1]]);
+                                }
                             }
-                            if (newTerm[0][1].length > 0) {
-		                altTerm = newTerm.map(x => [x[0]*currentTerm[0], x[1]]);
-                            }
-                        }}
-		        altTermsForE.push(...altTerm);
+                        }
+                        altTermsForE.push(...altTerm);
                     }
                 }
+                if (termsContainEdge(termsForE, e)) {
+                    termsForE = [[1, [e]]];
+                    foundReplacement = false; ctr += edgesToRemove.length;
+                }
                 reduceDict[e] = deepCopy(termsForE);
-		termsForE = deepCopy(altTermsForE);
+        	termsForE = deepCopy(altTermsForE);
+
             } while (!foundReplacement && (ctr < edgesToRemove.length));
 	    reduceDict[e] = termsForE;
+
+            if (!foundReplacement) {
+                failedToReplace.push(e);
+                reduceDict[e] = [[1, [e]]];
+            }
         }
 
-        // reduce the potential by replacing each of the terms with its 
+        for (let e2r = 0; e2r < failedToReplace.length; e2r++) {
+            let edgeToRemove = failedToReplace[e2r];
+            if (edgesToRemove.indexOf(edgeToRemove) >= 0) {
+                edgesToRemove.splice(edgesToRemove.indexOf(edgeToRemove), 1);
+            }
+        }
+
+        // reduce the potential by replacing each of the terms with its
         // image in the replacement dictionary.
         var wPrime = [];
         for (let tci = 0; tci < thePotential.length; tci++) {
 
             let coef = thePotential[tci][0];
-            let term = thePotential[tci][1].split(",").map(x => parseInt(x));
+            let term = thePotential[tci][1];
 
             var newTerm = [[coef, []]];
-            for (let tti = 0; tti < term.length; tti++) {
-                let tt = term[tti];
+            for (let edgeInTermi = 0; edgeInTermi < term.length; edgeInTermi++) {
+                let edgeInTerm = term[edgeInTermi];
 
                 var thisLevel = [];
                 for (let nt1i = 0; nt1i < newTerm.length; nt1i++) {
                     var nt1 = newTerm[nt1i];
 
-                    for (let rdi = 0; rdi < reduceDict[tt].length; rdi++) {
-                        var rd = reduceDict[tt][rdi];
+                    for (let rdi = 0; rdi < reduceDict[edgeInTerm].length; rdi++) {
+                        var rd = reduceDict[edgeInTerm][rdi];
                         thisLevel.push([parseFloat(nt1[0])*parseFloat(rd[0]),
                                         nt1[1].concat(rd[1])]);
                     }
@@ -1233,33 +1250,18 @@ function reduce(QP) {
             }
             wPrime.push(...newTerm);
         }
-        wp = wPrime.map(function(x) {
-            return [x[0], x[1].filter(y => y != null)];
-        });
-
-	//  make sure all terms are uniquely represented
-        // (cycles are written with minimal element first)
-	wPrime = [];
-	for (let i = 0; i < wp.length; i++) {
-            let x = wp[i];
-	    let c = x[0];
-	    let t = cycleOrder(x[1]).toString();
-
-	    if (wPrime.some(y => y[1] == t)) {
-                let idx = wPrime.findIndex(x => (x[1] == t));
-                wPrime[idx] = [wPrime[idx][0] + c, t];
-            } else if (c != 0) {
-                wPrime.push([c, t]);
-            }
-	}
-	// remove all terms with 0 coefficient
-	wPrime = wPrime.filter(y => (y[0] != 0));
+	wPrime = wPrime.filter(y => (y[0] != 0)).map(function(x) {return [x[0], x[1].toString()];});
 
         return removeEdges(edgesToRemove, QP, altPotential=wPrime);
     } else {
         return deepCopy(QP);
     }
 }
+
+function range(start, stop, step=1) { // trying to be as python-ish as I can
+    return Array.from({ length: (stop - start) / step}, (_, i) => start + (i * step));
+}
+
 
 function removeEdges(edgeIndices, QP, altPotential="None") {
     var edgesToKeep = [...Array(QP.edges.length).keys()].map(
