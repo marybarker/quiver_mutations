@@ -1774,7 +1774,7 @@ function reduceQP(QP) {
             var ctr = 0;
 
             do {
-		// stopping criteria
+                // stopping criteria
                 ctr += 1; foundReplacement = true;
 
                 // placeholder for holding non-edgesToRemove lookup values for edge e
@@ -1794,7 +1794,7 @@ function reduceQP(QP) {
                                 var newTerm = [[1, []]];
                                 for (let ttt = 0; ttt < currentTerm[1].length; ttt++) {
                                     let tt = currentTerm[1][ttt];
-                                    if (edgesToRemove.includes(tt)) {
+                                    if (edgesToRemove.includes(tt) && !failedToReplace.includes(tt)) {
                                         var nt = [];
                                         for (let rdi = 0; rdi < reduceDict[tt].length; rdi++) {
                                             let rd = reduceDict[tt][rdi];
@@ -1805,9 +1805,9 @@ function reduceQP(QP) {
                                                     nt11 = nt1[1].concat(rd[1]);
                                                 }
                                                 nt.push([parseFloat(nt1[0])*parseFloat(rd[0]), nt11]);
-                                          }
-                                      }
-                                      if (nt.length > 0) { newTerm = nt; }
+                                            }
+                                        }
+                                        if (nt.length > 0) { newTerm = nt; }
                                     } else {
                                         newTerm = newTerm.map(
                                             function(x) {
@@ -1827,15 +1827,23 @@ function reduceQP(QP) {
                         altTermsForE.push(...altTerm);
                     }
                 }
-                reduceDict[e] = deepCopy(termsForE);
-        	termsForE = deepCopy(altTermsForE);
-                
-            } while (!foundReplacement && (ctr < edgesToRemove.length));
-	    reduceDict[e] = termsForE;
+                if (termsContainEdge(termsForE, e)) {
+                    foundReplacement = false;
+                    ctr = edgesToRemove.length + 1;
+                    termsForE = [[1, [e]]];
+                    altTermsForE = [[1, [e]]];
+                } else {
+                    reduceDict[e] = deepCopy(termsForE);
+                    termsForE = deepCopy(altTermsForE);
+                }
+
+            } while ((!foundReplacement) && (ctr < edgesToRemove.length));
+            reduceDict[e] = termsForE;
 
             if (!foundReplacement) {
                 failedToReplace.push(e);
                 reduceDict[e] = [[1, [e]]];
+                failedToReplace.push(e);
             }
         }
 
@@ -2210,7 +2218,6 @@ function rotateSimplexToPlane(coordinates) {
         [0,1,0],
         [n1[0][0], 0, n1[2][0]]
     ];
-
 
     var toRet = coordinates.map(function(c) {
         var c1 = matmul(matmul(m1, m2),[[c[0]], [c[1]], [c[2]]]);
