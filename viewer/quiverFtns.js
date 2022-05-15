@@ -1036,7 +1036,6 @@ function potentialIncludesEveryVertex(qp, potential) {
     return nodesInPotential.length === qp.nodes.length
 }
 
-<<<<<<< HEAD
 function isPotentialSubsetOf(potA, potB) {
     for (var a = 0; a < potA.length; a++) {
         var existsInB = false;
@@ -1052,38 +1051,6 @@ function isPotentialSubsetOf(potA, potB) {
     return true;
 }
 
-function pathDerivative(thisPotential, edgeIndex) {
-    var tp = thisPotential.map(
-	function(x) {
-            const inTerm = x[1].split(",").map(y => parseInt(y)).indexOf(parseInt(edgeIndex));
-            if (inTerm >= 0) {
-                const partial = x[1].split(',').map(
-                    function(y) {
-			if (y != edgeIndex.toString()) {
-			    return parseInt(y);
-			}
-		    }).filter(y => y != null);
-                return [x[0], partial];
-	    }
-	}).filter(y => (y != null));
-    if (tp != null) {return tp} else { return []}
-||||||| 7709636
-function pathDerivative(thisPotential, edgeIndex) {
-    var tp = thisPotential.map(
-	function(x) {
-            const inTerm = x[1].split(",").map(y => parseInt(y)).indexOf(parseInt(edgeIndex));
-            if (inTerm >= 0) {
-                const partial = x[1].split(',').map(
-                    function(y) {
-			if (y != edgeIndex.toString()) {
-			    return parseInt(y);
-			}
-		    }).filter(y => y != null);
-                return [x[0], partial];
-	    }
-	}).filter(y => (y != null));
-    if (tp != null) {return tp} else { return []}
-=======
 function pathDerivative(thisPotential, edgeIndex, fmt="string") {
     if (fmt == "string") {
         var tp = thisPotential.filter(function(termcoef) {
@@ -1103,7 +1070,6 @@ function pathDerivative(thisPotential, edgeIndex, fmt="string") {
         });
     }
     if (tp != null) {return tp} else {return []}
->>>>>>> main
 }
 
 function randInt(range) {
