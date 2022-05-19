@@ -215,6 +215,21 @@ function clearQP() {
     QPNetworkPotential.clear();
 }
 
+function combineLikeTermsInPotential(potential) {
+    toRet = [];
+    addedTerms = [];
+    for (let i = 0; i < potential.length; i++) {
+        let termcoef = potential[i];
+        let idx = toRet.map(function (tc, i) {if (tc[1] == termcoef[1]) {return i;}}).filter(x => x != null)[0];
+        if (idx != null) {
+            toRet[idx] = [toRet[idx][0] + termcoef[0], termcoef[1]];
+	} else {
+	    toRet.push(termcoef);
+	}
+    }
+    return toRet;
+}
+
 function containsZero(l, tol=tolerance) {
     var squared = l.map(x => x*x);
     return Math.min(...squared) < tol;
@@ -404,7 +419,7 @@ function drawQPNetwork() {
             size: 11,
             face :'arial',
             },
- 	   physics: {enabled:false},
+ 	    physics: {enabled:false},
         },
         edges: {
             arrows: {
@@ -427,7 +442,7 @@ function drawQPNetwork() {
  	   //physics: {enabled:true},
         },
 	interaction: { multiselect: true},
-	navigation: true,
+        //navigation: true,
      };
      QPNetwork = new vis.Network(container, data, options);
 
@@ -894,8 +909,7 @@ function getAllMutationsForQP(qp, maxMutationsToFind) {
     
     //TODO change this - assumes stringify produces an object with the whole qp
     alreadySeen = alreadySeen.map(qp => JSON.parse(qp))
-    
-    return {quivers: alreadySeen, chains, timeout: Date.now() - beginTime > maxRuntime};
+    return {quivers: alreadySeen, chains: chains, timeout: Date.now() - beginTime > maxRuntime};
 }
 
 function getUniqueEdgeId() { /* create a string value that is not currently in ids for edges */
@@ -1284,6 +1298,7 @@ function mutateQP(vertex, QP) {
             wPrime.push([coef, m.slice(0, -1)]);
         }
         wPrime.push(...delta);
+        wPrime =  combineLikeTermsInPotential(wPrime);
 
         // reduce the resulting quiver
         return reduceQP(makeQP(savedEdges, QP.nodes, QP.frozenNodes, wPrime, inputType="fromQP"));
@@ -1881,6 +1896,7 @@ function reduceQP(QP) {
             wPrime.push(...newTerm);
         }
 	wPrime = wPrime.filter(y => (y[0] != 0)).map(function(x) {return [x[0], x[1].toString()];});
+        wPrime = combineLikeTermsInPotential(wPrime);
 
         return removeEdges(edgesToRemove, QP, altPotential=wPrime);
     } else {
@@ -2232,6 +2248,7 @@ function showQPExchangeNumber() {
         const result = getAllMutationsForQP(makeQP(QPNetworkEdges, QPNetworkNodes, QPNetworkFrozenNodes, QPNetworkPotential));
         if (result.timeout) {
             output.textContent = "Timed out"
+console.log(result.chains);
         } else {
             output.textContent = result.quivers.length;
         }
@@ -2257,36 +2274,13 @@ function showTriExchangeNumber() {
 }
 
 function stringifyQP(qp, includePotential=false) {
-  const qpCopy = deepCopy(qp)
-
-  if (!includePotential) {
-    delete qpCopy.potential;
-  }
-
-  /*
-  AWT/AWH contain the same information that is already included in edges, so it doesn't need to be included
-  And the sorting of edges makes the edge IDs contained in AWH/AWT incorrect, so they need to be removed
-  */
-  delete qpCopy.arrowsWithHead;
-  delete qpCopy.arrowsWithTail;
-  delete qpCopy.loopsAt;
-
-  for (var key in qpCopy) {
-    if (Array.isArray(qpCopy[key])) {
-        qpCopy[key].sort(function (a, b) {
-            var as = JSON.stringify(a);
-            var bs = JSON.stringify(b);
-            if (as < bs) {
-                return -1;
-            }
-            if (as > bs) {
-                return 1;
-            }
-            return 0;
-        });
-    }
-  }
-  return JSON.stringify(qpCopy)
+    var edgeSet = qp.edges.filter(x => x != null).map(function(e) {
+        var toRet = '0'.repeat(qp.nodes.length);
+        toRet = toRet.substring(0, Number(e[0])) + '1' + toRet.substring(Number(e[0])+1);
+        toRet = toRet.substring(0, Number(e[1])) + '2' + toRet.substring(Number(e[1])+1);
+        return toRet;
+    }).sort();
+    return JSON.stringify({nodes: qp.nodes.length, edges: edgeSet.toString(), frozenNodes: qp.frozenNodes.toString()});
 }
 
 function tesselate(triangle, coordinates) {
