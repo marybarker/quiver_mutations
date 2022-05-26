@@ -228,7 +228,7 @@ function combineLikeTermsInPotential(potential) {
 	    toRet.push([termcoef[0], trm]);
 	}
     }
-    return toRet;
+    return toRet.filter(y => Math.abs(y[0]) > 0);
 }
 
 function containsZero(l, tol=tolerance) {
