@@ -220,11 +220,12 @@ function combineLikeTermsInPotential(potential) {
     addedTerms = [];
     for (let i = 0; i < potential.length; i++) {
         let termcoef = potential[i];
-        let idx = toRet.map(function (tc, i) {if (tc[1] == termcoef[1]) {return i;}}).filter(x => x != null)[0];
+	let trm = cycleOrder(termcoef[1].split(",")).toString();
+        let idx = toRet.map(function (tc, i) {if (tc[1] == trm) {return i;}}).filter(x => x != null)[0];
         if (idx != null) {
-            toRet[idx] = [toRet[idx][0] + termcoef[0], termcoef[1]];
+            toRet[idx] = [toRet[idx][0] + termcoef[0], trm];
 	} else {
-	    toRet.push(termcoef);
+	    toRet.push([termcoef[0], trm]);
 	}
     }
     return toRet;
