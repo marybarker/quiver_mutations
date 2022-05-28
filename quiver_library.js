@@ -1713,7 +1713,7 @@ function reduceQP(QP) {
             if (y[0] == ",") { y = y.slice(1); }
             if (y[-1] == ",") { y = y.slice(0,-1); }
             return [Number(x[0]), y];
-        }).filter(termcoef => Math.abs((termcoef[0]) > 0) && (termcoef[1] != ","));
+        }).filter(termcoef => (Math.abs(termcoef[0]) > 0) && (termcoef[1] != ","));
 
     // extract the terms that show up as a singleton after taking a path derivative. (These terms are equivalent to 0)
     var allPathDerivatives = range(0, QP.edges.length).map(e => pathDerivative(thePotential, e)).filter(pd => pd.length > 0);
