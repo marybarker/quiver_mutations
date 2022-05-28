@@ -1,7 +1,7 @@
 var nodes, edges, network;
 var frozen_nodes;
 var potential;
-var output_fields = ["id", "from", "to", "coef"] // which data objects to print to screen
+var output_fields = ["id", "from", "to", "coef"]; // which data objects to print to screen
 
 function updateInstructions() {
     let click_mode = document.getElementById("edit-quiver-type").value;
@@ -231,14 +231,14 @@ function potentialTermIsSubsetOfEdges(term) {
     return (esInTerm.filter(x => !currentEdges.includes(x.toString())).length < 1);
 }
 
-function addTermToPotential(t, coef=1) {
+function addTermToPotential(t, c=1) {
     var c2 = 0;
     try {
         c2 = potential.get(t);
     } catch(err) {}
     if(potentialTermIsSubsetOfEdges(t)) {
         if (c2 == null) {
-            potential.add({id: t, coef: coef.toString()});
+            potential.add({id: t, coef: c.toString()});
         } else {
             let c3 = parseFloat(coef) + parseFloat(c2.coef);
             if (c3 > 0 || c3 < 0) {
@@ -489,6 +489,22 @@ function allThreeCycles (QP) {
 
 function arrayEquals(a, b) {
     return JSON.stringify(a) == JSON.stringify(b);
+}
+
+function combineLikeTermsInPotential(potential) {
+    toRet = [];
+    addedTerms = [];
+    for (let i = 0; i < potential.length; i++) {
+        let termcoef = potential[i];
+	let trm = cycleOrder(termcoef[1].split(",")).toString();
+        let idx = toRet.map(function (tc, i) {if (tc[1] == trm) {return i;}}).filter(x => x != null)[0];
+        if (idx != null) {
+            toRet[idx] = [toRet[idx][0] + termcoef[0], trm];
+	} else {
+	    toRet.push([Number(termcoef[0]), trm]);
+	}
+    }
+    return toRet.filter(y => Math.abs(y[0]) > 0);
 }
 
 function cycleOrder(cycle) {
@@ -980,16 +996,16 @@ function potentialIncludesEveryVertex(qp, potential) {
 
 function pathDerivative(thisPotential, edgeIndex, fmt="string") {
     if (fmt == "string") {
-        var tp = thisPotential.filter(function(termcoef) {
-            return termcoef[1].split(",").map(t => parseInt(t)).indexOf(parseInt(edgeIndex)) >= 0;
+        var tp = thisPotential.filter(function(tc) {
+            return tc[1].split(",").map(t => parseInt(t)).indexOf(parseInt(edgeIndex)) >= 0;
         }).map(function(termcoef) {
             const allTerms = termcoef[1].split(",").map(y => parseInt(y));
             const ati = allTerms.indexOf(edgeIndex);
             return [termcoef[0], allTerms.slice(ati+1).concat(...allTerms.slice(0, ati))];
         });
     } else {
-        var tp = thisPotential.filter(function(termcoef) {
-            return termcoef[1].indexOf(parseInt(edgeIndex)) >= 0;
+        var tp = thisPotential.filter(function(tc) {
+            return tc[1].map(y => parseInt(y)).indexOf(parseInt(edgeIndex)) >= 0;
         }).map(function(termcoef) {
             const allTerms = termcoef[1].map(y => parseInt(y));
             const ati = allTerms.indexOf(edgeIndex);
@@ -1071,7 +1087,7 @@ function reduce(QP) {
             if (y[0] == ",") { y = y.slice(1); }
             if (y[-1] == ",") { y = y.slice(0,-1); }
             return [Number(x[0]), y];
-        }).filter(termcoef => Math.abs((termcoef[0]) > 0) && (termcoef[1] != ","));
+        }).filter(termcoef => (Math.abs(termcoef[0]) > 0) && (termcoef[1] != ","));
 
     // extract the terms that show up as a singleton after taking a path derivative. (These terms are equivalent to 0)
     var allPathDerivatives = range(0, QP.edges.length).map(e => pathDerivative(thePotential, e)).filter(pd => pd.length > 0);
@@ -1168,7 +1184,7 @@ function reduce(QP) {
                                 var newTerm = [[1, []]];
                                 for (let ttt = 0; ttt < currentTerm[1].length; ttt++) {
                                     let tt = currentTerm[1][ttt];
-                                    if (edgesToRemove.includes(tt)) {
+                                    if (edgesToRemove.includes(tt) && !failedToReplace.includes(tt)) {
                                         var nt = [];
                                         for (let rdi = 0; rdi < reduceDict[tt].length; rdi++) {
                                             let rd = reduceDict[tt][rdi];
@@ -1179,9 +1195,9 @@ function reduce(QP) {
                                                     nt11 = nt1[1].concat(rd[1]);
                                                 }
                                                 nt.push([parseFloat(nt1[0])*parseFloat(rd[0]), nt11]);
-                                          }
-                                      }
-                                      if (nt.length > 0) { newTerm = nt; }
+                                            }
+                                        }
+                                        if (nt.length > 0) { newTerm = nt; }
                                     } else {
                                         newTerm = newTerm.map(
                                             function(x) {
@@ -1202,11 +1218,14 @@ function reduce(QP) {
                     }
                 }
                 if (termsContainEdge(termsForE, e)) {
+                    foundReplacement = false;
+                    ctr = edgesToRemove.length + 1;
                     termsForE = [[1, [e]]];
-                    foundReplacement = false; ctr += edgesToRemove.length;
+                    altTermsForE = [[1, [e]]];
+                } else {
+                    reduceDict[e] = deepCopy(termsForE);
+        	    termsForE = deepCopy(altTermsForE);
                 }
-                reduceDict[e] = deepCopy(termsForE);
-        	termsForE = deepCopy(altTermsForE);
 
             } while (!foundReplacement && (ctr < edgesToRemove.length));
 	    reduceDict[e] = termsForE;
@@ -1251,6 +1270,7 @@ function reduce(QP) {
             wPrime.push(...newTerm);
         }
 	wPrime = wPrime.filter(y => (y[0] != 0)).map(function(x) {return [x[0], x[1].toString()];});
+        wPrime = combineLikeTermsInPotential(wPrime);
 
         return removeEdges(edgesToRemove, QP, altPotential=wPrime);
     } else {
