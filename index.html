@@ -1,166 +1,30 @@
 <html>
     <head>
-    
         <meta charset="UTF-8"/>
 
-        <style>
-             html, body{/* whole page: fills browser window */
-                 width:99%; 
-                 height:100%; 
-                 margin:1px;
-                 border:0;
-                 padding:5px;
-             }
-             .menuBar{/*sidebar that has button for generating quiver and 
-       		 adding to it: width, side of page, border, etc*/
-                 width:100%;
-                 height:400px;
-                 margin-top:5px;
-                 margin-right:5px;
-                 padding-left:10px;
-             }
-             pre {
-                 margin:0;
-                 padding:5px;
-                 font-size:10pt;
-             }
-             .json_box_tall {
-                 height:400px;
-                 overflow-y:scroll;
-                 color:gray;
-             }
-             .json_box_short {
-                 height:170px;
-                 overflow-y:scroll;
-                 color:gray;
-             }
-             .view_json_sty {
-                 width:100%;
-                 color:gray;
-                 margin:5px;
-                 padding:10px;
-                 border-style:outset;
-                 border-color:gray;
-             }
-             .tablink {
-                 overflow: hidden;
-                 background-color: #222222;
-                 color: white;
-                 float: left;
-                 border: none;
-                 outline: none;
-                 cursor: pointer;
-                 padding: 14px 16px;
-                 font-size: 17px;
-                 color:gray;
-                 width: 33.3%;
-             }
-             .tablink:hover {
-                 background-color: #ddd;
-             }
-             .tabcontent {
-                 color: gray;
-                 display: none;
-                 padding: 100px 20px;
-                 height: 100%;
-             }
-             .Anetwork {
-                 width:100%;
-                 height:400px;
-                 margin:1px;
-                 border-style:outset;
-                 border-color:gray;
-             }
-             #QP {background-color: white;}
-             #multiQP {background-color: white;}
-             #TRI {background-color: white;}
-        </style>
+	<!-- css page --> 
+	<link rel="stylesheet" href="page_styles.css">
 
+	<!-- library for drawing QPs and triangulations --> 
         <script
             type="text/javascript"
             src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"
         ></script>
 
+	<!-- library of functions for manipulating QPs and triangulations--> 
         <script 
             type="text/javascript"
             src="./quiver_library.js">
         </script>
 
-	<script>
-            function saveFile(fmt='globalQP') {
-                var data = JSON.stringify({
-                    "nodes": QPglobalNodes,
-                    "edges": QPglobalEdges,
-                    "frozenNodes": QPglobalFrozenNodes,
-                    "potential": QPglobalPotential
-                });
-
-                if (fmt == 'globalTriangulation') {
-                    var opt = makeTriangulation(TRIglobalEdges, TRIglobalBoundaryEdges);
-                    data = JSON.stringify({
-                        "nodes": TRIglobalCoords,
-                        "edges": TRIglobalEdges,
-                        "triangles": opt[0]
-                    });
-                } else if (fmt == 'QPFromTriangulation') {
-                        data = QPFromTriangulation(TRIglobalTriangulation);
-                } else {
-                    data = allUniqueTriangulations(TRIglobalTriangulation, TRIglobalBoundaryEdges);
-                    const cs = data.coordinates.map(y => y.map(z=>parseFloat(z)));
-                    data = data.triangulations.map(x => JSON.parse(x));
-                    data = data.map(t => t.map(e => JSON.parse(e)));
-                    data = data.map(x => QPFromTriangulation([x, cs]));
-		}
-
-                const textToBLOB = new Blob([data], {type: "text/plain"});
-                const sFileName = "outputs.JSON";
-
-                let newLink = document.createElement("a");
-                newLink.download = sFileName;
-
-                if (window.webkitURL != null) {
-                    newLink.href = window.webkitURL.createObjectURL(textToBLOB);
-                }
-                else {
-                    newLink.href = window.URL.createObjectURL(textToBLOB);
-                    newLink.style.display = "none";
-                    document.body.appendChild(newLink);
-                }
-                newLink.click();
-            }
-
-	    let uploadFile = () => {
-                var files = document.getElementById("jsonupload").files;
-                if (files.length <= 0) {
-                    return false;
-                }
-                var fr = new FileReader();
-                    fr.onload = function(e) { 
-                    var result = JSON.parse(e.target.result);
-		    updateQPFromJSON(result);
-                }
-                fr.readAsText(files.item(0));
-	    };
+	<!-- upload/download functions for QP / triangulations -->
+	<script type="text/javascript"
+		src="./fileIO.js">
 	</script>
 
-        <script>
-            function openPage(pageName, elmnt) {
-              // Hide all elements with class="tabcontent" by default */
-              var i, tabcontent, tablinks;
-              tabcontent = document.getElementsByClassName("tabcontent");
-              for (i = 0; i < tabcontent.length; i++) {
-                tabcontent[i].style.display = "none";
-              }
-      
-              // Remove the background color of all tablinks/buttons
-              tablinks = document.getElementsByClassName("tablink");
-              for (i = 0; i < tablinks.length; i++) {
-                tablinks[i].style.backgroundColor = "";
-              }
-
-              // Show the specific tab content
-              document.getElementById(pageName).style.display = "block";
-            }
+	<!-- page-specific js scripts (hiding/showing content, onload, etc. -->
+        <script type="text/javascript" 
+		src="./pageUtils.js">
         </script>
 
     </head>
@@ -230,7 +94,8 @@
                 </tr>
             </table>
             
-            
+	    <button type="button" class ="collapsible" onclick="toggleCollapsible()">Display QP JSON data</button>
+	    <div class="collapsiblecontent">
             <table id="view_json" class="view_json_sty">
                 <! ROW 2: DISPLAY JSON DATA OF QP>
                 <tr>
@@ -250,6 +115,7 @@
                     </td>
                 </tr>
             </table>
+	    </div>
 	</div>
 
 
@@ -295,6 +161,8 @@
 	        </tr>
 	    </table>
 
+	    <button type="button" class ="collapsible" onclick="toggleCollapsible()">Display Triangulation JSON data</button>
+	    <div class="collapsiblecontent">
             <table id="tri-view_json" class="view_json_sty" width="100%">
                 <! ROW 2: DISPLAY JSON DATA OF TRIANGULATION>
                 <tr>
@@ -308,6 +176,7 @@
                     </td>
                 </tr>
             </table>
+	    </div>
 	</div>
 
 	<div id="multiQP" class="tabcontent">

@@ -16,23 +16,24 @@ var TRINetworkNodes, TRINetworkEdges, TRINetwork;
 // allows checking if things are the same in euclidean space within this given tolerance
 const tolerance = 0.00001;
 
-var output_fields = ["id", "from", "to", "coef", "edge1","edge2","edge3"] // which data objects to print to screen
+var output_fields = ["id", "from", "to", "coef", "edge1", "edge2", "edge3"]; // which data objects to print to screen
 
 
 function addTermToPotential(t, coef=1) {
     var c2 = 0;
+    const orderedt = cycleOrder(t.split(",")).toString();
     try {
-        c2 = QPNetworkPotential.get(t);
+        c2 = QPNetworkPotential.get(orderedt);
     } catch(err) {}
-    if(potentialTermIsSubsetOfEdges(t)) {
+    if(potentialTermIsSubsetOfEdges(orderedt)) {
         if (c2 == null) {
-            QPNetworkPotential.add({id: t, coef: coef.toString()});
+            QPNetworkPotential.add({id: orderedt, coef: coef.toString()});
         } else {
             let c3 = parseFloat(coef) + parseFloat(c2.coef);
             if (c3 > 0 || c3 < 0) {
-                QPNetworkPotential.update({id: t, coef: c3.toString()});
+                QPNetworkPotential.update({id: orderedt, coef: c3.toString()});
             } else {
-                QPNetworkPotential.remove({id: t});
+                QPNetworkPotential.remove({id: orderedt});
             }
         }
     } else {
