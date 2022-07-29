@@ -31,8 +31,7 @@
 
     <body onload="openPage('QP', this); drawQPNetwork()">
         <button class="tablink" onclick="openPage('QP', this); drawQPNetwork()" id="defaultOpen">Manipulate QPs interactively</button>
-        <button class="tablink" onclick="openPage('TRI', this); drawTriNetwork()">Generate Triangulation</button>
-        <button class="tablink" onclick="openPage('multiQP', this)">Compare Mutations/Flips</button>
+        <button class="tablink" onclick="openPage('TRI', this); drawTriNetwork()">Generate QPs from Triangulation</button>
 
 	<div id="QP" class="tabcontent">
             <table>
@@ -42,35 +41,35 @@
                         <div class="Anetwork" id="mynetwork"></div>
                     </td>
                     <td width="50%" class="menuBar">
-            	    <div id="instructions">Click on the canvas to add a node</div>
-            	    <h3>Edit Quiver</h3>
-                        <label for="editQuiverMenu">Options:</label>
-                        <select id="edit-quiver-type" name="editQuiverMenu" onchange="updateInstructions()">
-                            <option value="add-node">Add Nodes</option>
-                            <option value="remove-node">Remove Nodes</option>
-                            <option value="add-edge">Add Edges(nonloops)</option>
-                            <option value="add-loop">Add Edges(loops)</option>
-                            <option value="remove-edge">Remove Edges</option>
-                            <option value="freeze-node">Freeze Nodes</option>
-                            <option value="unfreeze-node">Unfreeze Nodes</option>
-                            <option value="mutate">Mutate</option>
-                        </select>
-                        <br><br>
-            	    <h3>Edit Potential</h3>
-            	    <label for="coefficient-input">Coefficient:</label>
-            	    <input id="coefficient-input" type="text" size=3 value=1>
-            	    <label for="term-input"> Edges in cycle:</label>
-            	    <input id="term-input" type="text" size=10 value="0,1">
-            	    <button onclick="updatePotential()">Add Term</button>
-            	    <br><br>
-            	    <button onclick="clearQP()">Clear Quiver</button>
-            	    <button onclick="clearPotential()">Clear Potential</button>
-            	    <button onclick="generateRandomPotential()">Random Potential</button>
+            	        <div id="instructions">Click on the canvas to add a node</div>
+            	        <h3>Edit Quiver</h3>
+                            <label for="editQuiverMenu">Options:</label>
+                            <select id="edit-quiver-type" name="editQuiverMenu" onchange="updateInstructions()">
+                                <option value="add-node">Add Nodes</option>
+                                <option value="remove-node">Remove Nodes</option>
+                                <option value="add-edge">Add Edges(nonloops)</option>
+                                <option value="add-loop">Add Edges(loops)</option>
+                                <option value="remove-edge">Remove Edges</option>
+                                <option value="freeze-node">Freeze Nodes</option>
+                                <option value="unfreeze-node">Unfreeze Nodes</option>
+                                <option value="mutate">Mutate</option>
+                            </select>
+                            <br><br>
+            	        <h3>Edit Potential</h3>
+            	            <label for="coefficient-input">Coefficient:</label>
+            	            <input id="coefficient-input" type="text" size=3 value=1>
+            	            <label for="term-input"> Edges in cycle:</label>
+            	            <input id="term-input" type="text" size=10 value="0,1">
+            	            <button onclick="updatePotential()">Add Term</button>
+            	            <br><br>
+            	            <button onclick="clearQP()">Clear Quiver</button>
+            	            <button onclick="clearPotential()">Clear Potential</button>
+            	            <button onclick="generateRandomPotential()">Random Potential</button>
             
-                <h3>Exchange number</h3>
-                    <span id="exchange-number-output">--</span>
-                    &nbsp;
-                    <button onclick="showQPExchangeNumber()">Calculate</button>
+                        <h3>Exchange number</h3>
+                            <span id="exchange-number-output">--</span>
+                            &nbsp;
+                            <button onclick="showQPExchangeNumber()">Calculate</button>
                     </td>
                 </tr>
             </table>
@@ -177,11 +176,12 @@
                 </tr>
             </table>
 	    </div>
-	</div>
 
-	<div id="multiQP" class="tabcontent">
+            <button type="button" class ="collapsible" onclick="toggleCollapsible()">Compare current triangulation/flops with quiver mutations</button>
+                <div class=collapsiblecontent">
+			nothing to see here yet. 
+                </div>
 	</div>
-
     </body>
 </html>
 

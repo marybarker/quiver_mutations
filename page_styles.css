@@ -47,7 +47,7 @@
     padding: 14px 16px;
     font-size: 17px;
     color:gray;
-    width: 33.3%;
+    width: 50%;
   }
   .tablink:hover {
     background-color: #ddd;
@@ -76,8 +76,8 @@
     color: white;
     width: 100%;
   }
-  .active .collapsible:hover {
-    background-color: #ddd;
+  .collapsible:hover {
+    background-color: DarkGray;
   }
   .collapsiblecontent {
     padding: 0px;
