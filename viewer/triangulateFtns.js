@@ -9,7 +9,7 @@ const tolerance = 0.00001;
 
 // information for canvas drawing
 var network_nodes, network_edges, triangulate_network;
-var output_fields = ["id", "from", "to", "edge1","edge2","edge3"] // which data objects to print to screen
+var network_output_fields = ["id", "from", "to", "edge1","edge2","edge3"] // which data objects to print to screen
 
 
 function allCycles(segments) {
@@ -1013,7 +1013,7 @@ function resolveNetworkFlip(n, p) {
     }
     updateNetworkFromGlobals();
 
-    document.getElementById("tri-edges").innerText = JSON.stringify(network_edges.get(),output_fields, 4);
+    document.getElementById("tri-edges").innerText = JSON.stringify(network_edges.get(), network_output_fields, 4);
     var tri = opt[2].map(function(t) {
 	    return {
                 edge1: "index: "+t[0].toString() + ", "+JSON.stringify(globalEdges[t[0]]), 
@@ -1021,7 +1021,7 @@ function resolveNetworkFlip(n, p) {
                 edge3: "index: "+t[2].toString() + ", "+JSON.stringify(globalEdges[t[2]])
 	    };
     });
-    document.getElementById("tri-triangles").innerText = JSON.stringify(tri,output_fields, 4);
+    document.getElementById("tri-triangles").innerText = JSON.stringify(tri, network_output_fields, 4);
 }
 
 function rotateSimplexToPlane(coordinates) {
@@ -1306,7 +1306,7 @@ function viewTriangulation() {
         resolveNetworkFlip(triangulate_network, params);
     });
 
-    document.getElementById("tri-edges").innerText = JSON.stringify(network_edges.get(),output_fields, 4);
+    document.getElementById("tri-edges").innerText = JSON.stringify(network_edges.get(), network_output_fields, 4);
     var opt = makeTriangulation(globalEdges, globalBoundaryEdges);
     var tri = opt[0].map(function(t) {
 	    return {
@@ -1315,5 +1315,5 @@ function viewTriangulation() {
                 edge3: "index: "+t[2].toString() + ", "+JSON.stringify(globalEdges[t[2]])
 	    };
     });
-    document.getElementById("tri-triangles").innerText = JSON.stringify(tri,output_fields, 4);
+    document.getElementById("tri-triangles").innerText = JSON.stringify(tri, network_output_fields, 4);
 }
