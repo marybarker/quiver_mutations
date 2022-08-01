@@ -918,11 +918,40 @@ function extendCyclesWithSelfLoops (cycles, qp, maxCycleLength) {
   return cyclesOut.map(cycle => cycleOrder(cycle))
 }
 
+function quiverSetsMaybeIsomorphic (setA, setB) {
+  // determine if two sets of quivers might be isomorphic to each other
+
+  function stringifyQuiver (quiver) {
+    var edgesIn = new Array(quiver.nodes.length).fill(0)
+    var edgesOut = new Array(quiver.nodes.length).fill(0)
+
+    quiver.edges.forEach(function (e) {
+      edgesOut[e[0]]++
+      edgesIn[e[1]]++
+    })
+    edgesIn.sort()
+    edgesOut.sort()
+
+    return edgesIn.join(',') + '-' + edgesOut.join(',')
+  }
+
+  var setAStringified = setA.map(q => stringifyQuiver(q))
+  var setBStringified = setB.map(q => stringifyQuiver(q))
+
+  for (var s of setBStringified) {
+    if (setAStringified.includes(s)) {
+      setAStringified.splice(setAStringified.indexOf(s), 1)
+    } else {
+      return false
+    }
+  }
+
+  return true
+}
+
 function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], maxCycleLength = 5, approximateMaxPotentialTerms = 100, numberToTest = 5000) {
   // var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
   var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp, maxCycleLength).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
-
-  const expectedQuiverResult = expectedQuivers.map(qp => stringifyQP(qp)).sort().join(',')
 
   var testedPotentials = []
 
@@ -946,7 +975,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
   const exchangeNumBuckets = {}
   const minimalResultsByExchangeNum = {}
   const chainsByExchangeNum = {}
-  const quiverMatchedPotentials = []
+  const maybeMatchingPotentials = []
   const comp = []
 
   // limits the terms in the generated potentials to approximately this size
@@ -975,14 +1004,13 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
     var constructedPotential = deepCopy(template).filter(t => t[0] !== 0)
     qpt.potential = constructedPotential
     try {
-      var exchangeNumResult = getAllMutationsForQP(qpt)
+      var exchangeNumResult = getAllMutationsForQP(qpt, expectedExchangeNum + 1)
       var exchangeNum = exchangeNumResult.quivers.length
 
       if (exchangeNum === expectedExchangeNum) {
-        const thisQuiverResult = exchangeNumResult.quivers.map(qp => stringifyQP(qp)).sort().join(',')
-        comp.push([thisQuiverResult, expectedQuiverResult])
-        if (thisQuiverResult === expectedQuiverResult) {
-          quiverMatchedPotentials.push(constructedPotential)
+        console.log(exchangeNumResult.quivers)
+        if (quiverSetsMaybeIsomorphic(exchangeNumResult.quivers, expectedQuivers)) {
+          maybeMatchingPotentials.push(constructedPotential)
         }
       }
 
@@ -1034,7 +1062,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
     exchangeNumBuckets,
     minimalResultsByExchangeNum,
     chainsByExchangeNum,
-    quiverMatchedPotentials,
+    maybeMatchingPotentials,
     comp
   }
 }
