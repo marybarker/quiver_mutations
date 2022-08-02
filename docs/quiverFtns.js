@@ -1,449 +1,70 @@
-var nodes, edges, network;
-var frozen_nodes;
-var potential;
-var output_fields = ["id", "from", "to", "coef"]; // which data objects to print to screen
+// QP globals
+var QPNetworkNodes, QPNetworkEdges, QPNetworkFrozenNodes, QPNetworkPotential, QPNetwork;
+var QPglobalNodes = [[-100,0],[0,100],[100,0],[100,-100],[0,-200],[-100,-100]];
+var QPglobalEdges = [[0,1],[1,0],[1,2],[2,1],[0,2],[2,0],[2,3],[3,2],[3,3],
+                     [3,4],[4,3],[4,4],[4,5],[5,4],[5,5],[5,5],[5,0],[0,5]];
+var QPglobalFrozenNodes = [];
+var QPglobalPotential = [[1,"0,2,5"], [1,"1,4,3"], [1,"8,9,10"], [1,"2,6,7,3"], [1,"0,1,17,16"], [1,"6,8,7"]];
 
-function updateInstructions() {
-    let click_mode = document.getElementById("edit-quiver-type").value;
-    var textOutput = "Click on canvas to add a node";
 
-    if (click_mode == "add-edge") {
-	textOutput = "Select a pair of nodes to add an edge between them: control + click to select two nodes";
-    } else if (click_mode == "add-loop") {
-	textOutput = "Click on a node to add a loop";
-    } else if (click_mode == "remove-edge") {
-	textOutput = "Click on an edge to remove it";
-    } else if (click_mode == "add-node") {
-	textOutput = "Click on the canvas to create a node";
-    } else {
-        textOutput = "Select a node to perform action";
-    }
-    document.getElementById("instructions").innerText = textOutput;
-}
+var output_fields = ["id", "from", "to", "coef", "edge1", "edge2", "edge3"]; // which data objects to print to screen
 
-function resolve_click_event(n, p) {
-    var click_mode = "NONE";
-    try {
-        click_mode = document.getElementById("edit-quiver-type").value;
-    } catch (err) {
-        alert(err)
-    }
 
-    if (click_mode == "add-node") {
-        if((p.nodes.length == 0) && (p.edges.length == 0)) { // make sure we're not superimposing nodes
-	    var nv = getUniqueNodeId();
-            nodes.add({id:nv, label:nv, x:p.pointer.canvas.x, y:p.pointer.canvas.y});
-        }
-    } else if (click_mode == "remove-node") {
-        if (p.nodes.length > 0) {
-            var n = p.nodes[0].toString();
-	    removeGlobalTerms(nodeIdsToRemove=[n], edgeIdsToRemove=[], potentialIdsToRemove=[]);
-        }
-    } else if (click_mode == "add-edge") {
-        var ne = getUniqueEdgeId();
-	if (p.nodes.length > 1) {
-	    let n1 = p.nodes[0].toString();
-	    let n2 = p.nodes[1].toString();
-            edges.add({id: ne, from: n1, to: n2, arrows: "to", title: "edge "+ne});
-        }
-    } else if (click_mode == "remove-edge") {
-        if (p.edges.length > 0) {
-	    var e = p.edges[0].toString();
-	    removeGlobalTerms([], [e], []);
-        }
-    } else if (click_mode == "add-loop") {
-        var ne = getUniqueEdgeId();
-        if (p.nodes.length > 0) {
-	    let v = p.nodes[0].toString();
-            edges.add({id: ne, from: v, to: v});
-        }
-    } else if (click_mode == "freeze-node") {
-        if (p.nodes.length > 0) {
-            frozen_nodes.add({id: p.nodes[0].toString()});
-        }
-    } else if (click_mode == "unfreeze-node") {
-        if (p.nodes.length > 0) {
-            frozen_nodes.remove({id: p.nodes[0].toString()});
-        }
-    } else if (click_mode == "mutate") {
-        if (p.nodes.length > 0) {
-            let current_node = p.nodes[0].toString();
-            var mQP = makeQP(edges, nodes, frozen_nodes, potential);
-
-            mQP = mutateQP(current_node, mQP);
-	    updateGlobalsFromQP(mQP);
-        }
-    }
-}
-
-function updateGlobalsFromQP(QP) {
-    // NOTE: this routine does not update nodes global. 
-    var outputs = [];
-    for (let i = 0; i < QP.edges.length; i++) {
-        outputs.push({
-	    id: i.toString(), 
-	    to: QP.edges[i][1].toString(), 
-	    from: QP.edges[i][0].toString(), 
-	    arrows: "to",
-	    title: "edge "+i.toString()
-	});
-    }
-    edges.clear();
-    edges.add(outputs);
-
-    potential.clear();
-    for (let i = 0; i < QP.potential.length; i++) {
-        addTermToPotential(QP.potential[i][1].toString(), QP.potential[i][0]);
-    }
-}
-
-function updateQPFromJSON(JSONData) {
-    clearQP();
-    edges.add(JSONData.edges.map(function(x){
-        const i = x.id;
-        const f = x.from;
-        const t = x.to;
-        return {
-    	    "id": i.toString(),
-            "from": f.toString(), "to": t.toString(),
-            "arrows": "to", "title": "edge "+i.toString()
-        }
-    }));
-    nodes.add(JSONData.nodes.map(function(x){
-        const i = x.id;
-        return {
-    	    "id": i.toString(), "label": i.toString(),
-            "x": parseFloat(x.x), "y": parseFloat(x.y)
-        }
-    }));
-    for (let pi = 0; pi < JSONData.potential.length; pi++) {
-	let x = JSONData.potential[pi];
-        const i = cycleOrder(x.id.split(",")).toString();
-        const c = x.coef;
-	addTermToPotential(i, c);
-    }
-    frozen_nodes.add(JSONData.frozenNodes.map(function(x){
-        const i = x.id;
-        return {
-    	"id": i.toString()
-        }
-    }));
-}
-
-function removeGlobalTerms(nodeIdsToRemove=[], edgeIdsToRemove=[], potentialIdsToRemove=[]) {
-    // removes nodes, edges, and potential terms and updates the index/label ordering on edges and nodes
-
-    var oldNodeIds = nodes.getIds();
-    var newNodeIndexing = [];
-
-    if (nodeIdsToRemove.length > 0) {
-        for (let ni = 0; ni < nodeIdsToRemove.length; ni++) {
-	    let n = nodeIdsToRemove[ni].toString();
-            var extraEdgesToRemove = edges.getIds().filter(x => ((edges.get(x).to == n) || (edges.get(x).from == n))); 
-            for (let ei = 0; ei < extraEdgesToRemove.length; ei++) {
-	        let e = extraEdgesToRemove[ei].toString();
-                if (!edgeIdsToRemove.includes(e)) {
-                    edgeIdsToRemove.push(e);
-                }
-            }
-	}
-	// reindex/relabel nodes
-        oldNodeIds = nodes.getIds().filter(x => !nodeIdsToRemove.includes(x));
-        newNodeIndexing = oldNodeIds.map(function(i) {
-            return {
-                id: oldNodeIds.indexOf(i).toString(), 
-                label: oldNodeIds.indexOf(i).toString(), 
-                x: nodes.get(i).x, 
-                y: nodes.get(i).y
-            };
-	});
-    }
-
-    var oldEdgeIds = edges.getIds();
-    var newEdgeIndexing = [];
-    var newPotentialTerms = [];
-    if (edgeIdsToRemove.length > 0) {
-        for (let ei = 0; ei < edgeIdsToRemove.length; ei++) {
-	    let e = edgeIdsToRemove[ei].toString();
-            edges.remove({id:e});
-        }
-	// reindex/relabel edges
-        oldEdgeIds = edges.getIds();
-        newEdgeIndexing = oldEdgeIds.map(function(i) {
-	    return {
-		    id:     oldEdgeIds.indexOf(i).toString(), 
-	            from:   oldNodeIds.indexOf(edges.get(i).from).toString(),
-	            to:     oldNodeIds.indexOf(edges.get(i).to).toString(),
-	            arrows: "to",
-	            title:  "edge "+oldEdgeIds.indexOf(i).toString()
-	        };
-	    });
-
-        var potentialTermsToRemove = potential.getIds().filter(x => !potentialTermIsSubsetOfEdges(x));
-        // remove terms from potential
-        for (let pt = 0; pt < potentialTermsToRemove.length; pt++) {
-            potential.remove({id:potentialTermsToRemove[pt].toString()});
-        }
-
-    }
-    for (let pt = 0; pt < potentialIdsToRemove.length; pt++) {
-        potential.remove({id:potentialIdsToRemove[pt].toString()});
-    }
-
-    // relabel edges in potential by their new numbering
-    for (let pt = 0; pt < potential.getIds().length; pt++) {
-        let t = potential.getIds()[pt];
-        newPotentialTerms.push({id: t.split(",").map(x => oldEdgeIds.indexOf(x.toString())).toString(), coef: potential.get(t).coef});
-    }
-    var newFn = frozen_nodes.getIds().filter(x => oldNodeIds.includes(x)).map(x => {id: oldNodeIds.indexOf(x).toString()});
-    if (newNodeIndexing.length > 0) {
-	nodes.clear();
-        nodes.add(newNodeIndexing);
-    }
-    if (newEdgeIndexing.length > 0) {
-	edges.clear();
-        edges.add(newEdgeIndexing);
-    }
-    if (newPotentialTerms.length > 0) {
-	potential.clear();
-        potential.add(newPotentialTerms);
-    }
-    if (newFn.legnth > 0) {
-	frozen_nodes.clear();
-        frozen_nodes.add(newFn);
-    }
-}
-
-function clearPotential() {
-    potential.clear();
-}
-
-function clearQP() {
-    edges.clear();
-    frozen_nodes.clear();
-    nodes.clear();
-    potential.clear();
-}
-
-function potentialTermIsSubsetOfEdges(term) {
-    var esInTerm = term.split(",");
-    var currentEdges = edges.getIds();
-    return (esInTerm.filter(x => !currentEdges.includes(x.toString())).length < 1);
-}
-
-function addTermToPotential(t, c=1) {
+function addTermToPotential(t, coef=1) {
     var c2 = 0;
+    const orderedt = cycleOrder(t.split(",")).toString();
     try {
-        c2 = potential.get(t);
+        c2 = QPNetworkPotential.get(orderedt);
     } catch(err) {}
-    if(potentialTermIsSubsetOfEdges(t)) {
+    if(potentialTermIsSubsetOfEdges(orderedt)) {
         if (c2 == null) {
-            potential.add({id: t, coef: c.toString()});
+            QPNetworkPotential.add({id: orderedt, coef: coef.toString()});
         } else {
             let c3 = parseFloat(coef) + parseFloat(c2.coef);
             if (c3 > 0 || c3 < 0) {
-                potential.update({id: t, coef: c3.toString()});
+                QPNetworkPotential.update({id: orderedt, coef: c3.toString()});
             } else {
-                potential.remove({id: t});
+                QPNetworkPotential.remove({id: orderedt});
             }
         }
     } else {
         alert("Error updating potential: term "+t+" contains an invalid edge");
     }
+    updateGlobalQPFromNetwork();
 }
 
-function updatePotential() {
-    var t = document.getElementById("term-input").value;
-    var c1 = parseFloat(document.getElementById("coefficient-input").value);
-    addTermToPotential(t, c1);
-}
+function allCycles(segments) {
+    // find all cycles in an undirected graph defined by the list of segments 
+    // of the form [v1,v2] to denote an edge between the vertices v1 and v2.
+    // note: this routine ignores multi-edges, and it does not require the vertices 
+    // to have index set {0,..., vertices.length}
+    var cycles = [];
+    var added = [];
+    var vertices = new Set(segments.reduce(function(a, b) {return a.concat(b);}));
+    vertices = Array.from(vertices);
+    var indexed_edges = segments.map(s => s.map(x => vertices.indexOf(x)));
+    var edges_out_of = vertices.map(x => []);
 
-function generateRandomPotential() {
-    var np = randomPotential(nodes, edges);
-
-    potential.clear();
-    for (let i = 0; i < np.length; i++) {
-        let x = np[i];
-        if (x[1] != ",") {
-            addTermToPotential(x[1], x[0]);
-	}
+    for (let ei = 0; ei < indexed_edges.length; ei++) {
+        let e = indexed_edges[ei];
+        edges_out_of[e[0]].push(ei);
+        edges_out_of[e[1]].push(ei);
     }
-    /*
-    potential.add(np.filter(x => (x[1] != ",")).map(function(x) {
-    return {
-        id: x[1],
-        coef: x[0].toString(),
-        };
-    }));
-    */
-}
 
-function getUniqueEdgeId() { /* create a string value that is not currently in ids for edges */
-    var ne = edges.getIds();
-    ne = ne.map(function(x) {return parseInt(x);});
-    return ne.reduce(function(a, b) {return Math.max(a, b) + 1;}, 0).toString();
-}
-
-function getUniqueNodeId() { /* create a string value that is not currently in ids for nodes */
-    var nv = nodes.getIds();
-    nv = nv.map(function(x) {return parseInt(x);});
-    return nv.reduce(function(a, b) {return Math.max(a, b) + 1;}, 0).toString();
-}
-
-function draw() {
-    // create an array with nodes
-    nodes = new vis.DataSet();
-    nodes.on("*", function () {
-        document.getElementById("nodes").innerText = JSON.stringify(
-            nodes.get(),
-            output_fields,
-            4
-        );
-    });
-    nodes.add([
-        { id: "0", label: "0", x:-100, y: 0},
-        { id: "1", label: "1", x: 0, y: 100},
-        { id: "2", label: "2", x: 100, y: 0},
-        { id: "3", label: "3", x: 100, y:-100},
-        { id: "4", label: "4", x: 0, y:-200},
-        { id: "5", label: "5", x:-100, y:-100},
-    ]);
-
-    // create an array with edges
-    edges = new vis.DataSet();
-    edges.on("*", function () {
-        document.getElementById("edges").innerText = JSON.stringify(
-            edges.get(),
-            output_fields,
-            4
-        );
-    });
-    edges.add([
-        { id:  "0", from: "0", to: "1", arrows: "to", title: "edge 0"},
-        { id:  "1", from: "1", to: "0", arrows: "to", title: "edge 1"},
-        { id:  "2", from: "1", to: "2", arrows: "to", title: "edge 2"},
-        { id:  "3", from: "2", to: "1", arrows: "to", title: "edge 3"},
-        { id:  "4", from: "0", to: "2", arrows: "to", title: "edge 4"},
-        { id:  "5", from: "2", to: "0", arrows: "to", title: "edge 5"},
-        { id:  "6", from: "2", to: "3", arrows: "to", title: "edge 6"},
-        { id:  "7", from: "3", to: "2", arrows: "to", title: "edge 7"},
-        { id:  "8", from: "3", to: "3", arrows: "to", title: "edge 8"},
-        { id:  "9", from: "3", to: "4", arrows: "to", title: "edge 9"},
-        { id: "10", from: "4", to: "3", arrows: "to", title: "edge 10"},
-        { id: "11", from: "4", to: "4", arrows: "to", title: "edge 11"},
-        { id: "12", from: "4", to: "5", arrows: "to", title: "edge 12"},
-        { id: "13", from: "5", to: "4", arrows: "to", title: "edge 13"},
-        { id: "14", from: "5", to: "5", arrows: "to", title: "edge 14"},
-        { id: "15", from: "5", to: "5", arrows: "to", title: "edge 15"},
-        { id: "16", from: "5", to: "0", arrows: "to", title: "edge 16"},
-        { id: "17", from: "0", to: "5", arrows: "to", title: "edge 17"},
-    ]);
-
-    //assigns each self-loop a unique radius so that they don't overlap
-    function updateEdgeRadii(id) {
-        var thisEdge = edges.get(id);
-
-        if (thisEdge.from === thisEdge.to) {
-            var count = edges.get().filter(function (otherEdge) {
-                return otherEdge.from === thisEdge.from & otherEdge.to === thisEdge.to && parseInt(otherEdge.id) < parseInt(thisEdge.id)
-            }).length
-
-            thisEdge.selfReference = {
-                size: 15 + (count * 5)
+    for (let node = 0; node < vertices.length; node++) {
+        let cycles_at_node = dfsAllCycles(indexed_edges, edges_out_of, node, node);
+        for (let ci = 0; ci < cycles_at_node.length; ci++) {
+            let c = cycles_at_node[ci];
+            sortedc = [...c].sort().toString();
+            if (!added.includes(sortedc)) {
+                cycles.push(c);
+                added.push(sortedc);
             }
-
-            edges.update(thisEdge)
         }
     }
-
-    //update the initial dataset
-
-    edges.get().forEach(edge => updateEdgeRadii(edge.id))
-
-    //and whenever an edge is added
-    edges.on("add", function (event, properties, senderId) {
-        properties.items.forEach(function(i) {
-            updateEdgeRadii(i);
-        })
-    })
-
-    frozen_nodes = new vis.DataSet();
-    frozen_nodes.on("*", function () {
-    document.getElementById("frozen_nodes").innerText = JSON.stringify(
-          frozen_nodes.get(),
-          output_fields,
-	  4);
-    });
-    potential = new vis.DataSet();
-    potential.on("*", function () {
-    document.getElementById("potential").innerText = JSON.stringify(
-          potential.get(),
-          output_fields,
-	  4);
-    });
-    potential.add([
-        { id: "0,2,5", coef: "1"},
-        { id: "1,4,3", coef: "1"},
-        { id: "8,9,10", coef: "1"},
-        { id: "2,6,7,3", coef: "1"},
-        { id: "0,1,17,16", coef: "1"},
-        { id: "6,8,7", coef: "1"},
-    ]);
-
-    // create a network
-    var container = document.getElementById("mynetwork");
-    var data = {
-        nodes: nodes,
-        edges: edges,
-    };
-    var options = {
-	interaction: { hover: true },
-        nodes: {
-            borderWidth:1,
-            size:45,
-            color: {
-                border: '#222222',
-                background: 'grey'
-            },
-            font:{color:'black',
-            size: 11,
-            face :'arial',
-            },
- 	   physics: {enabled:false},
-        },
-        edges: {
-            arrows: {
-                to:{enabled: true},
-            },
-            color: {
-                color:'#848484',
-                highlight:'#848484',
-                hover: '#848484',
-            },
-            font: {
-                color: '#343434',
-                size: 11, // px
-                face: 'arial',
-                background: 'none',
-                strokeWidth: 5, // px
-                strokeColor: '#ffffff',
-                align:'vertical'
-            },
- 	   //physics: {enabled:true},
-        },
-	interaction: { multiselect: true},
-	navigation: true,
-     };
-     network = new vis.Network(container, data, options);
-     //network.setOptions({physics:{enabled:false}});
-     network.on('click',function(params){
-	 resolve_click_event(network, params);
-     });
+    return cycles;
 }
 
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-/*        Begin QP manipulation functions (no global variables)          */
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 function allThreeCycles (QP) {
     var triples = [];
     let alreadySeen = []
@@ -491,6 +112,17 @@ function arrayEquals(a, b) {
     return JSON.stringify(a) == JSON.stringify(b);
 }
 
+function clearPotential() {
+    QPNetworkPotential.clear();
+}
+
+function clearQP() {
+    QPNetworkEdges.clear();
+    QPNetworkFrozenNodes.clear();
+    QPNetworkNodes.clear();
+    QPNetworkPotential.clear();
+}
+
 function combineLikeTermsInPotential(potential) {
     toRet = [];
     addedTerms = [];
@@ -501,10 +133,14 @@ function combineLikeTermsInPotential(potential) {
         if (idx != null) {
             toRet[idx] = [toRet[idx][0] + termcoef[0], trm];
 	} else {
-	    toRet.push([Number(termcoef[0]), trm]);
+	    toRet.push([termcoef[0], trm]);
 	}
     }
     return toRet.filter(y => Math.abs(y[0]) > 0);
+}
+
+function count(l, v) { // return the number of instances of value v in list l
+    return l.filter(x => x == v).length;
 }
 
 function cycleOrder(cycle) {
@@ -520,287 +156,148 @@ function deepCopy(A) {
     return JSON.parse(JSON.stringify(A));
 }
 
-function edgesOutOf(vertex, edge_list) {
-    return Array.from(Array(edge_list.length).keys()).map(x => parseInt(x)).filter(x => edge_list[x][0] == vertex);
+function dfsAllCycles(segments, es_at, start_vertex, end_vertex) {
+    // helper function for allCycles routine
+    var toRet = [];
+    var the_list = [[start_vertex, []]];
+    while (the_list.length > 0) {
+        var output = the_list.pop();
+        var state = output[0];
+        var path = output[1];
+        if ((path.length > 0) && (state == end_vertex)) {
+            toRet.push(path);
+            continue;
+        } 
+        for (let nei = 0; nei < es_at[state].length; nei++) {
+            let next_edge = es_at[state][nei];
+            if (path.includes(next_edge)) {
+                continue;
+            }
+            var next_state = segments[next_edge].filter(x => x != state)[0];
+            the_list.push([next_state, path.concat(next_edge)]);
+        }
+    }
+    return toRet;
 }
 
-function findCycleDFS(begin_vertex, at_vertex, edge_list, edges_so_far, min_length=0) {
-    let edgesOut = edgesOutOf(at_vertex, edge_list).filter(y => !edges_so_far.includes(y));
-
-    for (let ei = 0; ei < edgesOut.length; ei++) {
-        let e = edge_list[edgesOut[ei]];
-	let esMet = deepCopy(edges_so_far).map(y => parseInt(y));
-        esMet.push(edgesOut[ei]);
-	let currentAt = e[1];
-	              
-        if ((begin_vertex == currentAt) && (esMet.length >= min_length)) {
-            return [true, esMet];
-	}
-	return findCycleDFS(begin_vertex, currentAt, edge_list, esMet, min_length);
-    }
-    return [false, esMet];
+function dotProduct(v1, v2) { // n dimensional dot product (assumes length of v1 = length of v2)
+    return v1.map((x, i) => v1[i] * v2[i]).reduce((m, n) => m + n);
 }
 
-function findDependencies(currentItem, met, lookups) {
-    /* find the items that currentItem depends on in the lookup table 
-     * (this is recursively done, so the tree of dependencies is listed exhaustively)
-     * stopping criterion: no new dependencies found. 
-     * circularity is dealt with by only adding new dependants */
-    if (met.includes(currentItem) ) {
-        return [true, met];
-    } else {
-        let newMet = met.concat(currentItem);
-        let currentLookup = lookups[parseInt(currentItem)];
-        for (let i = 0; i < currentLookup.length; i++) {
-	    let item = currentLookup[i];
-	    return findDependencies(item, newMet, lookups)
-        }
-        return [false, newMet];
-    }
-}
+function drawQPNetwork() {
+    QPNetworkNodes = new vis.DataSet();
+    QPNetworkEdges = new vis.DataSet();
+    QPNetworkFrozenNodes = new vis.DataSet();
+    QPNetworkPotential = new vis.DataSet();
 
-function makeQP(es, ns, fn, p, inputType="fromVisDataSet") {
-    // create graph info (arrow to node structures)
-    var awh = Array.from(Array(ns.length), x => []);
-    var awt = Array.from(Array(ns.length), x => []);
-    var la = Array.from(Array(ns.length), x => []);
-    var fns = [];
-    var theseNodes = [];
-    var theseEdges = [];
-    var thisPotential = [];
+    QPNetworkNodes.on("*", function () {
+        document.getElementById("nodes").innerText = JSON.stringify(
+            QPNetworkNodes.get(),
+            output_fields,
+            4
+        );
+    });
+    QPNetworkEdges.on("*", function () {
+        document.getElementById("edges").innerText = JSON.stringify(
+            QPNetworkEdges.get(),
+            output_fields,
+            4
+        );
+    });
+    QPNetworkFrozenNodes.on("*", function () {
+    document.getElementById("frozen_nodes").innerText = JSON.stringify(
+          QPNetworkFrozenNodes.get(),
+          output_fields,
+	  4);
+    });
+    QPNetworkPotential.on("*", function () {
+    document.getElementById("potential").innerText = JSON.stringify(
+          QPNetworkPotential.get(),
+          output_fields,
+	  4);
+    });
+    updateNetworkQPFromGlobal();
 
-    if (inputType == "fromVisDataSet") {
-        fns = fn.getIds().map(x => parseInt(x));
-        theseNodes = ns.getIds().map(x => parseInt(x));
-        theseEdges = es.getIds().map(x => [parseInt(es.get(x).from), parseInt(es.get(x).to)]);
-        // make sure that the edges in each cycle of the potential are now listed by their index,
-        // rather than id, since adding/subtracting edges can leave gaps in the id#s 
-	var edgeIDMap = es.getIds();
-        thisPotential = p.getIds().map(x => [parseFloat(p.get(x).coef), x.split(",").map(y => edgeIDMap.indexOf(y)).toString()]);
-    } else {
-        fns = Array.from(fn, x => parseInt(x));
-        theseNodes = Array.from(ns, x => parseInt(x));
-        theseEdges = deepCopy(es.filter(x => (x != null))).map(x => [parseInt(x[0]), parseInt(x[1])]);
-        thisPotential = p;
-    }
+    //assigns each self-loop a unique radius so that they don't overlap
+    function updateEdgeRadii(id) {
+        var thisEdge = QPNetworkEdges.get(id);
 
-    for (let ei = 0; ei < theseEdges.length; ei++) {
-        let e = theseEdges[ei];
-        if (e[0] == e[1]) {
-            la[theseNodes.indexOf(e[0])].push(ei);
-        } else {
-            awh[theseNodes.indexOf(e[1])].push(ei);
-            awt[theseNodes.indexOf(e[0])].push(ei);
-        }
-    }
-    // can_mutate list
-    var cm = theseNodes.map(
-        function(v) {
-            return ((la[v].length < 1) && !(v in fns));
-        });
-    return {
-        arrowsWithHead: awh,
-        arrowsWithTail: awt,
-        canMutate: cm,
-        edges: theseEdges,
-        frozenNodes: deepCopy(fns),
-        loopsAt: la,
-        nodes: theseNodes,
-        potential: thisPotential
-    }
-}
+        if (thisEdge.from === thisEdge.to) {
+            var count = QPNetworkEdges.get().filter(function (otherEdge) {
+                return otherEdge.from === thisEdge.from & otherEdge.to === thisEdge.to && parseInt(otherEdge.id) < parseInt(thisEdge.id)
+            }).length
 
-function stringifyQP(qp, includePotential=false) {
-  const qpCopy = deepCopy(qp)
-
-  if (!includePotential) {
-    delete qpCopy.potential;
-  }
-
-  /*
-  AWT/AWH contain the same information that is already included in edges, so it doesn't need to be included
-  And the sorting of edges makes the edge IDs contained in AWH/AWT incorrect, so they need to be removed
-  */
-  delete qpCopy.arrowsWithHead;
-  delete qpCopy.arrowsWithTail;
-  delete qpCopy.loopsAt;
-
-  for (var key in qpCopy) {
-    if (Array.isArray(qpCopy[key])) {
-        qpCopy[key].sort(function (a, b) {
-            var as = JSON.stringify(a);
-            var bs = JSON.stringify(b);
-            if (as < bs) {
-                return -1;
+            thisEdge.selfReference = {
+                size: 15 + (count * 5)
             }
-            if (as > bs) {
-                return 1;
-            }
-            return 0;
-        });
-    }
-  }
-  return JSON.stringify(qpCopy)
-}
 
-function mutateQP(vertex, QP) {
-    const v = parseInt(vertex);
-    if (QP.canMutate[v]) {
-        // reverse the arrows incident to vertex
-        var savedEdges = deepCopy(QP.edges);
-        for (let ii in QP.arrowsWithHead[v]) {
-            let i = QP.arrowsWithHead[v][ii];
-            let e = savedEdges[i];
-            savedEdges[parseInt(i)] = [e[1],e[0]];
-        }
-        for (let ii in QP.arrowsWithTail[v]) {
-            let i = QP.arrowsWithTail[v][ii];
-            let e = savedEdges[i];
-            savedEdges[parseInt(i)] = [e[1],e[0]];
-        }
-
-        var delta = [];
-        var edgeCtr = QP.edges.length;
-        var shortcuts = [];
-        // now add 'shortcuts'
-        for (let ei1i in QP.arrowsWithHead[v]) {
-            let ei1 = QP.arrowsWithHead[v][ei1i];
-            var i = QP.edges[parseInt(ei1)][0];
-            for (let ei2i in QP.arrowsWithTail[v]) {
-                let ei2 = QP.arrowsWithTail[v][ei2i];
-                var j = QP.edges[ei2][1];
-
-                shortcuts.push([ei1,ei2]);
-                savedEdges.push([i,j]);
-                delta.push([1, ei2.toString()+","+ei1.toString()+","+edgeCtr.toString()]);
-                edgeCtr++;
-            }
-        }
-
-        var wPrime = [];
-        // update the potential
-        for (let mci = 0; mci < QP.potential.length; mci++) {
-            let mc = QP.potential[mci];
-            var coef = mc[0];
-            var monoid = mc[1].split(',');
-            let ml = monoid.length;
-            var m = "";
-            var foundMatch = false;
-            for (let i = 0; i < monoid.length; i++) {
-                m1 = parseInt(monoid[i]);
-                m2 = parseInt(monoid[(i+1)%ml]);
-                m0 = parseInt(monoid[(i+ml-1)%ml]);
-
-                const isIn = shortcuts.findIndex(e => arrayEquals(e, [m1, m2]));
-                const wasIn = shortcuts.findIndex(e => arrayEquals(e, [m0, m1]));
-                if ((i > 0) || (wasIn < 0)) {
-                    if((isIn >= 0) && !foundMatch) {
-                        var val = QP.edges.length + parseInt(isIn);
-                        m = m + val.toString()+",";
-                        foundMatch = true;
-                    } else {
-                        if (!foundMatch) {
-                            m = m + m1.toString()+",";
-                        }
-                        foundMatch = false;
-                    }
-                }
-            }
-            wPrime.push([coef, m.slice(0, -1)]);
-        }
-        wPrime.push(...delta);
-
-        // reduce the resulting quiver
-        return reduce(makeQP(savedEdges, QP.nodes, QP.frozenNodes, wPrime, inputType="fromQP"));
-    } else {
-        return makeQP(QP.edges, QP.nodes, QP.frozenNodes, QP.potential, inputType="fromQP");
-    }
-}
-
-function getAllMutationsForQP(qp, maxMutationsToFind) {
-    var alreadySeen = [stringifyQP(qp)]
-    var chains = [''];
-
-    var maxRuntime = 10000;
-    var beginTime = Date.now();
-
-    function collectMutations(qp, chain) {
-        for (var i = 0; i < qp.nodes.length; i++) {
-            if (!qp.canMutate[i]) {
-                continue
-            }
-            if (Date.now() - beginTime > maxRuntime) {
-                return;
-            }
-            if (chains.length === maxMutationsToFind) {
-                return;
-            }
-            var mutated = mutateQP(qp.nodes[i], deepCopy(qp))
-            var mutatedStr = stringifyQP(mutated)
-            if (!alreadySeen.includes(mutatedStr)) {
-                alreadySeen.push(mutatedStr)
-                chains.push(chain + qp.nodes[i])
-                collectMutations(mutated, chain + qp.nodes[i])
-            }
+            QPNetworkEdges.update(thisEdge)
         }
     }
 
-    collectMutations(qp, '')
-    
-    //TODO change this - assumes stringify produces an object with the whole qp
-    alreadySeen = alreadySeen.map(qp => JSON.parse(qp))
-    
-    return {quivers: alreadySeen, chains, timeout: Date.now() - beginTime > maxRuntime};
-}
+    //update the initial dataset
+    QPNetworkEdges.get().forEach(edge => updateEdgeRadii(edge.id))
 
-function showExchangeNumber() {
-    const output = document.getElementById('exchange-number-output')
-    try {
-        const result = getAllMutationsForQP(makeQP(edges, nodes, frozen_nodes, potential));
-        if (result.timeout) {
-            output.textContent = "Timed out"
-        } else {
-            output.textContent = result.quivers.length;
-        }
-    } catch(e) {
-        console.error(e);
-        output.textContent = "Error"
-    }
-}
-
-// https://stackoverflow.com/questions/546655/finding-all-cycles-in-a-directed-graph
-function findAllCycles(qp) {
-    //TODO should match a "figure 8" cycle like 2,6,7,3
-    var cycles = []
-
-    function collectCyles(qp, originNode, currentNode, visitedNodes, path) {
-        if (visitedNodes.includes(currentNode)) {
-            if (currentNode == originNode) {
-                cycles.push(path)
-            }
-        } else {
-            for (var edgeOut of qp.arrowsWithTail[currentNode]) {
-                collectCyles(qp, originNode, qp.edges[edgeOut][1], visitedNodes.concat([currentNode]), path.concat([edgeOut]))
-            }
-        }
-    }
-
-    for (var node of qp.nodes) {
-        collectCyles(qp, node, node, [], []);
-    }
-
-   // cycles = cycles.map(cycle => cycle.sort())
-
-    cycles = cycles.filter(function(cycle, idx) {
-        for(var idx2 = 0; idx2 < idx; idx2++) {
-            if (JSON.stringify(cycleOrder(cycles[idx])) === JSON.stringify(cycleOrder(cycles[idx2]))) {
-                return false;
-            }
-        }
-        return true;
+    //and whenever an edge is added
+    QPNetworkEdges.on("add", function (event, properties, senderId) {
+        properties.items.forEach(function(i) {
+            updateEdgeRadii(i);
+        })
     })
 
-    return cycles.map(cycle => cycleOrder(cycle));
+    // create a QPNetwork
+    var container = document.getElementById("mynetwork");
+    var data = {
+        nodes: QPNetworkNodes,
+        edges: QPNetworkEdges,
+    };
+    var options = {
+	interaction: { hover: true },
+        nodes: {
+            borderWidth:1,
+            size:45,
+            color: {
+                border: '#222222',
+                background: 'grey'
+            },
+            font:{color:'black',
+            size: 11,
+            face :'arial',
+            },
+ 	    physics: {enabled:false},
+        },
+        edges: {
+            arrows: {
+                to:{enabled: true},
+            },
+            color: {
+                color:'#848484',
+                highlight:'#848484',
+                hover: '#848484',
+            },
+            font: {
+                color: '#343434',
+                size: 11, // px
+                face: 'arial',
+                background: 'none',
+                strokeWidth: 5, // px
+                strokeColor: '#ffffff',
+                align:'vertical'
+            },
+ 	   //physics: {enabled:true},
+        },
+	interaction: { multiselect: true},
+        //navigation: true,
+     };
+     QPNetwork = new vis.Network(container, data, options);
+
+     QPNetwork.on('click',function(params){
+	 resolveClickEvent(QPNetwork, params);
+     });
+}
+
+function edgesOutOf(vertex, edge_list) {
+    return Array.from(Array(edge_list.length).keys()).map(x => parseInt(x)).filter(x => edge_list[x][0] == vertex);
 }
 
 /*
@@ -872,6 +369,299 @@ function extendCyclesWithSelfLoops(cycles, qp) {
     }
 
     return cyclesOut.map(cycle => cycleOrder(cycle))
+}
+
+// https://stackoverflow.com/questions/546655/finding-all-cycles-in-a-directed-graph
+function findAllCycles(qp) {
+    //TODO should match a "figure 8" cycle like 2,6,7,3
+    var cycles = []
+
+    function collectCyles(qp, originNode, currentNode, visitedNodes, path) {
+        if (visitedNodes.includes(currentNode)) {
+            if (currentNode == originNode) {
+                cycles.push(path)
+            }
+        } else {
+            for (var edgeOut of qp.arrowsWithTail[currentNode]) {
+                collectCyles(qp, originNode, qp.edges[edgeOut][1], visitedNodes.concat([currentNode]), path.concat([edgeOut]))
+            }
+        }
+    }
+
+    for (var node of qp.nodes) {
+        collectCyles(qp, node, node, [], []);
+    }
+
+   // cycles = cycles.map(cycle => cycle.sort())
+
+    cycles = cycles.filter(function(cycle, idx) {
+        for(var idx2 = 0; idx2 < idx; idx2++) {
+            if (JSON.stringify(cycleOrder(cycles[idx])) === JSON.stringify(cycleOrder(cycles[idx2]))) {
+                return false;
+            }
+        }
+        return true;
+    })
+
+    return cycles.map(cycle => cycleOrder(cycle));
+}
+
+function findCycleDFS(begin_vertex, at_vertex, edge_list, edges_so_far, min_length=0) {
+    let edgesOut = edgesOutOf(at_vertex, edge_list).filter(y => !edges_so_far.includes(y));
+
+    for (let ei = 0; ei < edgesOut.length; ei++) {
+        let e = edge_list[edgesOut[ei]];
+	let esMet = deepCopy(edges_so_far).map(y => parseInt(y));
+        esMet.push(edgesOut[ei]);
+	let currentAt = e[1];
+	              
+        if ((begin_vertex == currentAt) && (esMet.length >= min_length)) {
+            return [true, esMet];
+	}
+	return findCycleDFS(begin_vertex, currentAt, edge_list, esMet, min_length);
+    }
+    return [false, esMet];
+}
+
+function findDependencies(currentItem, met, lookups) {
+    /* find the items that currentItem depends on in the lookup table 
+     * (this is recursively done, so the tree of dependencies is listed exhaustively)
+     * stopping criterion: no new dependencies found. 
+     * circularity is dealt with by only adding new dependants */
+    if (met.includes(currentItem) ) {
+        return [true, met];
+    } else {
+        let newMet = met.concat(currentItem);
+        let currentLookup = lookups[parseInt(currentItem)];
+        for (let i = 0; i < currentLookup.length; i++) {
+	    let item = currentLookup[i];
+	    return findDependencies(item, newMet, lookups)
+        }
+        return [false, newMet];
+    }
+}
+
+function generateRandomPotential() {
+    var np = randomPotential(QPNetworkNodes, QPNetworkEdges);
+
+    QPNetworkPotential.clear();
+    for (let i = 0; i < np.length; i++) {
+        let x = np[i];
+        if (x[1] != ",") {
+            addTermToPotential(x[1], x[0]);
+	}
+    }
+    updateGlobalQPFromNetwork();
+}
+
+function getAllMutationsForQP(qp, maxMutationsToFind) {
+    var alreadySeen = [stringifyQP(qp)]
+    var chains = [''];
+
+    var maxRuntime = 10000;
+    var beginTime = Date.now();
+
+    function collectMutations(qp, chain) {
+        for (var i = 0; i < qp.nodes.length; i++) {
+            if (!qp.canMutate[i]) {
+                continue
+            }
+            if (Date.now() - beginTime > maxRuntime) {
+                return;
+            }
+            if (chains.length === maxMutationsToFind) {
+                return;
+            }
+            var mutated = mutateQP(qp.nodes[i], deepCopy(qp))
+            var mutatedStr = stringifyQP(mutated)
+            if (!alreadySeen.includes(mutatedStr)) {
+                alreadySeen.push(mutatedStr)
+                chains.push(chain + qp.nodes[i])
+                collectMutations(mutated, chain + qp.nodes[i])
+            }
+        }
+    }
+
+    collectMutations(qp, '')
+    
+    //TODO change this - assumes stringify produces an object with the whole qp
+    alreadySeen = alreadySeen.map(qp => JSON.parse(qp))
+    return {quivers: alreadySeen, chains: chains, timeout: Date.now() - beginTime > maxRuntime};
+}
+
+function getUniqueEdgeId() { /* create a string value that is not currently in ids for edges */
+    var ne = QPNetworkEdges.getIds();
+    ne = ne.map(function(x) {return parseInt(x);});
+    return ne.reduce(function(a, b) {return Math.max(a, b) + 1;}, 0).toString();
+}
+
+function getUniqueNodeId() { /* create a string value that is not currently in ids for nodes */
+    var nv = QPNetworkNodes.getIds();
+    nv = nv.map(function(x) {return parseInt(x);});
+    return nv.reduce(function(a, b) {return Math.max(a, b) + 1;}, 0).toString();
+}
+
+function makeQP(es, ns, fn, p, inputType="fromVisDataSet") {
+    // create graph info (arrow to node structures)
+    var awh = Array.from(Array(ns.length), x => []);
+    var awt = Array.from(Array(ns.length), x => []);
+    var la = Array.from(Array(ns.length), x => []);
+    var fns = [];
+    var theseNodes = [];
+    var theseEdges = [];
+    var thisPotential = [];
+
+    if (inputType == "fromVisDataSet") {
+        fns = fn.getIds().map(x => parseInt(x));
+        theseNodes = ns.getIds().map(x => parseInt(x));
+        theseEdges = es.getIds().map(x => [parseInt(es.get(x).from), parseInt(es.get(x).to)]);
+        // make sure that the edges in each cycle of the potential are now listed by their index,
+        // rather than id, since adding/subtracting edges can leave gaps in the id#s 
+	var edgeIDMap = es.getIds();
+        thisPotential = p.getIds().map(x => [parseFloat(p.get(x).coef), x.split(",").map(y => edgeIDMap.indexOf(y)).toString()]);
+    } else {
+        fns = Array.from(fn, x => parseInt(x));
+        theseNodes = Array.from(ns, x => parseInt(x));
+        theseEdges = deepCopy(es.filter(x => (x != null))).map(x => [parseInt(x[0]), parseInt(x[1])]);
+        thisPotential = [...p];
+    }
+
+    for (let ei = 0; ei < theseEdges.length; ei++) {
+        let e = theseEdges[ei];
+        if (e[0] == e[1]) {
+            la[theseNodes.indexOf(e[0])].push(ei);
+        } else {
+            awh[theseNodes.indexOf(e[1])].push(ei);
+            awt[theseNodes.indexOf(e[0])].push(ei);
+        }
+    }
+    // can_mutate list
+    var cm = theseNodes.map(
+        function(v) {
+            return ((la[v].length < 1) && !(v in fns));
+        });
+    return {
+        arrowsWithHead: awh,
+        arrowsWithTail: awt,
+        canMutate: cm,
+        edges: theseEdges,
+        frozenNodes: deepCopy(fns),
+        loopsAt: la,
+        nodes: theseNodes,
+        potential: thisPotential
+    }
+}
+
+function mutateQP(vertex, QP) {
+    const v = parseInt(vertex);
+    if (QP.canMutate[v]) {
+        // reverse the arrows incident to vertex
+        var savedEdges = deepCopy(QP.edges);
+        for (let ii in QP.arrowsWithHead[v]) {
+            let i = QP.arrowsWithHead[v][ii];
+            let e = savedEdges[i];
+            savedEdges[parseInt(i)] = [e[1],e[0]];
+        }
+        for (let ii in QP.arrowsWithTail[v]) {
+            let i = QP.arrowsWithTail[v][ii];
+            let e = savedEdges[i];
+            savedEdges[parseInt(i)] = [e[1],e[0]];
+        }
+
+        var delta = [];
+        var edgeCtr = QP.edges.length;
+        var shortcuts = [];
+        // now add 'shortcuts'
+        for (let ei1i in QP.arrowsWithHead[v]) {
+            let ei1 = QP.arrowsWithHead[v][ei1i];
+            var i = QP.edges[parseInt(ei1)][0];
+            for (let ei2i in QP.arrowsWithTail[v]) {
+                let ei2 = QP.arrowsWithTail[v][ei2i];
+                var j = QP.edges[ei2][1];
+
+                shortcuts.push([ei1,ei2]);
+                savedEdges.push([i,j]);
+                delta.push([1, ei2.toString()+","+ei1.toString()+","+edgeCtr.toString()]);
+                edgeCtr++;
+            }
+        }
+
+        var wPrime = [];
+        // update the potential
+        for (let mci = 0; mci < QP.potential.length; mci++) {
+            let mc = QP.potential[mci];
+            var coef = mc[0];
+            var monoid = mc[1].split(',');
+            let ml = monoid.length;
+            var m = "";
+            var foundMatch = false;
+            for (let i = 0; i < monoid.length; i++) {
+                m1 = parseInt(monoid[i]);
+                m2 = parseInt(monoid[(i+1)%ml]);
+                m0 = parseInt(monoid[(i+ml-1)%ml]);
+
+                const isIn = shortcuts.findIndex(e => arrayEquals(e, [m1, m2]));
+                const wasIn = shortcuts.findIndex(e => arrayEquals(e, [m0, m1]));
+                if ((i > 0) || (wasIn < 0)) {
+                    if((isIn >= 0) && !foundMatch) {
+                        var val = QP.edges.length + parseInt(isIn);
+                        m = m + val.toString()+",";
+                        foundMatch = true;
+                    } else {
+                        if (!foundMatch) {
+                            m = m + m1.toString()+",";
+                        }
+                        foundMatch = false;
+                    }
+                }
+            }
+            wPrime.push([coef, m.slice(0, -1)]);
+        }
+        wPrime.push(...delta);
+        wPrime =  combineLikeTermsInPotential(wPrime);
+
+        // reduce the resulting quiver
+        return reduceQP(makeQP(savedEdges, QP.nodes, QP.frozenNodes, wPrime, inputType="fromQP"));
+    } else {
+        return makeQP(QP.edges, QP.nodes, QP.frozenNodes, QP.potential, inputType="fromQP");
+    }
+}
+
+function pathDerivative(thisPotential, edgeIndex, fmt="string") {
+    if (fmt == "string") {
+        var tp = thisPotential.filter(function(termcoef) {
+            return termcoef[1].split(",").map(t => parseInt(t)).indexOf(parseInt(edgeIndex)) >= 0;
+        }).map(function(termcoef) {
+            const allTerms = termcoef[1].split(",").map(y => parseInt(y));
+            const ati = allTerms.indexOf(edgeIndex);
+            return [termcoef[0], allTerms.slice(ati+1).concat(...allTerms.slice(0, ati))];
+        });
+    } else {
+        var tp = thisPotential.filter(function(termcoef) {
+            return termcoef[1].indexOf(parseInt(edgeIndex)) >= 0;
+        }).map(function(termcoef) {
+            const allTerms = termcoef[1].map(y => parseInt(y));
+            const ati = allTerms.indexOf(edgeIndex);
+            return [termcoef[0], allTerms.slice(ati+1).concat(...allTerms.slice(0, ati))];
+        });
+    }
+    if (tp != null) {return tp} else {return []}
+}
+
+function potentialIncludesEveryVertex(qp, potential) {
+    let nodesInPotential = []
+    potential.forEach(function(term) {
+        if (term[0] !== 0) {
+            term[1].split(",").map(i => parseInt(i)).forEach(function(edge) {
+                qp.edges[edge].forEach(function(node) {
+                    if (!nodesInPotential.includes(node)) {
+                        nodesInPotential.push(node);
+                    }
+                })
+            })
+        }
+    })
+    return nodesInPotential.length === qp.nodes.length
 }
 
 //maxCycleLength - only test potential terms <= this length
@@ -978,41 +768,83 @@ function potentialSearch(qp, searchExchangeNum, maxCycleLength=5, testRate=0.2) 
     }
 }
 
-function potentialIncludesEveryVertex(qp, potential) {
-    let nodesInPotential = []
-    potential.forEach(function(term) {
-        if (term[0] !== 0) {
-            term[1].split(",").map(i => parseInt(i)).forEach(function(edge) {
-                qp.edges[edge].forEach(function(node) {
-                    if (!nodesInPotential.includes(node)) {
-                        nodesInPotential.push(node);
-                    }
-                })
-            })
-        }
-    })
-    return nodesInPotential.length === qp.nodes.length
+function potentialTermIsSubsetOfEdges(term) {
+    var esInTerm = term.split(",");
+    var currentEdges = QPNetworkEdges.getIds();
+    return (esInTerm.filter(x => !currentEdges.includes(x.toString())).length < 1);
 }
 
-function pathDerivative(thisPotential, edgeIndex, fmt="string") {
-    if (fmt == "string") {
-        var tp = thisPotential.filter(function(tc) {
-            return tc[1].split(",").map(t => parseInt(t)).indexOf(parseInt(edgeIndex)) >= 0;
-        }).map(function(termcoef) {
-            const allTerms = termcoef[1].split(",").map(y => parseInt(y));
-            const ati = allTerms.indexOf(edgeIndex);
-            return [termcoef[0], allTerms.slice(ati+1).concat(...allTerms.slice(0, ati))];
+function QPFromTriangulation(t) {
+    // calculate the quiver from a given triangulation
+    var ns = [];
+    var es = [];
+    var fn = [];
+    var pt = [];
+
+    if (t != null) {
+        var R = Math.max(...t[1].map(x => Math.max(...x)));
+        var edges = t[0];
+        var coordinates = t[1];
+        var extremal_edges = edges.map(function(e, ei) {
+	    e1 = isCollinear([[R,0,0],[0,R,0]], coordinates[e[0]]) && isCollinear([[R,0,0],[0,R,0]], coordinates[e[1]]);
+	    e2 = isCollinear([[0,R,0],[0,0,R]], coordinates[e[0]]) && isCollinear([[0,R,0],[0,0,R]], coordinates[e[1]]);
+	    e3 = isCollinear([[0,0,R],[R,0,0]], coordinates[e[0]]) && isCollinear([[0,0,R],[R,0,0]], coordinates[e[1]]);
+	    if (e1 || e2 || e3) {
+                return ei;
+	    }
+	}).filter(y => y != null);
+        var tri = makeTriangulation(edges, extremal_edges);
+
+        var triangles = tri[0];
+        var edge_to_triangle = tri[1];
+
+        var QP_edges = [];
+        for (let ti = 0; ti < triangles.length; ti++) {
+            var t = triangles[ti];
+            for (let i = 1; i < 4; i++) {
+                for (let j = -1; j < 2; j += 2) {
+                    if (edge_to_triangle[t[i%3]].length > 1 && edge_to_triangle[t[(i+j)%3]].length > 1) {
+                        QP_edges.push([t[i%3], t[(i+j)%3]]);
+                    }
+                }
+            }
+        }
+        for (let i = 0; i < edges.length; i++) {
+            if (edge_to_triangle[i].length > 1) {
+		let ct = curveType(edges, triangles, edge_to_triangle, coordinates, i);
+		for (let j = 0; j < ct; j++) {
+                    QP_edges.push([i, i]);
+                }
+            }
+        }
+        var e_reorder = range(0, edges.length).filter(i => !extremal_edges.includes(i));
+        QP_edges = QP_edges.map(x => [e_reorder.indexOf(x[0]), e_reorder.indexOf(x[1])]);
+
+        coordinates = rotateSimplexToPlane(coordinates).map(c => [c[0], c[1]]);
+        var positions = edges.map(function(e, ei) {
+            if (edge_to_triangle[ei].length > 1) {
+                return [0.5*(coordinates[e[0]][0] + coordinates[e[1]][0]), 0.5*(coordinates[e[0]][1] + coordinates[e[1]][1])];
+            }
+        }).filter(y => y != null);
+
+        var xscaling = Math.max(...positions.map(x => x[0])) - Math.min(...positions.map(x => x[0]));
+        var yscaling = Math.max(...positions.map(x => x[1])) - Math.min(...positions.map(x => x[1]));
+
+        ns = positions.map(function(p, i) {
+    	return {
+                "id": i.toString(), "label": i.toString(), 
+                "x":(1000.0/xscaling)*p[0], "y":(1000.0/yscaling)*p[1],
+    	    };
         });
-    } else {
-        var tp = thisPotential.filter(function(tc) {
-            return tc[1].map(y => parseInt(y)).indexOf(parseInt(edgeIndex)) >= 0;
-        }).map(function(termcoef) {
-            const allTerms = termcoef[1].map(y => parseInt(y));
-            const ati = allTerms.indexOf(edgeIndex);
-            return [termcoef[0], allTerms.slice(ati+1).concat(...allTerms.slice(0, ati))];
+        es = QP_edges.map(function(e, i) {
+            return {
+    		"id": i.toString(), "title": "edge "+i.toString(), 
+    		"from": e[0].toString(), "to": e[1].toString(), 
+    		"arrows": "to"
+    	    };
         });
     }
-    if (tp != null) {return tp} else {return []}
+    return JSON.stringify({"nodes": ns, "edges": es, "frozenNodes": fn, "potential": pt});
 }
 
 function randInt(range) {
@@ -1057,29 +889,11 @@ function randomPotential(ns, es, coefficient_range=100) {
     return cycles.map(x => [randInt(coefficient_range), x]);
 }
 
-/*
-function randomPotential(ns, es, coefficient_range=100) {
-    theseNodes = ns.getIds().map(x => parseInt(x));
-    theseEdges = es.getIds().map(x => [parseInt(es.get(x).from), parseInt(es.get(x).to)]);
-    var cycles = [];
-    var currentPath = [];
-
-    // find n-cycles containing each node, where n is the
-    // smallest number >=3 that admits a cycle
-    for (let i = 0; i < theseNodes.length; i++) {
-        var output = findCycleDFS(i, i, theseEdges, currentPath, min_lenth=3);
-	if (output[0]) {
-            let cycle = cycleOrder(output[1]).toString();
-            if (!cycles.includes(cycle)) {
-                cycles.push(cycle);
-            }
-	}
-    }
-    return cycles.map(x => [randInt(coefficient_range), x]);
+function range(start, stop, step=1) { // trying to be as python-ish as I can
+    return Array.from({ length: (stop - start) / step}, (_, i) => start + (i * step));
 }
-*/
 
-function reduce(QP) {
+function reduceQP(QP) {
     // remove extraneous commas from potential
     var thePotential = QP.potential.map(
         function(x) {
@@ -1110,8 +924,8 @@ function reduce(QP) {
     var edgesToRemove = unique(squareTerms.flat());
 
     if (squareTerms.length > 0) {
-        // create a 'lookup dictionary' of replacement terms as follows:
-        // reduceDict[edge] = [...] where [...] is either:
+        // create a 'lookup dictionary' of replacement terms as follows: 
+        // reduceDict[edge] = [...] where [...] is either: 
         //     1. e1 itself (if e1 is not an edge that occurs in a quadratic term, then we won't try to remove it)
         //     2. a term that is equivalent to e1 in the jacobian algebra (if we're removing e1)
         var reduceDict = range(0, QP.edges.length).map(x => [[1, [x]]]);
@@ -1130,7 +944,7 @@ function reduce(QP) {
                         }
                 }).filter(y => (y != null));
 
-                // double check that this new term term is not of the form A = AX + B
+                // double check that this new term term is not of the form A = AX + B 
                 // (i.e. the replacement terms for edge A does not contain a term with A in it)
                 if (termsContainEdge(reduceDict[e1], e1)) {
                     edgesToRemove.splice(edgesToRemove.indexOf(e1), 1);
@@ -1164,7 +978,7 @@ function reduce(QP) {
             var ctr = 0;
 
             do {
-		// stopping criteria
+                // stopping criteria
                 ctr += 1; foundReplacement = true;
 
                 // placeholder for holding non-edgesToRemove lookup values for edge e
@@ -1173,7 +987,7 @@ function reduce(QP) {
                     let currentTerm = termsForE[cti];
                     if (currentTerm.length > 0) {
                         var altTerm = [[currentTerm[0], currentTerm[1]]];
-
+                      
                         // check if any of the terms in e's replacement
                         // terms also contains one of the edges to remove
                         if (currentTerm[1] != null) {
@@ -1191,7 +1005,7 @@ function reduce(QP) {
                                             for (let nt1i = 0; nt1i < newTerm.length; nt1i++) {
                                                 let nt1 = newTerm[nt1i];
                                                 var nt11 = rd[1];
-                                                if (nt1[1].length > 0) {
+                                                if (nt1[1].length > 0) { 
                                                     nt11 = nt1[1].concat(rd[1]);
                                                 }
                                                 nt.push([parseFloat(nt1[0])*parseFloat(rd[0]), nt11]);
@@ -1224,15 +1038,16 @@ function reduce(QP) {
                     altTermsForE = [[1, [e]]];
                 } else {
                     reduceDict[e] = deepCopy(termsForE);
-        	    termsForE = deepCopy(altTermsForE);
+                    termsForE = deepCopy(altTermsForE);
                 }
 
-            } while (!foundReplacement && (ctr < edgesToRemove.length));
-	    reduceDict[e] = termsForE;
+            } while ((!foundReplacement) && (ctr < edgesToRemove.length));
+            reduceDict[e] = termsForE;
 
             if (!foundReplacement) {
                 failedToReplace.push(e);
                 reduceDict[e] = [[1, [e]]];
+                failedToReplace.push(e);
             }
         }
 
@@ -1243,7 +1058,7 @@ function reduce(QP) {
             }
         }
 
-        // reduce the potential by replacing each of the terms with its
+        // reduce the potential by replacing each of the terms with its 
         // image in the replacement dictionary.
         var wPrime = [];
         for (let tci = 0; tci < thePotential.length; tci++) {
@@ -1278,13 +1093,8 @@ function reduce(QP) {
     }
 }
 
-function range(start, stop, step=1) { // trying to be as python-ish as I can
-    return Array.from({ length: (stop - start) / step}, (_, i) => start + (i * step));
-}
-
-
 function removeEdges(edgeIndices, QP, altPotential="None") {
-    var edgesToKeep = [...Array(QP.edges.length).keys()].map(
+    var edgesToKeep = range(0, QP.edges.length).map(
         function(x) {
             if (edgeIndices.includes(parseInt(x))) {
                 return -1;
@@ -1296,7 +1106,7 @@ function removeEdges(edgeIndices, QP, altPotential="None") {
     var edgeIndexLookupBackwards = edgesToKeep.map(function(x) {if (x >= 0) {return edgeIndexLookup.indexOf(x);}});
 
     // re-index the edges to delete those that are no longer included
-    var newEdges = edgeIndexLookup.map(x => QP.edges[x]);
+    var newEdges = edgeIndexLookup.map(x => [...QP.edges[x]]);
 
     // update the terms in the potential to use the new edge indexing
     var newPotential = altPotential;
@@ -1312,3 +1122,283 @@ function removeEdges(edgeIndices, QP, altPotential="None") {
         }).filter(x => x != null);
     return makeQP(newEdges, QP.nodes, QP.frozenNodes, newPotential, inputType="fromQP");
 }
+
+function removeGlobalTerms(nodeIdsToRemove=[], edgeIdsToRemove=[], potentialIdsToRemove=[]) {
+    // removes nodes, edges, and potential terms and updates the index/label ordering on edges and nodes
+
+    var oldNodeIds = QPNetworkNodes.getIds();
+    var newNodeIndexing = [];
+
+    if (nodeIdsToRemove.length > 0) {
+        for (let ni = 0; ni < nodeIdsToRemove.length; ni++) {
+	    let n = nodeIdsToRemove[ni].toString();
+            var extraEdgesToRemove = QPNetworkEdges.getIds().filter(x => ((QPNetworkEdges.get(x).to == n) || (QPNetworkEdges.get(x).from == n))); 
+            for (let ei = 0; ei < extraEdgesToRemove.length; ei++) {
+	        let e = extraEdgesToRemove[ei].toString();
+                if (!edgeIdsToRemove.includes(e)) {
+                    edgeIdsToRemove.push(e);
+                }
+            }
+	}
+	// reindex/relabel nodes
+        oldNodeIds = QPNetworkNodes.getIds().filter(x => !nodeIdsToRemove.includes(x));
+        newNodeIndexing = oldNodeIds.map(function(i) {
+            return {
+                id: oldNodeIds.indexOf(i).toString(), 
+                label: oldNodeIds.indexOf(i).toString(), 
+                x: QPNetworkNodes.get(i).x, 
+                y: QPNetworkNodes.get(i).y
+            };
+	});
+    }
+
+    var oldEdgeIds = QPNetworkEdges.getIds();
+    var newEdgeIndexing = [];
+    var newPotentialTerms = [];
+    if (edgeIdsToRemove.length > 0) {
+        for (let ei = 0; ei < edgeIdsToRemove.length; ei++) {
+	    let e = edgeIdsToRemove[ei].toString();
+            QPNetworkEdges.remove({id:e});
+        }
+	// reindex/relabel edges
+        oldEdgeIds = QPNetworkEdges.getIds();
+        newEdgeIndexing = oldEdgeIds.map(function(i) {
+	    return {
+		    id:     oldEdgeIds.indexOf(i).toString(), 
+	            from:   oldNodeIds.indexOf(QPNetworkEdges.get(i).from).toString(),
+	            to:     oldNodeIds.indexOf(QPNetworkEdges.get(i).to).toString(),
+	            arrows: "to",
+	            title:  "edge "+oldEdgeIds.indexOf(i).toString()
+	        };
+	    });
+
+        var potentialTermsToRemove = QPNetworkPotential.getIds().filter(x => !potentialTermIsSubsetOfEdges(x));
+        // remove terms from potential
+        for (let pt = 0; pt < potentialTermsToRemove.length; pt++) {
+            QPNetworkPotential.remove({id:potentialTermsToRemove[pt].toString()});
+        }
+    }
+    for (let pt = 0; pt < potentialIdsToRemove.length; pt++) {
+        QPNetworkPotential.remove({id:potentialIdsToRemove[pt].toString()});
+    }
+    // relabel edges in potential by their new numbering
+    for (let pt = 0; pt < QPNetworkPotential.getIds().length; pt++) {
+        let t = QPNetworkPotential.getIds()[pt];
+        newPotentialTerms.push({id: t.split(",").map(x => oldEdgeIds.indexOf(x.toString())).toString(), coef: QPNetworkPotential.get(t).coef});
+    }
+    var newFn = QPNetworkFrozenNodes.getIds().filter(x => oldNodeIds.includes(x)).map(x => {id: oldNodeIds.indexOf(x).toString()});
+    if (newNodeIndexing.length > 0) {
+	QPNetworkNodes.clear();
+        QPNetworkNodes.add(newNodeIndexing);
+    }
+    if (newEdgeIndexing.length > 0) {
+	QPNetworkEdges.clear();
+        QPNetworkEdges.add(newEdgeIndexing);
+    }
+    if (newPotentialTerms.length > 0) {
+	QPNetworkPotential.clear();
+        QPNetworkPotential.add(newPotentialTerms);
+    }
+    if (newFn.legnth > 0) {
+	QPNetworkFrozenNodes.clear();
+        QPNetworkFrozenNodes.add(newFn);
+    }
+    updateGlobalQPFromNetwork();
+}
+
+function resolveClickEvent(n, p) {
+    var click_mode = "NONE";
+    try {
+        click_mode = document.getElementById("edit-quiver-type").value;
+    } catch (err) {
+        alert(err)
+    }
+
+    if (click_mode == "add-node") {
+        if((p.nodes.length == 0) && (p.edges.length == 0)) { // make sure we're not superimposing nodes
+	    var nv = getUniqueNodeId();
+            QPNetworkNodes.add({id:nv, label:nv, x:p.pointer.canvas.x, y:p.pointer.canvas.y});
+        }
+    } else if (click_mode == "remove-node") {
+        if (p.nodes.length > 0) {
+            var n = p.nodes[0].toString();
+	    removeGlobalTerms(nodeIdsToRemove=[n], edgeIdsToRemove=[], potentialIdsToRemove=[]);
+        }
+    } else if (click_mode == "add-edge") {
+        var ne = getUniqueEdgeId();
+	if (p.nodes.length > 1) {
+	    let n1 = p.nodes[0].toString();
+	    let n2 = p.nodes[1].toString();
+            QPNetworkEdges.add({id: ne, from: n1, to: n2, arrows: "to", title: "edge "+ne});
+        }
+    } else if (click_mode == "remove-edge") {
+        if (p.edges.length > 0) {
+	    var e = p.edges[0].toString();
+	    removeGlobalTerms([], [e], []);
+        }
+    } else if (click_mode == "add-loop") {
+        var ne = getUniqueEdgeId();
+        if (p.nodes.length > 0) {
+	    let v = p.nodes[0].toString();
+            QPNetworkEdges.add({id: ne, from: v, to: v});
+        }
+    } else if (click_mode == "freeze-node") {
+        if (p.nodes.length > 0) {
+            QPNetworkFrozenNodes.add({id: p.nodes[0].toString()});
+        }
+    } else if (click_mode == "unfreeze-node") {
+        if (p.nodes.length > 0) {
+            QPNetworkFrozenNodes.remove({id: p.nodes[0].toString()});
+        }
+    } else if (click_mode == "mutate") {
+        if (p.nodes.length > 0) {
+            let current_node = p.nodes[0].toString();
+            var mQP = makeQP(QPNetworkEdges, QPNetworkNodes, QPNetworkFrozenNodes, QPNetworkPotential);
+
+            mQP = mutateQP(current_node, mQP);
+	    updateNetworkQPFromLocalQP(mQP);
+        }
+    }
+    updateGlobalQPFromNetwork();
+}
+
+function showQPExchangeNumber() {
+    const output = document.getElementById('exchange-number-output')
+    try {
+        const result = getAllMutationsForQP(makeQP(QPNetworkEdges, QPNetworkNodes, QPNetworkFrozenNodes, QPNetworkPotential));
+        if (result.timeout) {
+            output.textContent = "Timed out"
+console.log(result.chains);
+        } else {
+            output.textContent = result.quivers.length;
+        }
+    } catch(e) {
+        console.error(e);
+        output.textContent = "Error"
+    }
+}
+
+function stringifyQP(qp, includePotential=false) {
+    var edgeSet = qp.edges.filter(x => x != null).map(function(e) {
+        var toRet = '0'.repeat(qp.nodes.length);
+        toRet = toRet.substring(0, Number(e[0])) + '1' + toRet.substring(Number(e[0])+1);
+        toRet = toRet.substring(0, Number(e[1])) + '2' + toRet.substring(Number(e[1])+1);
+        return toRet;
+    }).sort();
+    return JSON.stringify({nodes: qp.nodes.length, edges: edgeSet.toString(), frozenNodes: qp.frozenNodes.toString()});
+}
+
+
+function unique(L) {
+    // get unique values in list
+    var toRet = new Set(L);
+    return Array.from(toRet);
+}
+
+function updateGlobalQPFromNetwork() {
+    QPglobalNodes = QPNetworkNodes.getIds().map(x => [Number(QPNetworkNodes.get(x).x), Number(QPNetworkNodes.get(x).y)]);
+    QPglobalEdges = QPNetworkEdges.getIds().map(x => [Number(QPNetworkEdges.get(x).from), Number(QPNetworkEdges.get(x).to)]);
+    QPglobalPotential = QPNetworkPotential.getIds().map(function(x) {return [Number(QPNetworkPotential.get(x).coef), QPNetworkPotential.get(x).id.toString()];});
+    QPglobalFrozenNodes = QPNetworkFrozenNodes.getIds().map(x => Number(x));
+}
+
+function updateNetworkQPFromGlobal(){
+    clearQP();
+    if (QPglobalNodes.length > 0) {
+        var nn = [];
+        for (let ni = 0; ni < QPglobalNodes.length; ni++) {
+            let n = QPglobalNodes[ni];
+            nn.push({id: ni.toString(), label: ni.toString(), x: parseFloat(n[0]), y: parseFloat(n[1])});
+        }
+        QPNetworkNodes.add(nn);
+    }
+    if (QPglobalEdges.length > 0) {
+        var ne = [];
+        for (let e = 0; e < QPglobalEdges.length; e++) {
+            let s = QPglobalEdges[e];
+            ne.push({id: e.toString(), from: s[0].toString(), to: s[1].toString(), arrows: "to", title: "edge "+e.toString()});
+        }
+        QPNetworkEdges.add(ne);
+    }
+    if (QPglobalPotential.length > 0) {
+	let copyQPglobalPotential = deepCopy(QPglobalPotential);
+        for (let pti = 0; pti < copyQPglobalPotential.length; pti++) {
+            let pt = copyQPglobalPotential[pti];
+            addTermToPotential(pt[1], pt[0]);
+        }
+    }
+    if (QPglobalFrozenNodes.length > 0) {
+        var fn = [];
+        for (let fni = 0; fni < QPglobalFrozenNodes.length; fni++) {
+            fn.push({id: QPglobalFrozenNodes[fni].toString()});
+        }
+        QPNetworkFrozenNodes.add(fn);
+    }
+}
+
+function updateNetworkQPFromLocalQP(QP) {
+    // NOTE: this routine does not update nodes global. 
+    var outputs = [];
+    for (let i = 0; i < QP.edges.length; i++) {
+        outputs.push({
+	    id: i.toString(),
+	    to: QP.edges[i][1].toString(),
+	    from: QP.edges[i][0].toString(),
+	    arrows: "to",
+	    title: "edge "+i.toString()
+	});
+    }
+    QPNetworkEdges.clear();
+    QPNetworkEdges.add(outputs);
+
+    QPNetworkPotential.clear();
+    for (let i = 0; i < QP.potential.length; i++) {
+	addTermToPotential(QP.potential[i][1].toString(), QP.potential[i][0]);
+    }
+    updateGlobalQPFromNetwork();
+}
+
+function updatePotential() {
+    var t = document.getElementById("term-input").value;
+    var c1 = parseFloat(document.getElementById("coefficient-input").value);
+    addTermToPotential(t, c1);
+}
+
+function updateQPFromJSON(JSONData) {
+    clearQP();
+    QPNetworkEdges.add(JSONData.edges.map(function(x){
+        const i = x.id;
+        const f = x.from;
+        const t = x.to;
+        return {
+    	    "id": i.toString(),
+            "from": f.toString(), "to": t.toString(),
+            "arrows": "to", "title": "edge "+i.toString()
+        }
+    }));
+    QPNetworkNodes.add(JSONData.nodes.map(function(x){
+        const i = x.id;
+        return {
+    	    "id": i.toString(), "label": i.toString(),
+            "x": parseFloat(x.x), "y": parseFloat(x.y)
+        }
+    }));
+    for (let pi = 0; pi < JSONData.potential.length; pi++) {
+	let x = JSONData.potential[pi];
+        const i = cycleOrder(x.id.split(",")).toString();
+        const c = x.coef;
+	addTermToPotential(i, c);
+    }
+    QPNetworkFrozenNodes.add(JSONData.frozenNodes.map(function(x){
+        const i = x.id;
+        return {
+    	"id": i.toString()
+        }
+    }));
+    updateGlobalQPFromNetwork();
+}
+
+function veclen(v) { // returns the length of a vector v
+    return Math.pow(dotProduct(v,v), 0.5);
+}
+

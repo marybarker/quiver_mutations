@@ -1,48 +1,12 @@
-// triangulation information
-var globalBoundaryEdges = [0,1,2,3,4,5];
-var globalCoords = [[6,0,0],[0,6,0],[0,0,6], [1,2,3],[2,4,0],[4,2,0],[3,0,3]];
-var globalEdges = [[0,5],[5,4],[4,1],[1,2],[2,6],[6,0],[6,5],[5,3],[4,3],[1,3],[2,3],[6,3]];
-var globalTriangulation = [globalEdges, globalCoords];
+// triangulation globals
+var TRIglobalBoundaryEdges = [0,1,2,3,4,5];
+var TRIglobalCoords = [[6,0,0],[0,6,0],[0,0,6], [1,2,3],[2,4,0],[4,2,0],[3,0,3]];
+var TRIglobalEdges = [[0,5],[5,4],[4,1],[1,2],[2,6],[6,0],[6,5],[5,3],[4,3],[1,3],[2,3],[6,3]];
+var TRIglobalTriangulation = [TRIglobalEdges, TRIglobalCoords];
+var TRINetworkNodes, TRINetworkEdges, TRINetwork;
 
 // allows checking if things are the same in euclidean space within this given tolerance
 const tolerance = 0.00001;
-
-// information for canvas drawing
-var network_nodes, network_edges, triangulate_network;
-var network_output_fields = ["id", "from", "to", "edge1","edge2","edge3"] // which data objects to print to screen
-
-
-function allCycles(segments) {
-    // find all cycles in an undirected graph defined by the list of segments 
-    // of the form [v1,v2] to denote an edge between the vertices v1 and v2.
-    // note: this routine ignores multi-edges, and it does not require the vertices 
-    // to have index set {0,..., vertices.length}
-    var cycles = [];
-    var added = [];
-    var vertices = new Set(segments.reduce(function(a, b) {return a.concat(b);}));
-    vertices = Array.from(vertices);
-    var indexed_edges = segments.map(s => s.map(x => vertices.indexOf(x)));
-    var edges_out_of = vertices.map(x => []);
-
-    for (let ei = 0; ei < indexed_edges.length; ei++) {
-        let e = indexed_edges[ei];
-        edges_out_of[e[0]].push(ei);
-        edges_out_of[e[1]].push(ei);
-    }
-
-    for (let node = 0; node < vertices.length; node++) {
-        let cycles_at_node = dfsAllCycles(indexed_edges, edges_out_of, node, node);
-        for (let ci = 0; ci < cycles_at_node.length; ci++) {
-            let c = cycles_at_node[ci];
-            sortedc = [...c].sort().toString();
-            if (!added.includes(sortedc)) {
-                cycles.push(c);
-                added.push(sortedc);
-            }
-        }
-    }
-    return cycles;
-}
 
 function allUniqueTriangulations(t, boundary_edges) {
     // return a list of all of the unique triangulations to be obtained by 
@@ -112,16 +76,16 @@ function callTriangulation() {
     var c = parseFloat(document.getElementById("C_value").value);
     var r = a + b + c;
     var t = triangulation(r,a,b,c);
-    globalEdges = t[0];
-    globalCoords = t[1];
-    globalTriangulation = [t[0], t[1]];
+    TRIglobalEdges = t[0];
+    TRIglobalCoords = t[1];
+    TRIglobalTriangulation = [t[0], t[1]];
 
-    var gb1 = range(0, globalEdges.length).filter(e => (isCollinear([[r,0,0], [0,r,0]], globalCoords[globalEdges[e][0]]) && isCollinear([[r,0,0], [0,r,0]], globalCoords[globalEdges[e][1]])));
-    var gb2 = range(0, globalEdges.length).filter(e => (isCollinear([[0,r,0], [0,0,r]], globalCoords[globalEdges[e][0]]) && isCollinear([[0,r,0], [0,0,r]], globalCoords[globalEdges[e][1]])));
-    var gb3 = range(0, globalEdges.length).filter(e => (isCollinear([[0,0,r], [r,0,0]], globalCoords[globalEdges[e][0]]) && isCollinear([[0,0,r], [r,0,0]], globalCoords[globalEdges[e][1]])));
-    globalBoundaryEdges = gb1.concat(gb2).concat(gb3);
+    var gb1 = range(0, TRIglobalEdges.length).filter(e => (isCollinear([[r,0,0], [0,r,0]], TRIglobalCoords[TRIglobalEdges[e][0]]) && isCollinear([[r,0,0], [0,r,0]], TRIglobalCoords[TRIglobalEdges[e][1]])));
+    var gb2 = range(0, TRIglobalEdges.length).filter(e => (isCollinear([[0,r,0], [0,0,r]], TRIglobalCoords[TRIglobalEdges[e][0]]) && isCollinear([[0,r,0], [0,0,r]], TRIglobalCoords[TRIglobalEdges[e][1]])));
+    var gb3 = range(0, TRIglobalEdges.length).filter(e => (isCollinear([[0,0,r], [r,0,0]], TRIglobalCoords[TRIglobalEdges[e][0]]) && isCollinear([[0,0,r], [r,0,0]], TRIglobalCoords[TRIglobalEdges[e][1]])));
+    TRIglobalBoundaryEdges = gb1.concat(gb2).concat(gb3);
 
-    viewTriangulation();
+    drawTriNetwork();
 }
 
 function canFlip(edge_index, nbr1, nbr2, edges, edge_to_triangle, triangles, coordinates) {
@@ -148,10 +112,6 @@ function convexHull(planar_points) {
     var s2 = findHull(planar_points.slice(2), p1, p0);
     var points = unique(s1.concat(s2)).map(p => strVersion.indexOf(JSON.stringify(p)));
     return points.map(p => planar_points[p]);
-}
-
-function count(l, v) { // return the number of instances of value v in list l
-    return l.filter(x => x == v).length;
 }
 
 function crossProduct(v1, v2) { // 3d cross product
@@ -196,32 +156,77 @@ function curveType(edges, triangles, edge_to_triangle, coordinates, edge_index) 
     return N;
 }
 
-function dfsAllCycles(segments, es_at, start_vertex, end_vertex) {
-    // helper function for allCycles routine
-    var toRet = [];
-    var the_list = [[start_vertex, []]];
-    while (the_list.length > 0) {
-        var output = the_list.pop();
-        var state = output[0];
-        var path = output[1];
-        if ((path.length > 0) && (state == end_vertex)) {
-            toRet.push(path);
-            continue;
-        } 
-        for (let nei = 0; nei < es_at[state].length; nei++) {
-            let next_edge = es_at[state][nei];
-            if (path.includes(next_edge)) {
-                continue;
-            }
-            var next_state = segments[next_edge].filter(x => x != state)[0];
-            the_list.push([next_state, path.concat(next_edge)]);
-        }
-    }
-    return toRet;
-}
+function drawTriNetwork() {
+    TRINetworkNodes = new vis.DataSet();
+    TRINetworkEdges = new vis.DataSet();
 
-function dotProduct(v1, v2) { // n dimensional dot product (assumes length of v1 = length of v2)
-    return v1.map((x, i) => v1[i] * v2[i]).reduce((m, n) => m + n);
+    if (TRIglobalTriangulation != null) {
+        var ln = []
+        var le = [];
+
+        var rotatedNodes = TRIglobalTriangulation[1];
+        if (rotatedNodes[0].length > 2) {
+            rotatedNodes = rotateSimplexToPlane(TRIglobalTriangulation[1]);
+	}
+	let xscaling = Math.max(...rotatedNodes.map(x => x[0])) - Math.min(...rotatedNodes.map(x => x[0]));
+	let yscaling = Math.max(...rotatedNodes.map(x => x[1])) - Math.min(...rotatedNodes.map(x => x[1]));
+        for (let n = 0; n < rotatedNodes.length; n++) {
+    	    let xy = rotatedNodes[n];
+            ln.push({
+    		id: n.toString(),
+    		label: n.toString(),
+    		x: -50 + (300/xscaling)*parseFloat(xy[0]),
+    		y: -50 + (300/yscaling)*parseFloat(xy[1])
+    	    });
+        }
+        for (let e = 0; e < TRIglobalTriangulation[0].length; e++) {
+    	    let s = TRIglobalTriangulation[0][e];
+            le.push({id: e.toString(), from: s[0].toString(), to: s[1].toString()});
+        }
+
+        TRINetworkNodes.add(ln);
+        TRINetworkEdges.add(le);
+    }
+
+    // create a network
+    var localContainer = document.getElementById("triangulationView");
+    var data = {
+        nodes: TRINetworkNodes,
+        edges: TRINetworkEdges
+    };
+    var options = {
+        nodes: {
+            borderWidth:1,
+            size:10,
+            color: {
+                border: '#222222',
+                background: 'grey'
+            },
+ 	    physics: {enabled:false},
+        },
+        edges: {
+            "smooth": {
+                "type": "continuous",
+                "forceDirection": "none",
+                "roundness": 0
+            },
+	},
+    };
+    TRINetwork = new vis.Network(localContainer, data, options);
+    TRINetwork.on('click',function(params){
+        resolveNetworkFlip(TRINetwork, params);
+    });
+
+    document.getElementById("tri-edges").innerText = JSON.stringify(TRINetworkEdges.get(),output_fields, 4);
+    var opt = makeTriangulation(TRIglobalEdges, TRIglobalBoundaryEdges);
+    var tri = opt[0].map(function(t) {
+	    return {
+	        edge1: "index: "+t[0].toString() + ", "+JSON.stringify(TRIglobalEdges[t[0]]), 
+                edge2: "index: "+t[1].toString() + ", "+JSON.stringify(TRIglobalEdges[t[1]]), 
+                edge3: "index: "+t[2].toString() + ", "+JSON.stringify(TRIglobalEdges[t[2]])
+	    };
+    });
+    document.getElementById("tri-triangles").innerText = JSON.stringify(tri,output_fields, 4);
 }
 
 function findHull(point_set, a, b) { // this is a helper function for the convexhull algorithm
@@ -318,6 +323,12 @@ function flip(edge_index, edges, coordinates, triangles=[], edge_to_triangle=[],
             //   e[0]-------p2
             var nb1_edges = triangles[nbr1].filter(y => y != edge_index);
             var nb2_edges = triangles[nbr2].filter(y => y != edge_index);
+
+            var p1 = edges[nb1_edges[0]].filter(x => !e.includes(x));
+            var p2 = edges[nb2_edges[0]].filter(x => !e.includes(x));
+
+            // find the edge indices for e[0]--p2 and e[1]--p1 and other 2 as well.
+            var e0p1 = nb1_edges[0];
 
             var p1 = edges[nb1_edges[0]].filter(x => !e.includes(x));
             var p2 = edges[nb2_edges[0]].filter(x => !e.includes(x));
@@ -807,83 +818,6 @@ function orderSegments(segs) {
     return l;
 }
 
-function QPFromTriangulation(t) {
-    // calculate the quiver from a given triangulation
-    var ns = [];
-    var es = [];
-    var fn = [];
-    var pt = [];
-
-    if (t != null) {
-        var R = Math.max(...t[1].map(x => Math.max(...x)));
-        var edges = t[0];
-        var coordinates = t[1];
-        var extremal_edges = edges.map(function(e, ei) {
-	    e1 = isCollinear([[R,0,0],[0,R,0]], coordinates[e[0]]) && isCollinear([[R,0,0],[0,R,0]], coordinates[e[1]]);
-	    e2 = isCollinear([[0,R,0],[0,0,R]], coordinates[e[0]]) && isCollinear([[0,R,0],[0,0,R]], coordinates[e[1]]);
-	    e3 = isCollinear([[0,0,R],[R,0,0]], coordinates[e[0]]) && isCollinear([[0,0,R],[R,0,0]], coordinates[e[1]]);
-	    if (e1 || e2 || e3) {
-                return ei;
-	    }
-	}).filter(y => y != null);
-        var tri = makeTriangulation(edges, extremal_edges);
-
-        var triangles = tri[0];
-        var edge_to_triangle = tri[1];
-
-        var QP_edges = [];
-        for (let ti = 0; ti < triangles.length; ti++) {
-            var t = triangles[ti];
-            for (let i = 1; i < 4; i++) {
-                for (let j = -1; j < 2; j += 2) {
-                    if (edge_to_triangle[t[i%3]].length > 1 && edge_to_triangle[t[(i+j)%3]].length > 1) {
-                        QP_edges.push([t[i%3], t[(i+j)%3]]);
-                    }
-                }
-            }
-        }
-        for (let i = 0; i < edges.length; i++) {
-            if (edge_to_triangle[i].length > 1) {
-		let ct = curveType(edges, triangles, edge_to_triangle, coordinates, i);
-		for (let j = 0; j < ct; j++) {
-                    QP_edges.push([i, i]);
-                }
-            }
-        }
-        var e_reorder = range(0, edges.length).filter(i => edge_to_triangle[i].length > 1);
-        QP_edges = QP_edges.map(x => [e_reorder.indexOf(x[0]), e_reorder.indexOf(x[1])]);
-
-        coordinates = rotateSimplexToPlane(coordinates).map(c => [c[0], c[1]]);
-        var positions = edges.map(function(e, ei) {
-            if (edge_to_triangle[ei].length > 1) {
-                return [0.5*(coordinates[e[0]][0] + coordinates[e[1]][0]), 0.5*(coordinates[e[0]][1] + coordinates[e[1]][1])];
-            }
-        }).filter(y => y != null);
-
-        var xscaling = Math.max(...positions.map(x => x[0])) - Math.min(...positions.map(x => x[0]));
-        var yscaling = Math.max(...positions.map(x => x[1])) - Math.min(...positions.map(x => x[1]));
-
-        ns = positions.map(function(p, i) {
-    	return {
-                "id": i.toString(), "label": i.toString(), 
-                "x":(1000.0/xscaling)*p[0], "y":(1000.0/yscaling)*p[1],
-    	    };
-        });
-        es = QP_edges.map(function(e, i) {
-            return {
-    		"id": i.toString(), "title": "edge "+i.toString(), 
-    		"from": e[0].toString(), "to": e[1].toString(), 
-    		"arrows": "to"
-    	    };
-        });
-    }
-    return JSON.stringify({"nodes": ns, "edges": es, "frozenNodes": fn, "potential": pt});
-}
-
-function range(start, stop, step=1) { // trying to be as python-ish as I can
-    return Array.from({ length: (stop - start) / step}, (_, i) => start + (i * step));
-}
-
 
 function ReidsRecipe(segments, strengths, potential_segments, longest_extension, coordinates) {
     // Reid's recipe helper function
@@ -1008,27 +942,28 @@ function ReidsRecipe(segments, strengths, potential_segments, longest_extension,
 function resolveNetworkFlip(n, p) {
     // this routine flips the clicked edge on the canvas, and updates globals accordingly
     var e = p.edges[0].toString();
-    var tri = makeTriangulation(globalTriangulation[0], globalBoundaryEdges);
-    var opt = flip(parseInt(e), globalTriangulation[0], globalTriangulation[1], tri[0], tri[1], globalBoundaryEdges);
+    var tri = makeTriangulation(TRIglobalTriangulation[0], TRIglobalBoundaryEdges);
+    var opt = flip(parseInt(e), TRIglobalTriangulation[0], TRIglobalTriangulation[1], tri[0], tri[1], TRIglobalBoundaryEdges);
     if (opt[0]) {
 	var es = JSON.parse(JSON.stringify(opt[1])).map(
             function(x) {
 	        return x.map(y => parseInt(y));
 	    });
-	globalEdges = es;
-	globalTriangulation = [globalEdges, globalCoords];
+	TRIglobalEdges = es;
+	TRIglobalTriangulation = [TRIglobalEdges, TRIglobalCoords];
     }
-    updateNetworkFromGlobals();
+    updateNetworkTriFromGlobal();
 
-    document.getElementById("tri-edges").innerText = JSON.stringify(network_edges.get(), network_output_fields, 4);
+    document.getElementById("tri-edges").innerText = JSON.stringify(TRINetworkEdges.get(),output_fields, 4);
     var tri = opt[2].map(function(t) {
 	    return {
-                edge1: "index: "+t[0].toString() + ", "+JSON.stringify(globalEdges[t[0]]), 
-                edge2: "index: "+t[1].toString() + ", "+JSON.stringify(globalEdges[t[1]]), 
-                edge3: "index: "+t[2].toString() + ", "+JSON.stringify(globalEdges[t[2]])
+                edge1: "index: "+t[0].toString() + ", "+JSON.stringify(TRIglobalEdges[t[0]]), 
+                edge2: "index: "+t[1].toString() + ", "+JSON.stringify(TRIglobalEdges[t[1]]), 
+                edge3: "index: "+t[2].toString() + ", "+JSON.stringify(TRIglobalEdges[t[2]])
 	    };
     });
-    document.getElementById("tri-triangles").innerText = JSON.stringify(tri, network_output_fields, 4);
+    document.getElementById("tri-triangles").innerText = JSON.stringify(tri,output_fields, 4);
+    updateGlobalTriFromNetwork();
 }
 
 function rotateSimplexToPlane(coordinates) {
@@ -1046,7 +981,6 @@ function rotateSimplexToPlane(coordinates) {
         [n1[0][0], 0, n1[2][0]]
     ];
 
-
     var toRet = coordinates.map(function(c) {
         var c1 = matmul(matmul(m1, m2),[[c[0]], [c[1]], [c[2]]]);
         return [c1[0][0], c1[1][0], c1[2][0]];
@@ -1057,7 +991,7 @@ function rotateSimplexToPlane(coordinates) {
 function showTriExchangeNumber() {
     const output = document.getElementById('tri-exchange-number-output')
     try {
-        const result = allUniqueTriangulations(globalTriangulation, globalBoundaryEdges);
+        const result = allUniqueTriangulations(TRIglobalTriangulation, TRIglobalBoundaryEdges);
         if (result.timeout) {
             output.textContent = "Timed out"
         } else {
@@ -1222,105 +1156,53 @@ function triangulation(R,a,b,c) {
     return [segments, coordinates];
 }
 
-function unique(L) {
-    // get unique values in list
-    var toRet = new Set(L);
-    return Array.from(toRet);
+function updateInstructions() {
+    let click_mode = document.getElementById("edit-quiver-type").value;
+    var textOutput = "Click on canvas to add a node";
+
+    if (click_mode == "add-edge") {
+	textOutput = "Select a pair of nodes to add an edge between them: control + click to select two nodes";
+    } else if (click_mode == "add-loop") {
+	textOutput = "Click on a node to add a loop";
+    } else if (click_mode == "remove-edge") {
+	textOutput = "Click on an edge to remove it";
+    } else if (click_mode == "add-node") {
+	textOutput = "Click on the canvas to create a node";
+    } else {
+        textOutput = "Select a node to perform action";
+    }
+    document.getElementById("instructions").innerText = textOutput;
 }
 
-function updateNetworkFromGlobals() {
-    // update the canvas to mirror the global edge/coordinates data
-    network_nodes.clear();
-    network_edges.clear();
+function updateGlobalTriFromNetwork(){
+    TRIglobalEdges = TRINetworkEdges.getIds().map(e => [Number(TRINetworkEdges.get(e).from), Number(TRINetworkEdges.get(e).to)]);
+    TRIglobalTriangulation = [TRIglobalEdges, TRIglobalCoords];
+}
 
-    let rotatedNodes = rotateSimplexToPlane(globalTriangulation[1]);
+function updateNetworkTriFromGlobal() {
+    // update the canvas to mirror the global edge/coordinates data
+    TRINetworkNodes.clear();
+    TRINetworkEdges.clear();
+
+    var rotatedNodes = TRIglobalTriangulation[1];
+    if (rotatedNodes[0].length > 2) {
+        rotatedNodes = rotateSimplexToPlane(TRIglobalTriangulation[1]);
+    }
     let xscaling = Math.max(...rotatedNodes.map(x => x[0])) - Math.min(...rotatedNodes.map(x => x[0]));
     let yscaling = Math.max(...rotatedNodes.map(x => x[1])) - Math.min(...rotatedNodes.map(x => x[1]));
     for (let n = 0; n < rotatedNodes.length; n++) {
         let xy = rotatedNodes[n];
-        network_nodes.add({
+        TRINetworkNodes.add({
             id: n.toString(),
             label: n.toString(),
             x: -50 + (300/xscaling)*parseFloat(xy[0]),
             y: -50 + (300/yscaling)*parseFloat(xy[1])
 	});
     }
-    for (let e = 0; e < globalTriangulation[0].length; e++) {
-        let s = globalTriangulation[0][e];
-        network_edges.add({id: e.toString(), from: s[0].toString(), to: s[1].toString()});
+    for (let e = 0; e < TRIglobalTriangulation[0].length; e++) {
+        let s = TRIglobalTriangulation[0][e];
+        TRINetworkEdges.add({id: e.toString(), from: s[0].toString(), to: s[1].toString()});
     }
 }
 
-function veclen(v) { // returns the length of a vector v
-    return Math.pow(dotProduct(v,v), 0.5);
-}
 
-function viewTriangulation() {
-    network_nodes = new vis.DataSet();
-    network_edges = new vis.DataSet();
-
-    if (globalTriangulation != null) {
-        var ln = []
-        var le = [];
-
-        let rotatedNodes = rotateSimplexToPlane(globalTriangulation[1]);
-	let xscaling = Math.max(...rotatedNodes.map(x => x[0])) - Math.min(...rotatedNodes.map(x => x[0]));
-	let yscaling = Math.max(...rotatedNodes.map(x => x[1])) - Math.min(...rotatedNodes.map(x => x[1]));
-        for (let n = 0; n < rotatedNodes.length; n++) {
-    	    let xy = rotatedNodes[n];
-            ln.push({
-    		id: n.toString(),
-    		label: n.toString(),
-    		x: -50 + (300/xscaling)*parseFloat(xy[0]),
-    		y: -50 + (300/yscaling)*parseFloat(xy[1])
-    	    });
-        }
-        for (let e = 0; e < globalTriangulation[0].length; e++) {
-    	    let s = globalTriangulation[0][e];
-            le.push({id: e.toString(), from: s[0].toString(), to: s[1].toString()});
-        }
-
-        network_nodes.add(ln);
-        network_edges.add(le);
-    }
-
-    // create a network
-    var localContainer = document.getElementById("triangulationView");
-    var data = {
-        nodes: network_nodes,
-        edges: network_edges
-    };
-    var options = {
-        nodes: {
-            borderWidth:1,
-            size:10,
-            color: {
-                border: '#222222',
-                background: 'grey'
-            },
- 	    physics: {enabled:false},
-        },
-        edges: {
-            "smooth": {
-                "type": "continuous",
-                "forceDirection": "none",
-                "roundness": 0
-            },
-	},
-    };
-    triangulate_network = new vis.Network(localContainer, data, options);
-    triangulate_network.on('click',function(params){
-        resolveNetworkFlip(triangulate_network, params);
-    });
-
-    document.getElementById("tri-edges").innerText = JSON.stringify(network_edges.get(), network_output_fields, 4);
-    var opt = makeTriangulation(globalEdges, globalBoundaryEdges);
-    var tri = opt[0].map(function(t) {
-	    return {
-	        edge1: "index: "+t[0].toString() + ", "+JSON.stringify(globalEdges[t[0]]), 
-                edge2: "index: "+t[1].toString() + ", "+JSON.stringify(globalEdges[t[1]]), 
-                edge3: "index: "+t[2].toString() + ", "+JSON.stringify(globalEdges[t[2]])
-	    };
-    });
-    document.getElementById("tri-triangles").innerText = JSON.stringify(tri, network_output_fields, 4);
-}
