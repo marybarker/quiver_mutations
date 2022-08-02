@@ -1,0 +1,92 @@
+<style>
+  html, body{/* whole page: fills browser window */
+    width:99%; 
+    height:100%; 
+    margin:1px;
+    border:0;
+    padding:5px;
+  }
+  .menuBar{/*sidebar that has button for generating quiver and 
+    adding to it: width, side of page, border, etc*/
+    width:100%;
+    height:400px;
+    margin-top:5px;
+    margin-right:5px;
+    padding-left:10px;
+  }
+  pre {
+    margin:0;
+    padding:5px;
+    font-size:10pt;
+  }
+  .json_box_tall {
+    height:400px;
+    overflow-y:scroll;
+    color:gray;
+  }
+  .json_box_short {
+    height:170px;
+    overflow-y:scroll;
+    color:gray;
+  }
+  .view_json_sty {
+    width:100%;
+    color:gray;
+    margin:5px;
+    padding:10px;
+    border-style:outset;
+    border-color:gray;
+  }
+  .tablink {
+    overflow: hidden;
+    background-color: #222222;
+    float: left;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 14px 16px;
+    font-size: 17px;
+    color:gray;
+    width: 50%;
+  }
+  .tablink:hover {
+    background-color: #ddd;
+  }
+  .tabcontent {
+    color: gray;
+    display: none;
+    padding: 100px 20px;
+    height: 100%;
+  }
+  .Anetwork {
+    width:100%;
+    height:400px;
+    margin:1px;
+    border-style:outset;
+    border-color:gray;
+  }
+  .collapsible {
+    overflow: hidden;
+    background-color: gray;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 8px 8px;
+    font-size: 17px;
+    color: white;
+    width: 100%;
+  }
+  .collapsible:hover {
+    background-color: DarkGray;
+  }
+  .collapsiblecontent {
+    padding: 0px;
+    display: none;
+    overflow: hidden;
+  }
+
+  #QP {background-color: white;}
+  #multiQP {background-color: white;}
+  #TRI {background-color: white;}
+
+</style>
