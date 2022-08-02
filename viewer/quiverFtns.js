@@ -918,21 +918,59 @@ function extendCyclesWithSelfLoops (cycles, qp, maxCycleLength) {
   return cyclesOut.map(cycle => cycleOrder(cycle))
 }
 
+function quiverSetsMaybeIsomorphicSimple (setA, setB) {
+  // determine if two sets of quivers might be isomorphic to each other
+
+  if (setA.length !== setB.length) {
+    return false
+  }
+
+  // simple check - edge counts
+
+  var setAStringified = setA.map(q => q.edges.length.toString())
+  var setBStringified = setB.map(q => q.edges.length.toString())
+
+  setAStringified.sort()
+  setBStringified.sort()
+
+  return setAStringified.join('') === setBStringified.join('')
+}
+
 function quiverSetsMaybeIsomorphic (setA, setB) {
   // determine if two sets of quivers might be isomorphic to each other
 
+  if (setA.length !== setB.length) {
+    return false
+  }
+
+  // simple check - edge counts
+
+  /* var setAStringified = setA.map(q => q.edges.length.toString())
+  var setBStringified = setB.map(q => q.edges.length.toString())
+
+  setAStringified.sort()
+  setBStringified.sort()
+
+  return setAStringified.join('') === setBStringified.join('') */
+
+  // complex check - edges in and out of each vertex
+
   function stringifyQuiver (quiver) {
-    var edgesIn = new Array(quiver.nodes.length).fill(0)
-    var edgesOut = new Array(quiver.nodes.length).fill(0)
+    var edgeCounts = new Array(quiver.nodes.length).fill([0, 0])
 
     quiver.edges.forEach(function (e) {
-      edgesOut[e[0]]++
-      edgesIn[e[1]]++
+      if (Object.hasOwn(e, 'from')) {
+        edgeCounts[parseInt(e.from)][0]++
+        edgeCounts[parseInt(e.to)][1]++
+      } else {
+        edgeCounts[parseInt(e[0])][0]++
+        edgeCounts[parseInt(e[1])][1]++
+      }
     })
-    edgesIn.sort()
-    edgesOut.sort()
 
-    return edgesIn.join(',') + '-' + edgesOut.join(',')
+    var stringEdges = edgeCounts.map(v => v[0] + '.' + v[1])
+
+    return stringEdges.sort().join(',')
   }
 
   var setAStringified = setA.map(q => stringifyQuiver(q))
@@ -955,10 +993,10 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
 
   var testedPotentials = []
 
-  /* cyclesWithoutQuadratics = cyclesWithoutQuadratics.concat([
-        [2, 6, 7, 3],
-        [0, 1, 17, 16],
-    ]) */
+  cyclesWithoutQuadratics = cyclesWithoutQuadratics.concat([
+    [2, 6, 7, 3],
+    [0, 1, 17, 16]
+  ])
 
   var potentialTemplate = cyclesWithoutQuadratics.map(cycle => {
     return [0, cycle.join(',')]
@@ -976,6 +1014,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
   const minimalResultsByExchangeNum = {}
   const chainsByExchangeNum = {}
   const maybeMatchingPotentials = []
+  const maybeMatchingPotentialsSimple = []
   const comp = []
 
   // limits the terms in the generated potentials to approximately this size
@@ -1008,9 +1047,11 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
       var exchangeNum = exchangeNumResult.quivers.length
 
       if (exchangeNum === expectedExchangeNum) {
-        console.log(exchangeNumResult.quivers)
         if (quiverSetsMaybeIsomorphic(exchangeNumResult.quivers, expectedQuivers)) {
           maybeMatchingPotentials.push(constructedPotential)
+        }
+        if (quiverSetsMaybeIsomorphicSimple(exchangeNumResult.quivers, expectedQuivers)) {
+          maybeMatchingPotentialsSimple.push(constructedPotential)
         }
       }
 
@@ -1063,6 +1104,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
     minimalResultsByExchangeNum,
     chainsByExchangeNum,
     maybeMatchingPotentials,
+    maybeMatchingPotentialsSimple,
     comp
   }
 }
