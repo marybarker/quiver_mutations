@@ -818,7 +818,14 @@ function QPFromTriangulation(t) {
         var R = Math.max(...t[1].map(x => Math.max(...x)));
         var edges = t[0];
         var coordinates = t[1];
-        var extremal_edges = edges.map(function(e, ei) {if (coordinates[e[0]].includes(R) && coordinates[e[1]].includes(R)) {return ei;}}).filter(y => y != null);
+        var extremal_edges = edges.map(function(e, ei) {
+	    e1 = isCollinear([[R,0,0],[0,R,0]], coordinates[e[0]]) && isCollinear([[R,0,0],[0,R,0]], coordinates[e[1]]);
+	    e2 = isCollinear([[0,R,0],[0,0,R]], coordinates[e[0]]) && isCollinear([[0,R,0],[0,0,R]], coordinates[e[1]]);
+	    e3 = isCollinear([[0,0,R],[R,0,0]], coordinates[e[0]]) && isCollinear([[0,0,R],[R,0,0]], coordinates[e[1]]);
+	    if (e1 || e2 || e3) {
+                return ei;
+	    }
+	}).filter(y => y != null);
         var tri = makeTriangulation(edges, extremal_edges);
 
         var triangles = tri[0];
