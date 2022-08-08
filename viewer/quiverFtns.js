@@ -992,12 +992,13 @@ function range(start, stop, step=1) {
 /*quiver1 = {nodes: [0,1,2,3,4], edges: [[0,1], [1,2], [2,3], [3,4], [4,0], [1,2],]};
 quiver2 = {nodes: [0,1,2,3,4], edges: [[0,1], [1,2], [2,3], [3,4], [4,0], [2,3],]};
 quiver3 = {nodes: [3,4,0,1,2], edges: [[0,1], [1,2], [2,3], [3,4], [4,0], [2,3],]};
-quiver4 = {nodes: [3,4,0,1,2], edges: [[0,1], [1,2], [2,3], [3,4], [4,0], [3,2],]};*/
+quiver4 = {nodes: [3,4,0,1,2], edges: [[0,1], [1,2], [2,3], [3,4], [4,0], [3,2],]};
 
 areGraphIsomorphic(quiver1, quiver1); // true
 areGraphIsomorphic(quiver1, quiver2); // true
 areGraphIsomorphic(quiver1, quiver3); // true
 areGraphIsomorphic(quiver1, quiver4); // false
+*/
 
 function quiverSetsMaybeIsomorphicSimple (setA, setB) {
   // determine if two sets of quivers might be isomorphic to each other

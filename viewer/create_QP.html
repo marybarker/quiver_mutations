@@ -249,6 +249,27 @@
                     </td>
                 </tr>
             </table>
+
+            <div id="potential-comparison-area">
+                <textarea id="comparison-expected-input"></textarea>
+                
+                <textarea id="comparison-potentials-input"></textarea>
+        
+                <div id="quiver-comparison-container"></div>
+
+                <style>
+                    .comp-container {
+                        width: 250px;
+                        height: 250px;
+                        margin: 1em;
+                        display: inline-block;
+                    }
+                    .comp-row {
+                        overflow: auto;
+                        white-space: nowrap;
+                    }
+                </style>
+            </div>
 	</div>
 
 
@@ -325,6 +346,7 @@
         src="./triangulateFtns.js">
     </script>
 
+    <script src="quiver_comparison.js"></script>
     </body>
 </html>
 
