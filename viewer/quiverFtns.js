@@ -918,6 +918,87 @@ function extendCyclesWithSelfLoops (cycles, qp, maxCycleLength) {
   return cyclesOut.map(cycle => cycleOrder(cycle))
 }
 
+function areGraphIsomorphic(q1, q2) {
+  if ((q1.nodes.length == q2.nodes.length) && (q1.edges.length == q2.edges.length)) {
+    var q1_valences = q1.nodes.map(n => (count(q1.edges.map(e => e[0]), n), count(q1.edges.map(e => e[1]), n)));
+    var q2_valences = q2.nodes.map(n => (count(q2.edges.map(e => e[0]), n), count(q2.edges.map(e => e[1]), n)));
+
+    if (q1_valences.sort().join(',') == q2_valences.sort().join(',')) {
+      nodeidx = range(0, q1.nodes.length);
+      edgeidx = range(0, q1.edges.length);
+
+      m1 = graphAsMat(q1).join(',');
+      m2 = graphAsMat(q2);
+
+      var node_permutations = permutations(nodeidx);
+      for (var i = 0; i < node_permutations.length; i++) {
+	var node_permutation = node_permutations[i];
+
+        var m2_rows = node_permutation.map(i => m2[i]);
+
+        var edge_permutations = permutations(edgeidx);
+        for (var j = 0; j < edge_permutations.length; j++) {
+	  var edge_permutation = edge_permutations[j];
+
+          var m2_rowscols = m2_rows.map(function(r) {return edge_permutation.map(i => r[i]);});
+          if (m1 == m2_rowscols.join(',')) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function count(l, v) { // return the number of instances of value v in list l
+    return l.filter(x => x == v).length;
+}
+
+function graphAsMat(quiver) {
+    mat_to_return = [];
+    for (var n in quiver.nodes) {
+        thisrow = [];
+        for (var ei = 0; ei < quiver.edges.length; ei++) {
+          var e = quiver.edges[ei];
+          if (e[0] == n) {thisrow.push(-1);}
+          else if (e[1] == n) {thisrow.push(1);}
+          else { thisrow.push(0);}
+        }
+        mat_to_return.push(thisrow);
+    }
+    return mat_to_return;
+}
+
+// https://www.30secondsofcode.org/js/s/permutations
+const permutations = arr => {
+  if (arr.length <= 2) return arr.length === 2 ? [arr, [arr[1], arr[0]]] : arr;
+  return arr.reduce(
+    (acc, item, i) =>
+      acc.concat(
+        permutations([...arr.slice(0, i), ...arr.slice(i + 1)]).map(val => [
+          item,
+          ...val,
+        ])
+      ),
+    []
+  );
+};
+
+function range(start, stop, step=1) {
+    return Array.from({length: (stop-start)/step}, (_, i) => start+i*step);
+}
+
+/*quiver1 = {nodes: [0,1,2,3,4], edges: [[0,1], [1,2], [2,3], [3,4], [4,0], [1,2],]};
+quiver2 = {nodes: [0,1,2,3,4], edges: [[0,1], [1,2], [2,3], [3,4], [4,0], [2,3],]};
+quiver3 = {nodes: [3,4,0,1,2], edges: [[0,1], [1,2], [2,3], [3,4], [4,0], [2,3],]};
+quiver4 = {nodes: [3,4,0,1,2], edges: [[0,1], [1,2], [2,3], [3,4], [4,0], [3,2],]};*/
+
+areGraphIsomorphic(quiver1, quiver1); // true
+areGraphIsomorphic(quiver1, quiver2); // true
+areGraphIsomorphic(quiver1, quiver3); // true
+areGraphIsomorphic(quiver1, quiver4); // false
+
 function quiverSetsMaybeIsomorphicSimple (setA, setB) {
   // determine if two sets of quivers might be isomorphic to each other
 
@@ -987,6 +1068,61 @@ function quiverSetsMaybeIsomorphic (setA, setB) {
   return true
 }
 
+function quiverSetsIsomorphic (setA, setB) {
+
+  if (!quiverSetsMaybeIsomorphicSimple(setA, setB)) {
+    return false;
+  }
+  
+  console.log(setA, setB)
+
+  //convert both sets to the right format
+
+  var setAClone = deepCopy(setA)
+  var setBClone = deepCopy(setB)
+
+  function convertQuiver(q) {
+    for (var i = 0; i < q.edges.length; i++) {
+      if (!(q.edges[i] instanceof Array)) {
+        q.edges[i] = [parseInt(q.edges[i].from), parseInt(q.edges[i].to)]
+      }
+    }
+    for (var i = 0; i < q.nodes.length; i++) {
+      if (q.nodes[i] instanceof Object) {
+        q.nodes[i] = parseInt(q.nodes[i].id)
+      }
+    }
+  }
+
+  for (var i = 0; i < setAClone.length; i++) {
+    convertQuiver(setAClone[i])
+  }
+  for (var i = 0; i < setBClone.length; i++) {
+    convertQuiver(setBClone[i])
+  }
+
+  console.log('after fix', setAClone, setBClone)
+
+  //now, every quiver in set A needs to be isomorphic to some quiver in set B
+
+  for (var i = 0; i < setAClone.length; i++) {
+    var found = false;
+    for (var i2 = 0; i2 < setBClone.length; i2++) {
+      console.log('check', setAClone[i], setBClone[i2])
+      if (areGraphIsomorphic(setAClone[i], setBClone[i2])) {
+        setBClone.splice(i2, 1)
+        found = true
+        break;
+      }
+    }
+    if (!found) {
+      return false
+    }
+  }
+
+  return true
+}
+
 function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], maxCycleLength = 5, approximateMaxPotentialTerms = 100, numberToTest = 5000) {
   // var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
   var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp, maxCycleLength).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
@@ -1015,6 +1151,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
   const chainsByExchangeNum = {}
   const maybeMatchingPotentials = []
   const maybeMatchingPotentialsSimple = []
+  const matchingPotentials = []
   const comp = []
 
   // limits the terms in the generated potentials to approximately this size
@@ -1053,6 +1190,9 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
         if (quiverSetsMaybeIsomorphicSimple(exchangeNumResult.quivers, expectedQuivers)) {
           maybeMatchingPotentialsSimple.push(constructedPotential)
         }
+        /*if (quiverSetsIsomorphic(exchangeNumResult.quivers, expectedQuivers)) {
+          matchingPotentials.push(constructedPotential)
+        }*/
       }
 
       // if (chainsByExchangeNum[exchangeNum]) {
@@ -1105,6 +1245,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
     chainsByExchangeNum,
     maybeMatchingPotentials,
     maybeMatchingPotentialsSimple,
+    matchingPotentials,
     comp
   }
 }
