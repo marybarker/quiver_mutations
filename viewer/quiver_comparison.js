@@ -137,9 +137,11 @@ function performQuiverComparison () {
 
   console.log(expected, potentials)
 
+  var toprow = document.createElement('div')
+  toprow.id = 'comparison-top-row'
   var h = document.createElement('h2')
   h.textContent = 'Expected'
-  comparisonContainer.appendChild(h)
+  toprow.appendChild(h)
   var row = document.createElement('div')
   row.className = 'comp-row'
   expected.forEach(function (eQ) {
@@ -148,7 +150,8 @@ function performQuiverComparison () {
     displayVis(eQ, container)
     row.appendChild(container)
   })
-  comparisonContainer.appendChild(row)
+  toprow.appendChild(row)
+  comparisonContainer.appendChild(toprow)
 
   function convertQuiver (q) {
     for (var i = 0; i < q.edges.length; i++) {
@@ -173,7 +176,7 @@ function performQuiverComparison () {
 
   var expectedStrings = expected.map(q => stringifyQuiver(q))
 
-  potentials.sort((a, b) => a.length - b.length).forEach(function (thisPotential, i) {
+  potentials.slice(0, 20).sort((a, b) => a.length - b.length).forEach(function (thisPotential, i) {
     // edges and nodes come from the global viz object, potential comes from the text input
     var baseQP = makeQP(edges, nodes, frozen_nodes, potential, 'fromVisDataSet')
     baseQP.potential = thisPotential
@@ -203,6 +206,12 @@ function performQuiverComparison () {
     })
     comparisonContainer.appendChild(row)
   })
+
+  if (potentials.length > 20) {
+    var h = document.createElement('h1')
+    h.textContent = (potentials.length - 20) + ' more hidden'
+    comparisonContainer.appendChild(h)
+  }
 }
 
 comparisonExpected.addEventListener('input', performQuiverComparison)
