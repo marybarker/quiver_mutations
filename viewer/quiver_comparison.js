@@ -28,6 +28,16 @@ function displayVis (qp, container) {
       title: 'edge ' + i.toString()
     }
   }))
+
+  edges.get().forEach(edge => updateEdgeRadii(edges, edge.id))
+
+  // and whenever an edge is added
+  edges.on('add', function (event, properties, senderId) {
+    properties.items.forEach(function (i) {
+      updateEdgeRadii(edges, i)
+    })
+  })
+
   nodes.add(qp.nodes.map(function (x) {
     const i = x.id || x
     return {
@@ -93,8 +103,32 @@ function displayVis (qp, container) {
 }
 
 function performQuiverComparison () {
+  // string representing the edge counts at each node
+  function stringifyQuiver (quiver) {
+    var edgeCounts = new Array(quiver.nodes.length)
+    // can't use array.fill here because it doesn't create unique array instances
+    for (var i = 0; i < edgeCounts.length; i++) {
+      edgeCounts[i] = [0, 0]
+    }
+
+    quiver.edges.forEach(function (e) {
+      if (Object.hasOwn(e, 'from')) {
+        edgeCounts[parseInt(e.from)][0]++
+        edgeCounts[parseInt(e.to)][1]++
+      } else {
+        edgeCounts[parseInt(e[0])][0]++
+        edgeCounts[parseInt(e[1])][1]++
+      }
+    })
+
+    var stringEdges = edgeCounts.map(v => v[0] + '.' + v[1])
+
+    return stringEdges.sort().join(',')
+  }
+
+  comparisonContainer.innerHTML = ''
+
   if (!comparisonExpected.value || !comparisonPotentials.value) {
-    comparisonContainer.innerHTML = ''
     return
   }
 
@@ -137,6 +171,8 @@ function performQuiverComparison () {
     return q
   }
 
+  var expectedStrings = expected.map(q => stringifyQuiver(q))
+
   potentials.sort((a, b) => a.length - b.length).forEach(function (thisPotential, i) {
     // edges and nodes come from the global viz object, potential comes from the text input
     var baseQP = makeQP(edges, nodes, frozen_nodes, potential, 'fromVisDataSet')
@@ -145,6 +181,12 @@ function performQuiverComparison () {
     console.log(baseQP)
 
     var resultQuivers = getAllMutationsForQP(baseQP)
+
+    resultQuivers.quivers = resultQuivers.quivers.sort((a, b) => {
+      return expectedStrings.indexOf(stringifyQuiver(a)) - expectedStrings.indexOf(stringifyQuiver(b))
+    })
+
+    console.log(expectedStrings, resultQuivers.quivers.map(q => stringifyQuiver(q)))
 
     var h = document.createElement('h2')
     h.textContent = i + ' - ' + JSON.stringify(thisPotential)

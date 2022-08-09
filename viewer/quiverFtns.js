@@ -306,6 +306,23 @@ function getUniqueNodeId () { /* create a string value that is not currently in 
   return nv.reduce(function (a, b) { return Math.max(a, b) + 1 }, 0).toString()
 }
 
+ // assigns each self-loop a unique radius so that they don't overlap
+ function updateEdgeRadii (edges, id) {
+  var thisEdge = edges.get(id)
+
+  if (thisEdge.from === thisEdge.to) {
+    var count = edges.get().filter(function (otherEdge) {
+      return otherEdge.from === thisEdge.from & otherEdge.to === thisEdge.to && parseInt(otherEdge.id) < parseInt(thisEdge.id)
+    }).length
+
+    thisEdge.selfReference = {
+      size: 15 + (count * 5)
+    }
+
+    edges.update(thisEdge)
+  }
+}
+
 function draw () {
   // create an array with nodes
   nodes = new vis.DataSet()
@@ -355,31 +372,14 @@ function draw () {
     { id: '17', from: '0', to: '5', arrows: 'to', title: 'edge 17' }
   ])
 
-  // assigns each self-loop a unique radius so that they don't overlap
-  function updateEdgeRadii (id) {
-    var thisEdge = edges.get(id)
-
-    if (thisEdge.from === thisEdge.to) {
-      var count = edges.get().filter(function (otherEdge) {
-        return otherEdge.from === thisEdge.from & otherEdge.to === thisEdge.to && parseInt(otherEdge.id) < parseInt(thisEdge.id)
-      }).length
-
-      thisEdge.selfReference = {
-        size: 15 + (count * 5)
-      }
-
-      edges.update(thisEdge)
-    }
-  }
-
   // update the initial dataset
 
-  edges.get().forEach(edge => updateEdgeRadii(edge.id))
+  edges.get().forEach(edge => updateEdgeRadii(edges, edge.id))
 
   // and whenever an edge is added
   edges.on('add', function (event, properties, senderId) {
     properties.items.forEach(function (i) {
-      updateEdgeRadii(i)
+      updateEdgeRadii(edges, i)
     })
   })
 
@@ -1038,7 +1038,11 @@ function quiverSetsMaybeIsomorphic (setA, setB) {
   // complex check - edges in and out of each vertex
 
   function stringifyQuiver (quiver) {
-    var edgeCounts = new Array(quiver.nodes.length).fill([0, 0])
+    var edgeCounts = new Array(quiver.nodes.length);
+    //can't use array.fill here because it doesn't create unique array instances
+    for (var i = 0; i < edgeCounts.length; i++) {
+      edgeCounts[i] = [0, 0]
+    }
 
     quiver.edges.forEach(function (e) {
       if (Object.hasOwn(e, 'from')) {
