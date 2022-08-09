@@ -8,6 +8,13 @@ function displayVis (qp, container) {
   var edges = new vis.DataSet()
   var frozen_nodes = new vis.DataSet()
 
+  function circleCoord (i, n) {
+    return {
+      x: 125 + (125 * Math.cos((2 * Math.PI) * (i / n))),
+      y: 125 + (125 * Math.sin((2 * Math.PI) * (i / n)))
+    }
+  }
+
   // from updateqpfromjson
   edges.add(qp.edges.map(function (x, idx) {
     const i = x.id || idx.toString()
@@ -26,8 +33,8 @@ function displayVis (qp, container) {
     return {
       id: i.toString(),
       label: i.toString(),
-      x: parseFloat(x.x || (i * 40).toString()),
-      y: parseFloat(x.y || (i * 40).toString())
+      x: circleCoord(i, qp.nodes.length).x.toString(),
+      y: circleCoord(i, qp.nodes.length).y.toString()
     }
   }))
 
@@ -130,7 +137,7 @@ function performQuiverComparison () {
     return q
   }
 
-  potentials.forEach(function (thisPotential, i) {
+  potentials.sort((a, b) => a.length - b.length).forEach(function (thisPotential, i) {
     // edges and nodes come from the global viz object, potential comes from the text input
     var baseQP = makeQP(edges, nodes, frozen_nodes, potential, 'fromVisDataSet')
     baseQP.potential = thisPotential
@@ -146,7 +153,7 @@ function performQuiverComparison () {
     row.className = 'comp-row'
     console.log('found', resultQuivers.quivers.length)
     resultQuivers.quivers.forEach(function (qp) {
-      console.log(potential, qp)
+      console.log(thisPotential, qp)
       var container = document.createElement('div')
       container.className = 'comp-container'
       displayVis(qp, container)
