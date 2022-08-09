@@ -176,7 +176,7 @@ function performQuiverComparison () {
 
   var expectedStrings = expected.map(q => stringifyQuiver(q))
 
-  potentials.slice(0, 20).sort((a, b) => a.length - b.length).forEach(function (thisPotential, i) {
+  potentials.sort((a, b) => a.length - b.length).slice(0, 20).forEach(function (thisPotential, i) {
     // edges and nodes come from the global viz object, potential comes from the text input
     var baseQP = makeQP(edges, nodes, frozen_nodes, potential, 'fromVisDataSet')
     baseQP.potential = thisPotential
