@@ -524,7 +524,15 @@ function allThreeCycles (QP) {
 }
 
 function arrayEquals (a, b) {
-  return JSON.stringify(a) == JSON.stringify(b)
+  if (a.length !== b.length) {
+    return false
+  }
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) {
+      return false
+    }
+  }
+  return true
 }
 
 function combineLikeTermsInPotential (potential) {
@@ -1150,7 +1158,6 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
   const minimalResultsByExchangeNum = {}
   const chainsByExchangeNum = {}
   const maybeMatchingPotentials = []
-  const maybeMatchingPotentialsSimple = []
   const matchingPotentials = []
   const comp = []
 
@@ -1177,7 +1184,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
     // testedPotentials.push(templateStr);
 
     var qpt = deepCopy(qp)
-    var constructedPotential = deepCopy(template).filter(t => t[0] !== 0)
+    var constructedPotential = template.filter(t => t[0] !== 0)
     qpt.potential = constructedPotential
     try {
       var exchangeNumResult = getAllMutationsForQP(qpt, expectedExchangeNum + 1)
@@ -1186,9 +1193,6 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
       if (exchangeNum === expectedExchangeNum) {
         if (quiverSetsMaybeIsomorphic(exchangeNumResult.quivers, expectedQuivers)) {
           maybeMatchingPotentials.push(constructedPotential)
-        }
-        if (quiverSetsMaybeIsomorphicSimple(exchangeNumResult.quivers, expectedQuivers)) {
-          maybeMatchingPotentialsSimple.push(constructedPotential)
         }
         /*if (quiverSetsIsomorphic(exchangeNumResult.quivers, expectedQuivers)) {
           matchingPotentials.push(constructedPotential)
@@ -1244,7 +1248,6 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
     minimalResultsByExchangeNum,
     chainsByExchangeNum,
     maybeMatchingPotentials,
-    maybeMatchingPotentialsSimple,
     matchingPotentials,
     comp
   }
@@ -1284,7 +1287,7 @@ function isPotentialSubsetOf (potA, potB) {
 function pathDerivative (thisPotential, edgeIndex, fmt = 'string') {
   if (fmt == 'string') {
     var tp = thisPotential.filter(function (tc) {
-      return tc[1].split(',').map(t => parseInt(t)).indexOf(parseInt(edgeIndex)) >= 0
+      return tc[1].split(',').indexOf(edgeIndex.toString()) >= 0
     }).map(function (termcoef) {
       const allTerms = termcoef[1].split(',').map(y => parseInt(y))
       const ati = allTerms.indexOf(edgeIndex)
