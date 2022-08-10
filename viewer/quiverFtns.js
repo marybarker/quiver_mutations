@@ -806,20 +806,20 @@ function showExchangeNumber () {
 }
 
 // https://stackoverflow.com/questions/546655/finding-all-cycles-in-a-directed-graph
-function findAllCycles (qp, maxCycleLength = Infinity) {
-  // TODO should match a "figure 8" cycle like 2,6,7,3
+function findAllCycles (qp, maxCycleLength = 10) {
   var cycles = []
 
   function collectCyles (qp, originNode, currentNode, visitedNodes, path) {
     if (path.length > maxCycleLength) {
       return
     }
-    if (visitedNodes.includes(currentNode)) {
-      if (currentNode == originNode) {
-        cycles.push(path)
-      }
-    } else {
-      for (var edgeOut of qp.arrowsWithTail[currentNode]) {
+    if (path.length > 0 && currentNode == originNode) {
+      cycles.push(path)
+    }
+    //even once we've completed a cycle, it's possible to create a longer one with a figure-8 shape
+
+    for (var edgeOut of qp.arrowsWithTail[currentNode]) {
+      if (!path.includes(edgeOut)) {
         collectCyles(qp, originNode, qp.edges[edgeOut][1], visitedNodes.concat([currentNode]), path.concat([edgeOut]))
       }
     }
@@ -1133,11 +1133,6 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
   var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp, maxCycleLength).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
 
   var testedPotentials = []
-
-  cyclesWithoutQuadratics = cyclesWithoutQuadratics.concat([
-    [2, 6, 7, 3],
-    [0, 1, 17, 16]
-  ])
 
   var potentialTemplate = cyclesWithoutQuadratics.map(cycle => {
     return [0, cycle.join(',')]
