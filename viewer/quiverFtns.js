@@ -655,36 +655,45 @@ function makeQP (es, ns, fn, p, inputType = 'fromVisDataSet') {
 }
 
 function stringifyQP (qp, includePotential = false) {
-  const qpCopy = deepCopy(qp)
-
-  if (!includePotential) {
-    delete qpCopy.potential
-  }
-
   /*
   AWT/AWH contain the same information that is already included in edges, so it doesn't need to be included
   And the sorting of edges makes the edge IDs contained in AWH/AWT incorrect, so they need to be removed
   */
-  delete qpCopy.arrowsWithHead
-  delete qpCopy.arrowsWithTail
-  delete qpCopy.loopsAt
-  delete qpCopy.canMutate
-
-  for (var key in qpCopy) {
-    if (Array.isArray(qpCopy[key])) {
-      qpCopy[key].sort(function (a, b) {
-        var as = JSON.stringify(a)
-        var bs = JSON.stringify(b)
-        if (as < bs) {
-          return -1
-        }
-        if (as > bs) {
-          return 1
-        }
-        return 0
-      })
-    }
+  const qpCopy = {
+    edges: deepCopy(qp.edges),
+    nodes: deepCopy(qp.nodes),
+    frozenNodes: deepCopy(qp.frozenNodes),
   }
+
+  if (includePotential) {
+    qpCopy.potential = deepCopy(qp.potential)
+  }
+
+  qpCopy.nodes.sort()
+  qpCopy.frozenNodes.sort()
+
+  qpCopy.edges.sort(function(a, b) {
+    if (a[0] === b[0]) {
+      return a[1] - b[1]
+    } else {
+      return a[0] - b[0]
+    }
+  })
+
+  if (qpCopy.potential) {
+    qpCopy.potential.sort(function (a, b) {
+      var as = JSON.stringify(a)
+      var bs = JSON.stringify(b)
+      if (as < bs) {
+        return -1
+      }
+      if (as > bs) {
+        return 1
+      }
+      return 0
+    })
+  }
+
   return JSON.stringify(qpCopy)
 }
 
