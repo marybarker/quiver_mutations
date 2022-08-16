@@ -1194,6 +1194,12 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
 
     var qpt = deepCopy(qp)
     var constructedPotential = template.filter(t => t[0] !== 0)
+
+    //no need to repeatedly test empty potential
+    if (constructedPotential.length === 0) {
+      continue
+    }
+
     qpt.potential = constructedPotential
     try {
       var exchangeNumResult = getAllMutationsForQP(qpt, expectedExchangeNum + 1)
