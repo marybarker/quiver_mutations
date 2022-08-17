@@ -1386,30 +1386,26 @@ function randomPotential(ns, es, coefficient_range=100) {
 
 function reduce (QP) {
   // remove extraneous commas from potential
-  var thePotential = QP.potential.map(
-    function (x) {
-      var y = x[1]
-      if (y[0] == ',') { y = y.slice(1) }
-      if (y[-1] == ',') { y = y.slice(0, -1) }
-      return [Number(x[0]), y]
-    }).filter(termcoef => (Math.abs(termcoef[0]) > 0) && (termcoef[1] != ','))
+    var thePotential = QP.potential.map(function(x) {
+      return [Number(x[0]), x[1].split(',').filter(i => i !== null).map(z => parseInt(z))]
+    })
+    .filter(termcoef => (Math.abs(termcoef[0]) > 0 && termcoef[1].length > 0))
 
   // extract the terms that show up as a singleton after taking a path derivative. (These terms are equivalent to 0)
-  var allPathDerivatives = range(0, QP.edges.length).map(e => pathDerivative(thePotential, e)).filter(pd => pd.length > 0)
+  var allPathDerivatives = range(0, QP.edges.length).map(e => pathDerivative(thePotential, e, fmt='list')).filter(pd => pd.length > 0)
   var zeroTerms = allPathDerivatives.filter(pdterm => (pdterm.length == 1)).map(pdt => pdt[0][1])
   zeroTerms = zeroTerms.filter(t => (t.length == 1)).map(t => t[0])
 
   // now remove all terms that contain an edge equivalent to 0
   if (zeroTerms.length > 0) {
     thePotential = thePotential.filter(function (termcoef) {
-      return termcoef[1].split(',').some(t => zeroTerms.indexOf(parseInt(t)) < 0)
+      return termcoef[1].some(t => zeroTerms.indexOf(t) < 0)
     })
   }
 
   function termsContainEdge (terms, edge) {
     return terms.some(x => x[1].includes(edge))
   }
-  thePotential = thePotential.map(x => [Number(x[0]), x[1].split(',').filter(y => y != null).map(z => parseInt(z))])
   var squareTerms = thePotential.filter(x => x[1].length == 2).map(y => y[1])
   var squareCoefs = thePotential.filter(x => x[1].length == 2).map(y => y[0])
   var edgesToRemove = unique(squareTerms.flat())
