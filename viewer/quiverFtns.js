@@ -1145,7 +1145,7 @@ function quiverSetsIsomorphic (setA, setB) {
   return true
 }
 
-function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], maxCycleLength = 5, approximateMaxPotentialTerms = 100, numberToTest = 5000) {
+function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], maxCycleLength = 5, minPotentialTerms=1, maxPotentialTerms = 100, numberToTest = 5000) {
   // var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
   var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp, maxCycleLength).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
 
@@ -1171,7 +1171,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
   const comp = []
 
   // limits the terms in the generated potentials to approximately this size
-  const potentialAdjustFactor = Math.min(1, approximateMaxPotentialTerms / cyclesWithoutQuadratics.length)
+  const potentialAdjustFactor = Math.min(1, maxPotentialTerms / cyclesWithoutQuadratics.length)
 
   for (var i = 0; i < numberToTest; i++) {
     var template = deepCopy(potentialTemplate)
@@ -1195,8 +1195,8 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
     var qpt = deepCopy(qp)
     var constructedPotential = template.filter(t => t[0] !== 0)
 
-    //no need to repeatedly test empty potential
-    if (constructedPotential.length === 0) {
+    if (constructedPotential.length < minPotentialTerms || constructedPotential.length > maxPotentialTerms) {
+      i--
       continue
     }
 
