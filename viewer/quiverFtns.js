@@ -564,6 +564,14 @@ function deepCopy (A) {
   return JSON.parse(JSON.stringify(A))
 }
 
+/* clones nested arrays that only contain simple objects (strings and numbers)
+A bit faster than deepCopy
+https://stackoverflow.com/a/37503916
+ */
+function simpleArrayClone (arr) {
+  return arr.map(e => Array.isArray(e) ? simpleArrayClone(e) : e);
+};
+
 function edgesOutOf (vertex, edge_list) {
   return Array.from(Array(edge_list.length).keys()).map(x => parseInt(x)).filter(x => edge_list[x][0] == vertex)
 }
@@ -624,7 +632,7 @@ function makeQP (es, ns, fn, p, inputType = 'fromVisDataSet') {
   } else {
     fns = Array.from(fn, x => parseInt(x))
     theseNodes = Array.from(ns, x => parseInt(x))
-    theseEdges = deepCopy(es.filter(x => (x != null))).map(x => [parseInt(x[0]), parseInt(x[1])])
+    theseEdges = es.filter(x => (x != null)).map(x => [parseInt(x[0]), parseInt(x[1])])
     thisPotential = p
   }
 
@@ -1535,8 +1543,8 @@ function reduce (QP) {
           termsForE = [[1, [e]]]
           altTermsForE = [[1, [e]]]
         } else {
-          reduceDict[e] = deepCopy(termsForE)
-        	    termsForE = deepCopy(altTermsForE)
+          reduceDict[e] = simpleArrayClone(termsForE)
+        	    termsForE = simpleArrayClone(altTermsForE)
         }
       } while (!foundReplacement && (ctr < edgesToRemove.length))
 	    reduceDict[e] = termsForE
@@ -1580,7 +1588,7 @@ function reduce (QP) {
               nt1[1].concat(rd[1])])
           }
         }
-        if (thisLevel.length > 0) { newTerm = deepCopy(thisLevel) }
+        if (thisLevel.length > 0) { newTerm = simpleArrayClone(thisLevel) }
       }
       wPrime.push(...newTerm)
     }
