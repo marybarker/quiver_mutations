@@ -1310,7 +1310,7 @@ function pathDerivative (thisPotential, edgeIndex, fmt = 'string') {
     })
   } else {
     var tp = thisPotential.filter(function (tc) {
-      return tc[1].map(y => parseInt(y)).indexOf(parseInt(edgeIndex)) >= 0
+      return tc[1].some(y => parseInt(y) === parseInt(edgeIndex))
     }).map(function (termcoef) {
       const allTerms = termcoef[1].map(y => parseInt(y))
       const ati = allTerms.indexOf(edgeIndex)
