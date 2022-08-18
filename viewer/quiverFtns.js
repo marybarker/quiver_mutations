@@ -1153,9 +1153,25 @@ function quiverSetsIsomorphic (setA, setB) {
   return true
 }
 
+function isLikelyTerm(qp, cycle) {
+ if (cycle.length === 3 && cycle.some(t => qp.edges[t][0] === qp.edges[t][1])) {
+    var loop = cycle.find(t => qp.edges[t][0] === qp.edges[t][1])
+    var other = cycle.find(t => qp.edges[t][0] !== qp.edges[t][1])
+    var otherNode = qp.edges[other].find(n => n !== qp.edges[loop][0])
+    return qp.canMutate[otherNode]
+ }
+ return false
+}
+
 function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], maxCycleLength = 5, minPotentialTerms=1, maxPotentialTerms = 100, numberToTest = 5000) {
   // var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
   var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp, maxCycleLength).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
+
+  var termLikeliness = cyclesWithoutQuadratics.map(t => isLikelyTerm(qp, t))
+  var likelyIndexes = termLikeliness.map((i, idx) => idx).filter(idx => termLikeliness[idx] === true)
+  var likelyCount = termLikeliness.filter(t => t === true).length
+
+  console.log(termLikeliness, likelyIndexes)
 
   var testedPotentials = []
 
@@ -1163,6 +1179,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
     return [0, cycle.join(',')]
   })
   console.log('testing with terms', cyclesWithoutQuadratics)
+  console.log('likely terms', cyclesWithoutQuadratics.filter(t => isLikelyTerm(qp, t)))
 
   const weightsToTest = [1, 2.5]
 
@@ -1177,11 +1194,37 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
   const maybeMatchingPotentials = []
   const matchingPotentials = []
   const comp = []
+  const ruleMatchPotentials = []
+  const sizeBuckets = {}
 
   // limits the terms in the generated potentials to approximately this size
-  const potentialAdjustFactor = Math.min(1, maxPotentialTerms / cyclesWithoutQuadratics.length)
 
   for (var i = 0; i < numberToTest; i++) {
+    var template = deepCopy(potentialTemplate)
+
+    var likeliesSet = 0
+
+    while (Math.random() < 0.5) {
+      var randLikely = likelyIndexes[Math.floor(Math.random() * likelyIndexes.length)]
+      template[randLikely][0] = weightsToTest[Math.floor(Math.random() * weightsToTest.length)]
+      likeliesSet++
+    }
+
+    const potentialAdjustFactor = Math.min(1, (maxPotentialTerms - likeliesSet) / cyclesWithoutQuadratics.length)
+
+    // this makes the generated potentials linearly distributed with respect to their size
+    /*var thisPotentialFactor = Math.random() * potentialAdjustFactor
+
+    const likelyFactor = Math.min(thisPotentialFactor * 10, 1)
+    const unlikelyFactor = ((thisPotentialFactor * cyclesWithoutQuadratics.length) - (likelyFactor * likelyCount)) / (cyclesWithoutQuadratics.length - likelyCount)
+
+    for (var t = 0; t < template.length; t++) {
+      if ((termLikeliness[t] && Math.random() < thisPotentialFactor * likelyFactor) || 
+         (!termLikeliness[t] && Math.random() < unlikelyFactor)) {
+        template[t][0] = weightsToTest[Math.floor(Math.random() * weightsToTest.length)]
+      }
+    }*/
+
     var template = deepCopy(potentialTemplate)
 
     // this makes the generated potentials linearly distributed with respect to their size
@@ -1208,13 +1251,24 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
       continue
     }
 
+    if (sizeBuckets[constructedPotential.length]) {
+      sizeBuckets[constructedPotential.length]++
+    } else {
+      sizeBuckets[constructedPotential.length] = 1
+    }
+
     qpt.potential = constructedPotential
     try {
       var exchangeNumResult = getAllMutationsForQP(qpt, expectedExchangeNum + 1)
       var exchangeNum = exchangeNumResult.quivers.length
 
+      if (constructedPotential.some(t => t[1] === '0,2,5') && constructedPotential.some(t => t[1] === '1,4,3') && constructedPotential.some(t => t[1] === '8,9,10') && constructedPotential.some(t => t[1] === '2,6,7,3') && constructedPotential.some(t => t[1] === '0,1,17,16') && constructedPotential.some(t => t[1] === '6,8,7')) {
+        ruleMatchPotentials.push(constructedPotential)
+      }
+
       if (exchangeNum === expectedExchangeNum) {
         if (quiverSetsMaybeIsomorphic(exchangeNumResult.quivers, expectedQuivers)) {
+          console.log('likely', JSON.stringify(constructedPotential))
           maybeMatchingPotentials.push(constructedPotential)
         }
         /*if (quiverSetsIsomorphic(exchangeNumResult.quivers, expectedQuivers)) {
@@ -1272,7 +1326,9 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
     chainsByExchangeNum,
     maybeMatchingPotentials,
     matchingPotentials,
-    comp
+    comp,
+    ruleMatchPotentials,
+    sizeBuckets
   }
 }
 
