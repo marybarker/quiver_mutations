@@ -1164,11 +1164,38 @@ function isLikelyTerm(qp, cycle) {
  return false
 }
 
+function isLikelyTerm2(qp, cycle) {
+  if (cycle.length === 4) {
+    var tails = {}
+    var heads = {}
+    cycle.forEach(function(t) {
+      const head = qp.edges[t][1]
+      const tail = qp.edges[t][0]
+      if (tails[tail]) {
+        tails[tail]++
+      } else {
+        tails[tail] = 1
+      }
+      if (heads[head]) {
+        heads[head]++
+      } else {
+        heads[head] = 1
+      }
+    })
+    for (var node in tails) {
+      if (tails[node] === 2 && heads[node] === 2 && qp.canMutate[node]) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
 function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], maxCycleLength = 5, minPotentialTerms=1, maxPotentialTerms = 100, numberToTest = 5000) {
   // var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
   var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp, maxCycleLength).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
 
-  var termLikeliness = cyclesWithoutQuadratics.map(t => isLikelyTerm(qp, t))
+  var termLikeliness = cyclesWithoutQuadratics.map(t => isLikelyTerm(qp, t) || isLikelyTerm2(qp, t))
   var likelyIndexes = termLikeliness.map((i, idx) => idx).filter(idx => termLikeliness[idx] === true)
   var likelyCount = termLikeliness.filter(t => t === true).length
 
@@ -1180,7 +1207,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
     return [0, cycle.join(',')]
   })
   console.log('testing with terms', cyclesWithoutQuadratics)
-  console.log('likely terms', cyclesWithoutQuadratics.filter(t => isLikelyTerm(qp, t)))
+  console.log('likely terms', cyclesWithoutQuadratics.filter(t => isLikelyTerm(qp, t) || isLikelyTerm2(qp, t)))
 
   const weightsToTest = [1, 2.5]
 
@@ -1210,8 +1237,14 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
       template[randLikely][0] = weightsToTest[Math.floor(Math.random() * weightsToTest.length)]
       likeliesSet++
     }*/
-    for (var li = 0; li < likelyIndexes.length; li++) {
+    /*for (var li = 0; li < likelyIndexes.length; li++) {
       if (Math.random() < Math.pow(0.5, likeliesSet + 1)) {
+        template[likelyIndexes[li]][0] = weightsToTest[Math.floor(Math.random() * weightsToTest.length)]
+        likeliesSet++
+      }
+    }*/
+    for (var li = 0; li < likelyIndexes.length; li++) {
+      if (Math.random() < (3 / likelyCount)) {
         template[likelyIndexes[li]][0] = weightsToTest[Math.floor(Math.random() * weightsToTest.length)]
         likeliesSet++
       }
@@ -1247,9 +1280,9 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
       }
     }
 
-    if (thisPotentialSize === 6 && likeliesSet === 6) {
+    /*if (thisPotentialSize === 6 && likeliesSet === 6) {
       console.log(template)
-    }
+    }*/
 
     // uncomment to skip duplicate potentials
     // var templateStr = JSON.stringify(template)
