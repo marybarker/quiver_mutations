@@ -1154,6 +1154,7 @@ function quiverSetsIsomorphic (setA, setB) {
 }
 
 function isLikelyTerm(qp, cycle) {
+  //return arrayEquals(cycle, [1,4,3])// || arrayEquals(cycle, [8,9,10]) || arrayEquals(cycle, [0,2,5]) || arrayEquals(cycle, [2,6,7,3]) || arrayEquals(cycle, [6,8,7]) || arrayEquals(cycle, [0,1,17,16])
  if (cycle.length === 3 && cycle.some(t => qp.edges[t][0] === qp.edges[t][1])) {
     var loop = cycle.find(t => qp.edges[t][0] === qp.edges[t][1])
     var other = cycle.find(t => qp.edges[t][0] !== qp.edges[t][1])
@@ -1204,13 +1205,28 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
 
     var likeliesSet = 0
 
-    while (Math.random() < 0.5) {
+    /*while (Math.random() < 0.5) {
       var randLikely = likelyIndexes[Math.floor(Math.random() * likelyIndexes.length)]
       template[randLikely][0] = weightsToTest[Math.floor(Math.random() * weightsToTest.length)]
       likeliesSet++
+    }*/
+    for (var li = 0; li < likelyIndexes.length; li++) {
+      if (Math.random() < Math.pow(0.5, likeliesSet + 1)) {
+        template[likelyIndexes[li]][0] = weightsToTest[Math.floor(Math.random() * weightsToTest.length)]
+        likeliesSet++
+      }
     }
 
-    const potentialAdjustFactor = Math.min(1, (maxPotentialTerms - likeliesSet) / cyclesWithoutQuadratics.length)
+    if (sizeBuckets[likeliesSet]) {
+      sizeBuckets[likeliesSet]++
+    } else {
+      sizeBuckets[likeliesSet] = 1
+    }
+
+
+    const thisPotentialSize = Math.round(Math.random() * maxPotentialTerms)
+
+    const thisPotentialFactor = Math.min(1, (thisPotentialSize - likeliesSet) / cyclesWithoutQuadratics.length)
 
     // this makes the generated potentials linearly distributed with respect to their size
     /*var thisPotentialFactor = Math.random() * potentialAdjustFactor
@@ -1225,15 +1241,14 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
       }
     }*/
 
-    var template = deepCopy(potentialTemplate)
-
-    // this makes the generated potentials linearly distributed with respect to their size
-    var thisPotentialFactor = Math.random() * potentialAdjustFactor
-
     for (var t = 0; t < template.length; t++) {
       if (Math.random() < thisPotentialFactor) {
         template[t][0] = weightsToTest[Math.floor(Math.random() * weightsToTest.length)]
       }
+    }
+
+    if (thisPotentialSize === 6 && likeliesSet === 6) {
+      console.log(template)
     }
 
     // uncomment to skip duplicate potentials
@@ -1251,12 +1266,12 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
       continue
     }
 
-    if (sizeBuckets[constructedPotential.length]) {
+/*     if (sizeBuckets[constructedPotential.length]) {
       sizeBuckets[constructedPotential.length]++
     } else {
       sizeBuckets[constructedPotential.length] = 1
     }
-
+ */
     qpt.potential = constructedPotential
     try {
       var exchangeNumResult = getAllMutationsForQP(qpt, expectedExchangeNum + 1)
