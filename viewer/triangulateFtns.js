@@ -1222,12 +1222,6 @@ function triangulation(R,a,b,c) {
     return [segments, coordinates];
 }
 
-function unique(L) {
-    // get unique values in list
-    var toRet = new Set(L);
-    return Array.from(toRet);
-}
-
 function updateNetworkFromGlobals() {
     // update the canvas to mirror the global edge/coordinates data
     network_nodes.clear();
