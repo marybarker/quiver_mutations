@@ -791,26 +791,25 @@ function getAllMutationsForQP (qp, maxMutationsToFind = Infinity) {
       if (!qp.canMutate[i]) {
         continue
       }
+      const currentNode = qp.nodes[i]
       if (Date.now() - beginTime > maxRuntime) {
         return
       }
       if (chains.length === maxMutationsToFind) {
         return
       }
-      var mutated = mutateQP(qp.nodes[i], deepCopy(qp))
+      var mutated = mutateQP(currentNode, qp)
+      //we don't need a deep copy here, because we don't use qp again after this point (and mutateQP shouldn't modify it anyway)
       var mutatedStr = stringifyQP(mutated)
       if (!alreadySeen.includes(mutatedStr)) {
         alreadySeen.push(mutatedStr)
-        chains.push(chain + qp.nodes[i])
-        collectMutations(mutated, chain + ',' + qp.nodes[i])
+        chains.push(chain + currentNode)
+        collectMutations(mutated, chain + ',' + currentNode)
       }
     }
   }
 
   collectMutations(qp, '')
-
-  // TODO change this - assumes stringify produces an object with the whole qp
-  alreadySeen = alreadySeen.map(qp => JSON.parse(qp))
 
   return { quivers: alreadySeen, chains, timeout: Date.now() - beginTime > maxRuntime }
 }
@@ -1315,7 +1314,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
       }
 
       if (exchangeNum === expectedExchangeNum) {
-        if (quiverSetsMaybeIsomorphic(exchangeNumResult.quivers, expectedQuivers)) {
+        if (quiverSetsMaybeIsomorphic(exchangeNumResult.quivers.map(qp => JSON.parse(qp)), expectedQuivers)) {
           console.log('likely', JSON.stringify(constructedPotential))
           maybeMatchingPotentials.push(constructedPotential)
         }
