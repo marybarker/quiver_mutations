@@ -861,7 +861,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
     tested++
     // console.log(tested);
     if (tested % 1000 === 0) {
-      console.log('%: ', tested / numberToTest, errored)
+      console.log(tested / numberToTest, '%', errored)
     }
   }
 
