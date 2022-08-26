@@ -8,13 +8,6 @@ function displayVis (qp, container) {
   var edges = new vis.DataSet()
   var frozen_nodes = new vis.DataSet()
 
-  function circleCoord (i, n) {
-    return {
-      x: 125 + (125 * Math.cos((2 * Math.PI) * (i / n))),
-      y: 125 + (125 * Math.sin((2 * Math.PI) * (i / n)))
-    }
-  }
-
   // from updateqpfromjson
   edges.add(qp.edges.map(function (x, idx) {
     const i = x.id || idx.toString()
@@ -38,13 +31,13 @@ function displayVis (qp, container) {
     })
   })
 
-  nodes.add(qp.nodes.map(function (x) {
-    const i = x.id || x
+  nodes.add(qp.nodes.map(function (x, i) {
+    const id = x.id || x
     return {
-      id: i.toString(),
-      label: i.toString(),
-      x: circleCoord(i, qp.nodes.length).x.toString(),
-      y: circleCoord(i, qp.nodes.length).y.toString()
+      id: id.toString(),
+      label: id.toString(),
+      x: (x.x || 25 * i).toString(),
+      y: (x.y || 25 * i).toString()
     }
   }))
 
@@ -139,7 +132,7 @@ function performQuiverComparison () {
 
   var toprow = document.createElement('div')
   toprow.id = 'comparison-top-row'
-  var h = document.createElement('h2')
+  var h = document.createElement('h3')
   h.textContent = 'Expected'
   toprow.appendChild(h)
   var row = document.createElement('div')
@@ -177,27 +170,41 @@ function performQuiverComparison () {
   var expectedStrings = expected.map(q => stringifyQuiver(q))
 
   potentials.sort((a, b) => a.length - b.length).slice(0, 20).forEach(function (thisPotential, i) {
-    // edges and nodes come from the global viz object, potential comes from the text input
-    var baseQP = makeQP(edges, nodes, frozen_nodes, potential, 'fromVisDataSet')
+    const base = convertQuiver(deepCopy(expected[0]))
+    var baseQP = makeQP(base.edges, base.nodes, base.frozenNodes, base.potential, 'fromThing')
+
     baseQP.potential = thisPotential
 
-    console.log(baseQP)
+    var resultQuivers = getAllMutationsForQP(baseQP).quivers.map(q => JSON.parse(q))
 
-    var resultQuivers = getAllMutationsForQP(baseQP)
-
-    resultQuivers.quivers = resultQuivers.quivers.sort((a, b) => {
+    resultQuivers = resultQuivers.sort((a, b) => {
       return expectedStrings.indexOf(stringifyQuiver(a)) - expectedStrings.indexOf(stringifyQuiver(b))
     })
 
-    console.log(expectedStrings, resultQuivers.quivers.map(q => stringifyQuiver(q)))
+    resultQuivers = resultQuivers.map(function (resQ) {
+      const expectedBase = deepCopy(expected[0])
+      expectedBase.edges = resQ.edges.map(function (edg, i) {
+        return {
+          id: i.toString(),
+          to: edg[1].toString(),
+          from: edg[0].toString(),
+          arrows: 'to',
+          title: 'edge ' + i.toString()
+        }
+      })
+      return expectedBase
+    })
 
-    var h = document.createElement('h2')
+    console.log(expectedStrings, resultQuivers.map(q => stringifyQuiver(q)))
+
+    console.log(resultQuivers, expected[0])
+
+    var h = document.createElement('h3')
     h.textContent = i + ' - ' + JSON.stringify(thisPotential)
     comparisonContainer.appendChild(h)
     var row = document.createElement('div')
     row.className = 'comp-row'
-    console.log('found', resultQuivers.quivers.length)
-    resultQuivers.quivers.forEach(function (qp) {
+    resultQuivers.forEach(function (qp) {
       console.log(thisPotential, qp)
       var container = document.createElement('div')
       container.className = 'comp-container'
