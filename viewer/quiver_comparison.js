@@ -54,7 +54,7 @@ function displayVis (qp, container) {
   }
   var options = {
     clickToUse: true,
-    interaction: { hover: true },
+    interaction: { hover: true, multiselect: true },
     nodes: {
       borderWidth: 1,
       size: 45,
@@ -67,7 +67,7 @@ function displayVis (qp, container) {
         size: 11,
         face: 'arial'
       },
- 	   physics: { enabled: false }
+ 	   physics: false
     },
     edges: {
       arrows: {
@@ -84,13 +84,10 @@ function displayVis (qp, container) {
         face: 'arial',
         background: 'none',
         strokeWidth: 5, // px
-        strokeColor: '#ffffff',
-        align: 'vertical'
+        strokeColor: '#ffffff'
       }
  	   // physics: {enabled:true},
-    },
-    interaction: { multiselect: true },
-    navigation: true
+    }
   }
   var network = new vis.Network(container, data, options)
 }
@@ -127,8 +124,6 @@ function performQuiverComparison () {
 
   var expected = JSON.parse(comparisonExpected.value)
   var potentials = JSON.parse(comparisonPotentials.value)
-
-  console.log(expected, potentials)
 
   var toprow = document.createElement('div')
   toprow.id = 'comparison-top-row'
@@ -195,9 +190,7 @@ function performQuiverComparison () {
       return expectedBase
     })
 
-    console.log(expectedStrings, resultQuivers.map(q => stringifyQuiver(q)))
-
-    console.log(resultQuivers, expected[0])
+    console.log(expectedStrings, thisPotential, resultQuivers.map(q => stringifyQuiver(q)))
 
     var h = document.createElement('h3')
     h.textContent = i + ' - ' + JSON.stringify(thisPotential)
@@ -205,7 +198,6 @@ function performQuiverComparison () {
     var row = document.createElement('div')
     row.className = 'comp-row'
     resultQuivers.forEach(function (qp) {
-      console.log(thisPotential, qp)
       var container = document.createElement('div')
       container.className = 'comp-container'
       displayVis(qp, container)

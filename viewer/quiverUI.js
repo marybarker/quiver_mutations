@@ -432,7 +432,7 @@ function draw () {
     edges: edges
   }
   var options = {
-    interaction: { hover: true },
+    interaction: { hover: true, multiselect: true },
     nodes: {
       borderWidth: 1,
       size: 45,
@@ -445,7 +445,7 @@ function draw () {
         size: 11,
         face: 'arial'
       },
-      physics: { enabled: false }
+      physics: false
     },
     edges: {
       arrows: {
@@ -462,13 +462,10 @@ function draw () {
         face: 'arial',
         background: 'none',
         strokeWidth: 5, // px
-        strokeColor: '#ffffff',
-        align: 'vertical'
+        strokeColor: '#ffffff'
       }
       // physics: {enabled:true},
-    },
-    interaction: { multiselect: true },
-    navigation: true
+    }
   }
   network = new vis.Network(container, data, options)
   // network.setOptions({physics:{enabled:false}});
