@@ -3,6 +3,28 @@ var comparisonContainer = document.getElementById('quiver-comparison-container')
 var comparisonExpected = document.getElementById('comparison-expected-input')
 var comparisonPotentials = document.getElementById('comparison-potentials-input')
 
+/*
+The array of all possible quivers has inconsistent node IDs
+This uses the position info to remap them so the node IDs all match those of the first quiver
+*/
+function remapQPNodes (allQPSArr) {
+  return deepCopy(allQPSArr).map(function (qp, idx) {
+    if (idx !== 0) {
+      var oldNewMap = {}
+      qp.nodes.forEach(function (node) {
+        const newId = allQPSArr[0].nodes.find(n => Math.abs(n.x - node.x) < 0.000001 && Math.abs(n.y - node.y) < 0.000001).id
+        oldNewMap[node.id] = newId
+        node.id = newId
+      })
+      qp.edges.forEach(function (edge, idx) {
+        edge.from = oldNewMap[edge.from]
+        edge.to = oldNewMap[edge.to]
+      })
+    }
+    return qp
+  })
+}
+
 function displayVis (qp, container) {
   var nodes = new vis.DataSet()
   var edges = new vis.DataSet()
@@ -122,7 +144,7 @@ function performQuiverComparison () {
     return
   }
 
-  var expected = JSON.parse(comparisonExpected.value)
+  var expected = remapQPNodes(JSON.parse(comparisonExpected.value))
   var potentials = JSON.parse(comparisonPotentials.value)
 
   var toprow = document.createElement('div')
@@ -190,10 +212,19 @@ function performQuiverComparison () {
       return expectedBase
     })
 
-    console.log(expectedStrings, thisPotential, resultQuivers.map(q => stringifyQuiver(q)))
+    console.log(expected, thisPotential, resultQuivers)
+
+    // is this an exact match?
+
+    const expectedMatchStrings = deepCopy(expected).map(q => stringifyQP(convertQuiver(q)))
+    const actualMatchStrings = deepCopy(resultQuivers).map(q => stringifyQP(convertQuiver(q)))
+
+    const exactMatch = arrayEquals(expectedMatchStrings.sort(), actualMatchStrings.sort())
+
+    console.log(expectedMatchStrings.sort(), actualMatchStrings.sort())
 
     var h = document.createElement('h3')
-    h.textContent = i + ' - ' + JSON.stringify(thisPotential)
+    h.textContent = (exactMatch ? '[exact match] ' : '') + i + ' - ' + JSON.stringify(thisPotential)
     comparisonContainer.appendChild(h)
     var row = document.createElement('div')
     row.className = 'comp-row'
