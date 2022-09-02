@@ -665,15 +665,17 @@ function quiverSetsIsomorphic (setA, setB) {
 function isLikelyTerm(qp, cycle) {
   //return arrayEquals(cycle, [1,4,3])// || arrayEquals(cycle, [8,9,10]) || arrayEquals(cycle, [0,2,5]) || arrayEquals(cycle, [2,6,7,3]) || arrayEquals(cycle, [6,8,7]) || arrayEquals(cycle, [0,1,17,16])
  if (cycle.length === 3 && cycle.some(t => qp.edges[t][0] === qp.edges[t][1])) {
-    var loop = cycle.find(t => qp.edges[t][0] === qp.edges[t][1])
-    var other = cycle.find(t => qp.edges[t][0] !== qp.edges[t][1])
-    var otherNode = qp.edges[other].find(n => n !== qp.edges[loop][0])
-    return qp.canMutate[otherNode]
+    var loops = cycle.filter(t => qp.edges[t][0] === qp.edges[t][1])
+    return loops.length === 1
  }
  return false
 }
 
 function isLikelyTerm2(qp, cycle) {
+  return cycle.length === 3 && !cycle.find(t => qp.edges[t][0] === qp.edges[t][1])
+}
+
+function isLikelyTerm3(qp, cycle) {
   if (cycle.length === 4) {
     var tails = {}
     var heads = {}
@@ -692,7 +694,7 @@ function isLikelyTerm2(qp, cycle) {
       }
     })
     for (var node in tails) {
-      if (tails[node] === 2 && heads[node] === 2 && qp.canMutate[node]) {
+      if (tails[node] === 2 && heads[node] === 2) {
         return true
       }
     }
@@ -700,15 +702,25 @@ function isLikelyTerm2(qp, cycle) {
   return false
 }
 
-function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], maxCycleLength = 5, minPotentialTerms=1, maxPotentialTerms = 100, numberToTest = 5000) {
+function cycleIncludesNode(qp, cycle, node) {
+  return cycle.some(t => qp.edges[t].includes(node))
+}
+
+function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], maxCycleLength = 5, minPotentialTerms=1, maxPotentialTerms = 100, requiredTerms = [], numberToTest = 5000) {
   // var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
   var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp, maxCycleLength).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
 
-  var termLikeliness = cyclesWithoutQuadratics.map(t => isLikelyTerm(qp, t) || isLikelyTerm2(qp, t))
-  var likelyIndexes = termLikeliness.map((i, idx) => idx).filter(idx => termLikeliness[idx] === true)
-  var likelyCount = termLikeliness.filter(t => t === true).length
+  cyclesWithoutQuadratics = cyclesWithoutQuadratics.filter(c => isLikelyTerm(qp, c) || isLikelyTerm2(qp, c) || isLikelyTerm3(qp, c))
 
-  console.log(termLikeliness, likelyIndexes)
+  //specific to 1,2,8
+  cyclesWithoutQuadratics = cyclesWithoutQuadratics.filter(cycle => [12, 13, 14, 8].some(node => cycleIncludesNode(qp, cycle, node)))
+
+  /*var termLikeliness = cyclesWithoutQuadratics.map(t => isLikelyTerm(qp, t) || isLikelyTerm2(qp, t))
+  var likelyIndexes = termLikeliness.map((i, idx) => idx).filter(idx => termLikeliness[idx] === true)
+  var likelyCount = termLikeliness.filter(t => t === true).length*/
+  var requiredIndexes = cyclesWithoutQuadratics.map((cycle, idx) => requiredTerms.some(req => arrayEquals(cycleOrder(cycle), cycleOrder(req))) ? idx : undefined).filter(i => i !== undefined)
+
+  console.log(cyclesWithoutQuadratics, requiredIndexes)
 
   var testedPotentials = []
 
@@ -716,7 +728,6 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
     return [0, cycle.join(',')]
   })
   console.log('testing with terms', cyclesWithoutQuadratics)
-  console.log('likely terms', cyclesWithoutQuadratics.filter(t => isLikelyTerm(qp, t) || isLikelyTerm2(qp, t)))
 
   const weightsToTest = [1, 2.5]
 
@@ -739,7 +750,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
   for (var i = 0; i < numberToTest; i++) {
     var template = deepCopy(potentialTemplate)
 
-    var likeliesSet = 0
+    var presetTerms = 0
 
     /*while (Math.random() < 0.5) {
       var randLikely = likelyIndexes[Math.floor(Math.random() * likelyIndexes.length)]
@@ -752,23 +763,24 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
         likeliesSet++
       }
     }*/
-    for (var li = 0; li < likelyIndexes.length; li++) {
+    for (var li = 0; li < requiredIndexes.length; li++) {
+      //if (Math.random() < 0.9) {
+       // template[requiredIndexes[li]][0] = weightsToTest[Math.floor(Math.random() * weightsToTest.length)]
+       template[requiredIndexes[li]][0] = 1
+        presetTerms++
+     // }
+    }
+
+  /*  for (var li = 0; li < likelyIndexes.length; li++) {
       if (Math.random() < (2 / likelyCount)) {
         template[likelyIndexes[li]][0] = weightsToTest[Math.floor(Math.random() * weightsToTest.length)]
-        likeliesSet++
+        presetTerms++
       }
-    }
+    }*/
 
-    if (sizeBuckets[likeliesSet]) {
-      sizeBuckets[likeliesSet]++
-    } else {
-      sizeBuckets[likeliesSet] = 1
-    }
+    const thisPotentialSize = presetTerms + Math.round(Math.random() * (maxPotentialTerms - presetTerms))
 
-
-    const thisPotentialSize = Math.round(Math.random() * maxPotentialTerms)
-
-    const thisPotentialFactor = Math.min(1, (thisPotentialSize - likeliesSet) / cyclesWithoutQuadratics.length)
+    const thisPotentialFactor = Math.min(1, (thisPotentialSize - presetTerms) / cyclesWithoutQuadratics.length)
 
     // this makes the generated potentials linearly distributed with respect to their size
     /*var thisPotentialFactor = Math.random() * potentialAdjustFactor
@@ -806,6 +818,12 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
     if (constructedPotential.length < minPotentialTerms || constructedPotential.length > maxPotentialTerms) {
       i--
       continue
+    }
+
+    if (sizeBuckets[constructedPotential.length]) {
+      sizeBuckets[constructedPotential.length]++
+    } else {
+      sizeBuckets[constructedPotential.length] = 1
     }
 
 /*     if (sizeBuckets[constructedPotential.length]) {
@@ -853,7 +871,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
         minimalResultsByExchangeNum[exchangeNum].push(constructedPotential)
       }
     } catch (e) {
-         console.log(e)
+      //   console.log(e)
       errored++
       //  erroredResults.push(constructedPotential)
     }
