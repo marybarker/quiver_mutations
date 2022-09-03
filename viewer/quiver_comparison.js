@@ -163,27 +163,6 @@ function performQuiverComparison () {
   toprow.appendChild(row)
   comparisonContainer.appendChild(toprow)
 
-  function convertQuiver (q) {
-    for (var i = 0; i < q.edges.length; i++) {
-      if (!(q.edges[i] instanceof Array)) {
-        q.edges[i] = [parseInt(q.edges[i].from), parseInt(q.edges[i].to)]
-      }
-    }
-    for (var i = 0; i < q.nodes.length; i++) {
-      if (q.nodes[i] instanceof Object) {
-        q.nodes[i] = parseInt(q.nodes[i].id)
-      }
-    }
-
-    for (var i = 0; i < q.frozenNodes.length; i++) {
-      if (q.frozenNodes[i] instanceof Object) {
-        q.frozenNodes[i] = parseInt(q.frozenNodes[i].id)
-      }
-    }
-
-    return q
-  }
-
   var expectedStrings = expected.map(q => stringifyQuiver(q))
 
   potentials.sort((a, b) => a.length - b.length).slice(0, 20).forEach(function (thisPotential, i) {

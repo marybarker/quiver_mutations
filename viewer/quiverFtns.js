@@ -607,6 +607,27 @@ function quiverSetsMaybeIsomorphic (setA, setB) {
   return true
 }
 
+function convertQuiver (q) {
+  for (var i = 0; i < q.edges.length; i++) {
+    if (!(q.edges[i] instanceof Array)) {
+      q.edges[i] = [parseInt(q.edges[i].from), parseInt(q.edges[i].to)]
+    }
+  }
+  for (var i = 0; i < q.nodes.length; i++) {
+    if (q.nodes[i] instanceof Object) {
+      q.nodes[i] = parseInt(q.nodes[i].id)
+    }
+  }
+
+  for (var i = 0; i < q.frozenNodes.length; i++) {
+    if (q.frozenNodes[i] instanceof Object) {
+      q.frozenNodes[i] = parseInt(q.frozenNodes[i].id)
+    }
+  }
+
+  return q
+}
+
 function quiverSetsIsomorphic (setA, setB) {
 
   if (!quiverSetsMaybeIsomorphicSimple(setA, setB)) {
@@ -619,19 +640,6 @@ function quiverSetsIsomorphic (setA, setB) {
 
   var setAClone = deepCopy(setA)
   var setBClone = deepCopy(setB)
-
-  function convertQuiver(q) {
-    for (var i = 0; i < q.edges.length; i++) {
-      if (!(q.edges[i] instanceof Array)) {
-        q.edges[i] = [parseInt(q.edges[i].from), parseInt(q.edges[i].to)]
-      }
-    }
-    for (var i = 0; i < q.nodes.length; i++) {
-      if (q.nodes[i] instanceof Object) {
-        q.nodes[i] = parseInt(q.nodes[i].id)
-      }
-    }
-  }
 
   for (var i = 0; i < setAClone.length; i++) {
     convertQuiver(setAClone[i])
@@ -905,6 +913,262 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
     ruleMatchPotentials,
     sizeBuckets
   }
+}
+
+function diffQPEdges(qpA, qpB) {
+  var notInA = deepCopy(qpB.edges)
+  var notInB = deepCopy(qpA.edges)
+
+  for (var i = 0; i < qpA.edges.length; i++) {
+    var idx = notInA.findIndex(edg => arrayEquals(edg, qpA.edges[i]))
+    if (idx !== -1) {
+      notInA.splice(idx, 1)
+    }
+  }
+
+  for (var i = 0; i < qpB.edges.length; i++) {
+    var idx = notInB.findIndex(edg => arrayEquals(edg, qpB.edges[i]))
+    if (idx !== -1) {
+      notInB.splice(idx, 1)
+    }
+  }
+
+  return {notInA, notInB}
+}
+
+function eliminateType1(oldQP, extraEdges, lastMut) {
+  /*
+  case 1: a pair of shortcut edges between two nodes adjacent to the mutated one */
+
+  var adjacentNodes = oldQP.edges.filter(edg => edg[0] === lastMut || edg[1] === lastMut).map(edg => edg[0] === lastMut ? edg[1] : edg[0])
+  adjacentNodes = adjacentNodes.filter((i, idx) => adjacentNodes.indexOf(i) === idx)
+  
+
+  var adjacentPairs = permutations(adjacentNodes).map(p => p.slice(0, 2))
+  //this is inefficient (includes duplicate pairs) but works for now as long as node counts are small
+
+  //remove adjacent node pairs that connect to each other - that is type 2
+
+  adjacentPairs = adjacentPairs.filter(function(pair) {
+    return !oldQP.edges.some(edg => arrayEquals(edg, pair))
+  })
+
+  for(var i = 0; i < adjacentPairs.length; i++) {
+    var thisPair = adjacentPairs[i]
+    var idx1 = extraEdges.findIndex(edg => arrayEquals(edg, thisPair))
+    var idx2 =  extraEdges.findIndex(edg => arrayEquals(edg, deepCopy(thisPair).reverse()))
+    if (idx1 !== -1 && idx2 !== -1) {
+      extraEdges.splice(idx1, 1)
+      //need to recalc because the first splice changed the index
+      idx2 =  extraEdges.findIndex(edg => arrayEquals(edg, deepCopy(thisPair).reverse()))
+      extraEdges.splice(idx2, 1)
+      return [
+          [
+          1,
+          [
+            [thisPair[0], lastMut],
+            [lastMut, thisPair[1]],
+            [thisPair[1], lastMut],
+            [lastMut, thisPair[0]]
+          ].map(function(edg) {
+              return oldQP.edges.findIndex(t => arrayEquals(t, edg))
+            }).join(",")
+        ]
+    ]
+    }
+  }
+}
+
+function eliminateType2(oldQP, extraEdges, lastMut) {
+  /*
+  case 2: two adjacent nodes that are connected and shouldn't be
+   */
+
+  var adjacentNodes = oldQP.edges.filter(edg => edg[0] === lastMut || edg[1] === lastMut).map(edg => edg[0] === lastMut ? edg[1] : edg[0])
+  adjacentNodes = adjacentNodes.filter((i, idx) => adjacentNodes.indexOf(i) === idx)
+  
+  var adjacentPairs = permutations(adjacentNodes).map(p => p.slice(0, 2))
+  //this is inefficient (includes duplicate pairs) but works for now as long as node counts are small
+
+  //remove duplicates
+  adjacentPairs = adjacentPairs.filter((pair, i) => adjacentPairs.findIndex(p => arrayEquals(p, pair)) === i)
+
+  //the pair connects to each other with extra edges
+
+  for (var p = 0; p < adjacentPairs.length; p++) {
+    var pair = adjacentPairs[p]
+    if (extraEdges.filter(edg => arrayEquals(edg, pair)).length === 2
+    && extraEdges.filter(edg => arrayEquals(edg, deepCopy(pair).reverse())).length === 2) {
+      //we found something
+      //remove the edges
+      for (var i = 0; i < extraEdges.length; i++) {
+        if (arrayEquals(extraEdges[i], pair) || arrayEquals(extraEdges[i], deepCopy(pair).reverse())) {
+          extraEdges.splice(i, 1);
+          i--;
+        }
+      }
+      return [
+        [
+          1,
+          [
+            [lastMut, pair[0]],
+            [pair[0], pair[1]],
+            [pair[1], lastMut]
+          ].map(function(edg) {
+            return oldQP.edges.findIndex(t => arrayEquals(t, edg))
+          }).join(",")
+        ],
+        [
+          1,
+          [
+            [lastMut, pair[1]],
+            [pair[1], pair[0]],
+            [pair[0], lastMut]
+          ].map(function(edg) {
+            return oldQP.edges.findIndex(t => arrayEquals(t, edg))
+          }).join(",")
+        ]
+    ]
+    }
+  }
+}
+
+function eliminateType3(oldQP, extraEdges, lastMut) {
+  //double self loop adjacent
+  var adjacentNodes = oldQP.edges.filter(edg => edg[0] === lastMut || edg[1] === lastMut).map(edg => edg[0] === lastMut ? edg[1] : edg[0])
+  adjacentNodes = adjacentNodes.filter((i, idx) => adjacentNodes.indexOf(i) === idx)
+
+  var adjacentSelfLoops = extraEdges.filter(edg => edg[0] === edg[1] && adjacentNodes.includes(edg[0]))
+
+  for(var i = 0; i < adjacentNodes.length; i++) {
+    if (adjacentSelfLoops.filter(edg => edg[0] === adjacentNodes[i]).length === 2) {
+      //remove two self loops
+      extraEdges.splice(extraEdges.findIndex(edg => edg[0] === adjacentNodes[i] && edg[1] === adjacentNodes[i]), 1)
+      extraEdges.splice(extraEdges.findIndex(edg => edg[0] === adjacentNodes[i] && edg[1] === adjacentNodes[i]), 1)
+
+      return [
+        [
+          1, 
+          [
+            [lastMut, adjacentNodes[i]],
+            [adjacentNodes[i], adjacentNodes[i]],
+            [adjacentNodes[i], lastMut]
+          ].map(function(edg) {
+            return oldQP.edges.findIndex(t => arrayEquals(t, edg))
+          }).join(",")
+        ]
+      ]
+    }
+  }
+}
+
+function potentialStructuredSearch(expectedQuivers, mutationSequences) {
+  if (mutationSequences[0].length !== 0) {
+    throw new Error("first QP must be the base")
+  }
+
+  expectedQuivers = remapQPNodes(expectedQuivers).map(q => convertQuiver(q)).map(base => makeQP(base.edges, base.nodes, base.frozenNodes, base.potential, 'fromThing'))
+
+  var expectedWithSequences = expectedQuivers.slice(1).map((q, i) => {return {q, seq: mutationSequences[i + 1]}})
+
+  expectedWithSequences = expectedWithSequences.sort(function(a, b) {
+    return a.seq.length - b.seq.length
+  })
+
+  console.log(expectedWithSequences)
+
+  //build a tree of the mutation sequences
+
+  /*var mutationTree = {}
+  mutationSequences.forEach(function(seq) {
+    var ref = mutationTree
+    seq.forEach(function(node) {
+      if (!ref[node]) {
+        ref[node] = {}
+      }
+      ref = ref[node]
+    })
+    ref.done = true
+  })*/
+
+  var existingTerms = []
+
+  expectedWithSequences.forEach(function(obj) {
+     if (obj.seq.length > 1) {
+      return
+    }
+    var qp = deepCopy(expectedQuivers[0])
+    var lastQP = qp
+    qp.potential = deepCopy(existingTerms)
+    console.log(qp.potential)
+
+    obj.seq.forEach(function(node) {
+      console.log('mutate', obj.seq, node)
+      lastQP = qp
+      qp = mutateQP(node, deepCopy(qp))
+    })
+
+    //now find the extra edges
+
+    var diff = diffQPEdges(qp, obj.q)
+
+    //now add terms
+
+    var extraEdges = diff.notInB
+    console.log('begin with', deepCopy(existingTerms))
+
+    var newTerms = []
+
+    while (extraEdges.length > 0) {
+      console.log('at iter', deepCopy(extraEdges))
+      var t1 = eliminateType1(lastQP, extraEdges, obj.seq[obj.seq.length - 1])
+
+      if (t1) {
+        console.log('type 1 elimination', t1)
+        newTerms = newTerms.concat(t1)
+        continue
+      }
+
+      var t2 = eliminateType2(lastQP, extraEdges, obj.seq[obj.seq.length - 1])
+
+      if (t2) {
+        console.log('type 2 elimination', t2)
+        newTerms = newTerms.concat(t2)
+        continue
+      }
+
+      var t3 = eliminateType3(lastQP, extraEdges, obj.seq[obj.seq.length - 1])
+
+      if (t3) {
+        console.log('type 3 elimination', t3)
+        newTerms = newTerms.concat(t3)
+        continue
+      }
+
+      //we weren't able to eliminate anything
+      throw new Error("elimination failed")
+    }
+
+    console.log("ended with", deepCopy(existingTerms))
+
+    //now mutate the lastQP with the terms back to base
+
+    var newQP = deepCopy(lastQP)
+    newQP.potential = deepCopy(lastQP.potential).concat(newTerms)
+
+    obj.seq.slice(0, -1).reverse().forEach(function(node) {
+      console.log('mutate back', node)
+      newQP = mutateQP(node, newQP)
+    })
+
+    console.log('done', obj.seq, newQP)
+
+    //now mutate back to base
+
+    //now we have a new potential
+
+    existingTerms = deepCopy(newQP.potential)
+  })
 }
 
 function potentialIncludesEveryVertex (qp, potential) {
