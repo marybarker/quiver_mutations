@@ -117,7 +117,11 @@ function displayVis (qp, container) {
 function performQuiverComparison () {
   // string representing the edge counts at each node
   function stringifyQuiver (quiver) {
+    // need to count loops and regular edges separately
+    // otherwise, two nodes A and B, both with self loops are counted the same as having two edges connecting A and B
     var edgeCounts = new Array(quiver.nodes.length)
+    var loopCounts = new Array(quiver.nodes.length).fill(0)
+
     // can't use array.fill here because it doesn't create unique array instances
     for (var i = 0; i < edgeCounts.length; i++) {
       edgeCounts[i] = [0, 0]
@@ -125,15 +129,23 @@ function performQuiverComparison () {
 
     quiver.edges.forEach(function (e) {
       if (Object.hasOwn(e, 'from')) {
-        edgeCounts[parseInt(e.from)][0]++
-        edgeCounts[parseInt(e.to)][1]++
+        if (e.from === e.to) {
+          loopCounts[e.from]++
+        } else {
+          edgeCounts[parseInt(e.from)][0]++
+          edgeCounts[parseInt(e.to)][1]++
+        }
       } else {
-        edgeCounts[parseInt(e[0])][0]++
-        edgeCounts[parseInt(e[1])][1]++
+        if (e[0] === e[1]) {
+          loopCounts[e[0]]++
+        } else {
+          edgeCounts[parseInt(e[0])][0]++
+          edgeCounts[parseInt(e[1])][1]++
+        }
       }
     })
 
-    var stringEdges = edgeCounts.map(v => v[0] + '.' + v[1])
+    var stringEdges = edgeCounts.map(v => v[0] + '.' + v[1]).concat(loopCounts)
 
     return stringEdges.sort().join(',')
   }
@@ -173,10 +185,6 @@ function performQuiverComparison () {
 
     var resultQuivers = getAllMutationsForQP(baseQP).quivers.map(q => JSON.parse(q))
 
-    resultQuivers = resultQuivers.sort((a, b) => {
-      return expectedStrings.indexOf(stringifyQuiver(a)) - expectedStrings.indexOf(stringifyQuiver(b))
-    })
-
     resultQuivers = resultQuivers.map(function (resQ) {
       const expectedBase = deepCopy(expected[0])
       expectedBase.edges = resQ.edges.map(function (edg, i) {
@@ -191,7 +199,9 @@ function performQuiverComparison () {
       return expectedBase
     })
 
-    console.log(expected, thisPotential, resultQuivers)
+    resultQuivers = resultQuivers.sort((a, b) => {
+      return expectedStrings.indexOf(stringifyQuiver(a)) - expectedStrings.indexOf(stringifyQuiver(b))
+    })
 
     // is this an exact match?
 
