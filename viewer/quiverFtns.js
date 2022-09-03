@@ -1094,9 +1094,6 @@ function potentialStructuredSearch(expectedQuivers, mutationSequences) {
   var existingTerms = []
 
   expectedWithSequences.forEach(function(obj) {
-     if (obj.seq.length > 1) {
-      return
-    }
     var qp = deepCopy(expectedQuivers[0])
     var lastQP = qp
     qp.potential = deepCopy(existingTerms)
@@ -1149,7 +1146,7 @@ function potentialStructuredSearch(expectedQuivers, mutationSequences) {
       throw new Error("elimination failed")
     }
 
-    console.log("ended with", deepCopy(existingTerms))
+    console.log("ended with", deepCopy(existingTerms), deepCopy(newTerms))
 
     //now mutate the lastQP with the terms back to base
 
@@ -1166,9 +1163,26 @@ function potentialStructuredSearch(expectedQuivers, mutationSequences) {
     //now mutate back to base
 
     //now we have a new potential
+    //remap the edge IDs back to original
 
-    existingTerms = deepCopy(newQP.potential)
+    var remappedPotential = newQP.potential.map(function(term) {
+      var newTerm = term[1].split(",").map(function(edg) {
+        var oldEdg = newQP.edges[edg];
+        var newEdg = expectedQuivers[0].edges.findIndex(n => arrayEquals(n, oldEdg))
+        return newEdg
+      }).join(",")
+      return [
+        term[0],
+        newTerm
+      ]
+    })
+
+    console.log(deepCopy(newQP.potential), deepCopy(remappedPotential))
+
+    existingTerms = deepCopy(remappedPotential)
   })
+
+  console.log('final result', existingTerms)
 }
 
 function potentialIncludesEveryVertex (qp, potential) {
