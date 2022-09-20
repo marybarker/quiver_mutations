@@ -3,6 +3,41 @@ var comparisonContainer = document.getElementById('quiver-comparison-container')
 var comparisonExpected = document.getElementById('comparison-expected-input')
 var comparisonPotentials = document.getElementById('comparison-potentials-input')
 
+// string representing the edge counts at each node
+function stringifyQuiverForComparison (quiver) {
+  // need to count loops and regular edges separately
+  // otherwise, two nodes A and B, both with self loops are counted the same as having two edges connecting A and B
+  var edgeCounts = new Array(quiver.nodes.length)
+  var loopCounts = new Array(quiver.nodes.length).fill(0)
+
+  // can't use array.fill here because it doesn't create unique array instances
+  for (var i = 0; i < edgeCounts.length; i++) {
+    edgeCounts[i] = [0, 0]
+  }
+
+  quiver.edges.forEach(function (e) {
+    if (Object.hasOwn(e, 'from')) {
+      if (e.from === e.to) {
+        loopCounts[e.from]++
+      } else {
+        edgeCounts[parseInt(e.from)][0]++
+        edgeCounts[parseInt(e.to)][1]++
+      }
+    } else {
+      if (e[0] === e[1]) {
+        loopCounts[e[0]]++
+      } else {
+        edgeCounts[parseInt(e[0])][0]++
+        edgeCounts[parseInt(e[1])][1]++
+      }
+    }
+  })
+
+  var stringEdges = edgeCounts.map(v => v[0] + '.' + v[1]).concat(loopCounts)
+
+  return stringEdges.sort().join(',')
+}
+
 /*
 The array of all possible quivers has inconsistent node IDs
 This uses the position info to remap them so the node IDs all match those of the first quiver
@@ -114,42 +149,61 @@ function displayVis (qp, container) {
   var network = new vis.Network(container, data, options)
 }
 
-function performQuiverComparison () {
-  // string representing the edge counts at each node
-  function stringifyQuiver (quiver) {
-    // need to count loops and regular edges separately
-    // otherwise, two nodes A and B, both with self loops are counted the same as having two edges connecting A and B
-    var edgeCounts = new Array(quiver.nodes.length)
-    var loopCounts = new Array(quiver.nodes.length).fill(0)
-
-    // can't use array.fill here because it doesn't create unique array instances
-    for (var i = 0; i < edgeCounts.length; i++) {
-      edgeCounts[i] = [0, 0]
-    }
-
-    quiver.edges.forEach(function (e) {
-      if (Object.hasOwn(e, 'from')) {
-        if (e.from === e.to) {
-          loopCounts[e.from]++
-        } else {
-          edgeCounts[parseInt(e.from)][0]++
-          edgeCounts[parseInt(e.to)][1]++
-        }
-      } else {
-        if (e[0] === e[1]) {
-          loopCounts[e[0]]++
-        } else {
-          edgeCounts[parseInt(e[0])][0]++
-          edgeCounts[parseInt(e[1])][1]++
-        }
-      }
-    })
-
-    var stringEdges = edgeCounts.map(v => v[0] + '.' + v[1]).concat(loopCounts)
-
-    return stringEdges.sort().join(',')
+function performMinimalAnalysis (potential, expected) {
+  // assume the full potential is an exact match already
+  var results = {
+    stillCorrect: 0,
+    sameExchangeNumDifferentQuivers: 0,
+    differentExchangeNum: 0
   }
 
+  var expectedStrings = expected.map(q => stringifyQuiverForComparison(q))
+
+  potential.forEach(function (termToRemove, idxToRemove) {
+    var potentialWithoutTerm = potential.filter((term, idx) => idx !== idxToRemove)
+
+    const base = convertQuiver(deepCopy(expected[0]))
+    var baseQP = makeQP(base.edges, base.nodes, base.frozenNodes, base.potential, 'fromThing')
+
+    baseQP.potential = potentialWithoutTerm
+
+    var resultQuivers = getAllMutationsForQP(baseQP).quivers.map(q => JSON.parse(q))
+
+    resultQuivers = resultQuivers.map(function (resQ) {
+      const expectedBase = deepCopy(expected[0])
+      expectedBase.edges = resQ.edges.map(function (edg, i) {
+        return {
+          id: i.toString(),
+          to: edg[1].toString(),
+          from: edg[0].toString(),
+          arrows: 'to',
+          title: 'edge ' + i.toString()
+        }
+      })
+      return expectedBase
+    })
+
+    resultQuivers = resultQuivers.sort((a, b) => {
+      return expectedStrings.indexOf(stringifyQuiverForComparison(a)) - expectedStrings.indexOf(stringifyQuiverForComparison(b))
+    })
+
+    const expectedMatchStrings = deepCopy(expected).map(q => stringifyQP(convertQuiver(q)))
+    const actualMatchStrings = deepCopy(resultQuivers).map(q => stringifyQP(convertQuiver(q)))
+
+    const exactMatch = arrayEquals(expectedMatchStrings.sort(), actualMatchStrings.sort())
+
+    if (exactMatch) {
+      results.stillCorrect++
+    } else if (expectedMatchStrings.length === actualMatchStrings.length) {
+      results.sameExchangeNumDifferentQuivers++
+    } else {
+      results.differentExchangeNum++
+    }
+  })
+  return 'Removing one term at a time: ' + JSON.stringify(results)
+}
+
+function performQuiverComparison () {
   comparisonContainer.innerHTML = ''
 
   if (!comparisonExpected.value || !comparisonPotentials.value) {
@@ -175,7 +229,7 @@ function performQuiverComparison () {
   toprow.appendChild(row)
   comparisonContainer.appendChild(toprow)
 
-  var expectedStrings = expected.map(q => stringifyQuiver(q))
+  var expectedStrings = expected.map(q => stringifyQuiverForComparison(q))
 
   potentials.sort((a, b) => a.length - b.length).slice(0, 20).forEach(function (thisPotential, i) {
     const base = convertQuiver(deepCopy(expected[0]))
@@ -200,7 +254,7 @@ function performQuiverComparison () {
     })
 
     resultQuivers = resultQuivers.sort((a, b) => {
-      return expectedStrings.indexOf(stringifyQuiver(a)) - expectedStrings.indexOf(stringifyQuiver(b))
+      return expectedStrings.indexOf(stringifyQuiverForComparison(a)) - expectedStrings.indexOf(stringifyQuiverForComparison(b))
     })
 
     // is this an exact match?
@@ -215,6 +269,13 @@ function performQuiverComparison () {
     var h = document.createElement('h3')
     h.textContent = (exactMatch ? '[exact match] ' : '') + i + ' - ' + JSON.stringify(thisPotential)
     comparisonContainer.appendChild(h)
+
+    if (exactMatch) {
+      var subhead = document.createElement('h4')
+      subhead.textContent = performMinimalAnalysis(thisPotential, expected)
+      comparisonContainer.appendChild(subhead)
+    }
+
     var row = document.createElement('div')
     row.className = 'comp-row'
     resultQuivers.forEach(function (qp) {
