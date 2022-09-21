@@ -236,14 +236,14 @@ function potentialTermIsSubsetOfEdges (term) {
   return (esInTerm.filter(x => !currentEdges.includes(x.toString())).length < 1)
 }
 
-function addTermToPotential (t, c = 1) {
+function addTermToPotential (t, coef = 1) {
   var c2 = 0
   try {
     c2 = potential.get(t)
   } catch (err) {}
   if (potentialTermIsSubsetOfEdges(t)) {
     if (c2 == null) {
-      potential.add({ id: t, coef: c.toString() })
+      potential.add({ id: t, coef: coef.toString() })
     } else {
       const c3 = parseFloat(coef) + parseFloat(c2.coef)
       if (c3 > 0 || c3 < 0) {
