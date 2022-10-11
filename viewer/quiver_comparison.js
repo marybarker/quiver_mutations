@@ -149,6 +149,43 @@ function displayVis (qp, container) {
   var network = new vis.Network(container, data, options)
 }
 
+function doPartialComparison (potential, expected) {
+  expected = remapQPNodes(deepCopy(expected))
+
+  const base = convertQuiver(deepCopy(expected[0]))
+  var baseQP = makeQP(base.edges, base.nodes, base.frozenNodes, base.potential, 'fromThing')
+
+  baseQP.potential = deepCopy(potential)
+
+  var resultQuivers = getAllMutationsForQP(baseQP).quivers.map(q => JSON.parse(q))
+  var expectedStrings = expected.map(q => stringifyQuiverForComparison(q))
+
+  resultQuivers = resultQuivers.map(function (resQ) {
+    const expectedBase = deepCopy(expected[0])
+    expectedBase.edges = resQ.edges.map(function (edg, i) {
+      return {
+        id: i.toString(),
+        to: edg[1].toString(),
+        from: edg[0].toString(),
+        arrows: 'to',
+        title: 'edge ' + i.toString()
+      }
+    })
+    return expectedBase
+  })
+
+  resultQuivers = resultQuivers.sort((a, b) => {
+    return expectedStrings.indexOf(stringifyQuiverForComparison(a)) - expectedStrings.indexOf(stringifyQuiverForComparison(b))
+  })
+
+  const expectedMatchStrings = deepCopy(expected).map(q => stringifyQP(convertQuiver(q)))
+  const actualMatchStrings = deepCopy(resultQuivers).map(q => stringifyQP(convertQuiver(q)))
+
+  const exactMatch = arrayEquals(expectedMatchStrings.sort(), actualMatchStrings.sort())
+
+  return [expectedMatchStrings.sort(), actualMatchStrings.sort(), exactMatch]
+}
+
 function performMinimalAnalysis (potential, expected) {
   // assume the full potential is an exact match already
   var results = {

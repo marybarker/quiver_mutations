@@ -1075,7 +1075,7 @@ function potentialStructuredSearch(expectedQuivers, mutationSequences) {
     return a.seq.length - b.seq.length
   })
 
-  console.log(expectedWithSequences)
+  //console.log(expectedWithSequences)
 
   //build a tree of the mutation sequences
 
@@ -1097,10 +1097,10 @@ function potentialStructuredSearch(expectedQuivers, mutationSequences) {
     var qp = deepCopy(expectedQuivers[0])
     var lastQP = qp
     qp.potential = deepCopy(existingTerms)
-    console.log(qp.potential)
+   // console.log(qp.potential)
 
     obj.seq.forEach(function(node) {
-      console.log('mutate', obj.seq, node)
+     // console.log('mutate', obj.seq, node)
       lastQP = qp
       qp = mutateQP(node, deepCopy(qp))
     })
@@ -1112,16 +1112,16 @@ function potentialStructuredSearch(expectedQuivers, mutationSequences) {
     //now add terms
 
     var extraEdges = diff.notInB
-    console.log('begin with', deepCopy(existingTerms))
+   // console.log('begin with', deepCopy(existingTerms))
 
     var newTerms = []
 
     while (extraEdges.length > 0) {
-      console.log('at iter', deepCopy(extraEdges))
+    //  console.log('at iter', deepCopy(extraEdges))
       var t1 = eliminateType1(lastQP, extraEdges, obj.seq[obj.seq.length - 1])
 
       if (t1) {
-        console.log('type 1 elimination', t1)
+    //    console.log('type 1 elimination', t1)
         newTerms = newTerms.concat(t1)
         continue
       }
@@ -1129,7 +1129,7 @@ function potentialStructuredSearch(expectedQuivers, mutationSequences) {
       var t2 = eliminateType2(lastQP, extraEdges, obj.seq[obj.seq.length - 1])
 
       if (t2) {
-        console.log('type 2 elimination', t2)
+     //   console.log('type 2 elimination', t2)
         newTerms = newTerms.concat(t2)
         continue
       }
@@ -1137,7 +1137,7 @@ function potentialStructuredSearch(expectedQuivers, mutationSequences) {
       var t3 = eliminateType3(lastQP, extraEdges, obj.seq[obj.seq.length - 1])
 
       if (t3) {
-        console.log('type 3 elimination', t3)
+     //   console.log('type 3 elimination', t3)
         newTerms = newTerms.concat(t3)
         continue
       }
@@ -1146,7 +1146,7 @@ function potentialStructuredSearch(expectedQuivers, mutationSequences) {
       throw new Error("elimination failed")
     }
 
-    console.log("ended with", deepCopy(existingTerms), deepCopy(newTerms))
+   // console.log("ended with", deepCopy(existingTerms), deepCopy(newTerms))
 
     //now mutate the lastQP with the terms back to base
 
@@ -1154,11 +1154,11 @@ function potentialStructuredSearch(expectedQuivers, mutationSequences) {
     newQP.potential = deepCopy(lastQP.potential).concat(newTerms)
 
     obj.seq.slice(0, -1).reverse().forEach(function(node) {
-      console.log('mutate back', node)
+    //  console.log('mutate back', node)
       newQP = mutateQP(node, newQP)
     })
 
-    console.log('done', obj.seq, newQP)
+    //console.log('done', obj.seq, newQP)
 
     //now mutate back to base
 
@@ -1177,12 +1177,85 @@ function potentialStructuredSearch(expectedQuivers, mutationSequences) {
       ]
     })
 
-    console.log(deepCopy(newQP.potential), deepCopy(remappedPotential))
+    //console.log(deepCopy(newQP.potential), deepCopy(remappedPotential))
 
     existingTerms = deepCopy(remappedPotential)
   })
 
-  console.log('final result', existingTerms)
+  return existingTerms
+
+ // console.log('final result', existingTerms)
+}
+
+function potentialStructuredRandomSearch(allQPs, iter=1000000, maxDepth = 4) {
+  outer: for (var i = 0; i < iter; i++) {
+    var mutationChains = allQPs.map(function(qp, i) {
+      if (i === 0) {
+        return []
+      }
+      var arr = new Array(Math.round(Math.random() * maxDepth)).fill(0)
+      arr = arr.map(i => Math.round(Math.random() * qp.nodes.length))
+      return arr
+    })
+    try {
+      var result = potentialStructuredSearch(allQPs, mutationChains);
+      return [result, mutationChains]
+      break outer;
+    } catch (e) {}
+  }
+}
+
+function potentialStructuredTest(max=100) {
+  var results = {
+    failedTriangulation: [],
+    failedGenerate: [],
+    failedCheck: [],
+    successes: [],
+  }
+  for (var a = 1; a <= max; a++) {
+    for(var b= 1; b <= max; b++) {
+      for (var c = 1; c <= max; c++) {
+        var succeeded = false;
+        var trials = 0;
+        /*
+        It's possible for potentialStructuredRandomSearch to produce a potential and sequence of mutation chains that isn't right
+        I believe the issue is that the mutation chains are generated blindly, and sometimes an impossible chain is generated (because there's a loop at the location that should be mutated) - also the final potentail affects which chains are possible
+        So we perform an extra step to verify that the result is correct, and try again if not
+        */
+        while (!succeeded && trials < 100) {
+          trials++
+          try {
+          var r = a + b + c
+          var tri = triangulation(r, a, b, c);
+          var data = allUniqueTriangulations(tri, getBoundaryEdges(r, tri[0], tri[1]))
+          const cs = data.coordinates.map(y => y.map(z=>parseFloat(z)));
+          data = data.triangulations.map(x => JSON.parse(x));
+          data = data.map(t => t.map(e => JSON.parse(e)));
+          data = data.map(x => QPFromTriangulation([x, cs]));
+          } catch (e) {results.failedTriangulation.push([r, a, b, c])}
+
+          var result = potentialStructuredRandomSearch(data)
+          var verification = doPartialComparison(result[0], data)
+          if (!result) {
+            results.failedGenerate.push([r, a, b, c])
+            break;
+          } else if (verification[2] === true) {
+            results.successes.push({
+              input: [r, a, b, c],
+              data: data,
+              output: result,
+              verification
+            })
+            succeeded = true
+          }
+        }
+        if (!succeeded) {
+          results.failedCheck.push([r, a, b, c])
+        }
+      }
+    }
+  }
+  return results;                        
 }
 
 function potentialIncludesEveryVertex (qp, potential) {
