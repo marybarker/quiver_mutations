@@ -1187,6 +1187,28 @@ function potentialStructuredSearch(expectedQuivers, mutationSequences) {
  // console.log('final result', existingTerms)
 }
 
+/*
+Used by potential structured search
+Given a set of (randomly-generated) mutation chains and the resulting potential, simplify it by elimating the terms that don't do anything
+(because there is a loop at that node, so that mutation step has no effect)
+*/
+function simplifyMutationChains(baseQP, potential, mutationChains) {
+    baseQP = convertQuiver(deepCopy(baseQP))
+    baseQP = makeQP(baseQP.edges, baseQP.nodes, baseQP.frozenNodes, baseQP.potential, 'fromThing')
+    baseQP.potential = potential
+    return mutationChains.map(function(chain) {
+      var tqp = deepCopy(baseQP)
+      var outChain = []
+      chain.forEach(function(chainElement) {
+        if (tqp.canMutate[chainElement]) {
+          outChain.push(chainElement)
+          tqp = mutateQP(chainElement, tqp)
+        }
+      })
+      return outChain
+    })
+}
+
 function potentialStructuredRandomSearch(allQPs, iter=1000000, maxDepth = 4) {
   outer: for (var i = 0; i < iter; i++) {
     var mutationChains = allQPs.map(function(qp, i) {
@@ -1194,12 +1216,13 @@ function potentialStructuredRandomSearch(allQPs, iter=1000000, maxDepth = 4) {
         return []
       }
       var arr = new Array(Math.round(Math.random() * maxDepth)).fill(0)
-      arr = arr.map(i => Math.round(Math.random() * qp.nodes.length))
+      arr = arr.map(i => Math.floor(Math.random() * qp.nodes.length))
       return arr
     })
     try {
       var result = potentialStructuredSearch(allQPs, mutationChains);
-      return [result, mutationChains]
+      var simplifiedChains = simplifyMutationChains(allQPs[0], result, mutationChains)
+      return [result, simplifiedChains]
       break outer;
     } catch (e) {}
   }
@@ -1215,6 +1238,7 @@ function potentialStructuredTest(max=100) {
   for (var a = 1; a <= max; a++) {
     for(var b= 1; b <= max; b++) {
       for (var c = 1; c <= max; c++) {
+        console.log(a, b, c)
         var succeeded = false;
         var trials = 0;
         /*
@@ -1232,14 +1256,19 @@ function potentialStructuredTest(max=100) {
           data = data.triangulations.map(x => JSON.parse(x));
           data = data.map(t => t.map(e => JSON.parse(e)));
           data = data.map(x => QPFromTriangulation([x, cs]));
-          } catch (e) {results.failedTriangulation.push([r, a, b, c])}
+          } catch (e) {
+            results.failedTriangulation.push([r, a, b, c])
+            break
+          }
 
           var result = potentialStructuredRandomSearch(data)
-          var verification = doPartialComparison(result[0], data)
           if (!result) {
             results.failedGenerate.push([r, a, b, c])
             break;
-          } else if (verification[2] === true) {
+          } 
+          var verification = doPartialComparison(result[0], data)
+          
+           if (verification[2] === true) {
             results.successes.push({
               input: [r, a, b, c],
               data: data,
