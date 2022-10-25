@@ -1155,8 +1155,10 @@ function potentialStructuredSearch(expectedQuivers, mutationSequences) {
 
     obj.seq.slice(0, -1).reverse().forEach(function(node) {
     //  console.log('mutate back', node)
+      console.log(tryBuildReplacementPotentials(deepCopy(newQP)))
       newQP = mutateQP(node, newQP)
     })
+    console.log(tryBuildReplacementPotentials(deepCopy(newQP)))
 
     //console.log('done', obj.seq, newQP)
 
@@ -1181,6 +1183,12 @@ function potentialStructuredSearch(expectedQuivers, mutationSequences) {
 
     existingTerms = deepCopy(remappedPotential)
   })
+
+  //find alternatives?
+
+  var altTestQP = deepCopy(expectedQuivers[0])
+  altTestQP.potential = deepCopy(existingTerms)
+  console.log(tryBuildReplacementPotentials(altTestQP))
 
   return existingTerms
 
@@ -1648,4 +1656,76 @@ function removeEdges (edgeIndices, QP, altPotential = 'None') {
 
 if (typeof module !== 'undefined') {
   module.exports = {makeQP, stringifyQP, mutateQP, potentialRandomSearch}
+}
+
+//find 3-cycles that don't have an inverse, and could therefore be replaced by a 4-cycle (assuming it's at a mutable node, which this doens't check)
+function tryBuildReplacementPotentials(qp) {
+  var suggestedReplacements = []
+
+  var threeTerms = qp.potential.filter(function(term) {
+    var edges = term[1].split(",").map(e => parseInt(e))
+    var edges_nonloops = edges.filter(edg => qp.edges[edg][0] !== qp.edges[edg][1])
+    return edges_nonloops.length === 3
+  })
+
+  threeTerms = threeTerms.filter(function(term) {
+    var edges = term[1].split(",").map(e => parseInt(e))
+    //try to reverse each edge
+    var edgesReversed = edges.map(function(edg) {
+      var thisEdge = qp.edges[edg]
+      var otherEdge = qp.edges.findIndex(other => other[1] === thisEdge[0] && other[0] === thisEdge[1])
+      return otherEdge
+    })
+    //couldn't reverse all the edges
+    if (edgesReversed.includes(undefined)) {
+      return true
+    }
+    //see if the reverse term exists
+    var reverseTermExists = threeTerms.some(function(otherTerm) {
+      var other = deepCopy(otherTerm[1]).split(",").sort().join(",")
+      var thisTerm = edgesReversed.map(t => t.toString()).sort().join(",")
+      return other === thisTerm
+    })
+
+    if (!reverseTermExists) {
+      suggestedReplacements.push(edgesReversed)
+    }
+
+    return !reverseTermExists
+  })
+
+  var fourTerms = qp.potential.filter(function(term) {
+    var edges = term[1].split(",").map(e => parseInt(e))
+    var edges_nonloops = edges.filter(edg => qp.edges[edg][0] !== qp.edges[edg][1])
+    return edges_nonloops.length === 4
+  })
+
+  fourTerms = fourTerms.filter(function(term) {
+    //try to replace any two edges with a shortcut
+    var edges = term[1].split(",").map(e => parseInt(e))
+    console.log(edges)
+    for (var i = 0; i < edges.length; i++) {
+      var thisEdge = edges[i];
+      var nextEdge = edges.find(edg => qp.edges[edg][0] === qp.edges[thisEdge][1] && qp.edges[edg][1] !== qp.edges[thisEdge][0])
+      if (nextEdge) {
+        //can maybe be substituted with a shortcut
+        var shortcut = qp.edges.findIndex(edg => edg[0] === qp.edges[thisEdge][0] && edg[1] === qp.edges[nextEdge][1])
+        if (shortcut !== -1) {
+          var potentialReplacement = edges.filter(edg => edg !== thisEdge && edg !== nextEdge).concat([shortcut])
+          var replacementAlreadyExists = qp.potential.some(function(term) {
+            return arrayEquals(term[1].split(",").map(e => parseInt(e)).sort(), potentialReplacement.sort())
+          })
+          
+          //this term could be substituted with a 3-term
+          if (!replacementAlreadyExists) {
+            suggestedReplacements.push(potentialReplacement)
+            return true
+          }
+        }
+      }
+    }
+    return false
+  })
+
+  return {replaceable: threeTerms.concat(fourTerms), replacments: suggestedReplacements}
 }
