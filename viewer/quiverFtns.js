@@ -1263,30 +1263,59 @@ function findPossibleMutationNodes(qp1, qp2) {
       possibleNodes = possibleNodes.filter(n => adjacent.includes(n))
     }
   })
-  return possibleNodes
+  if (possibleNodes === null) {
+    console.warn('was passed two identical quivers to compare')
+  }
+  return possibleNodes || []
 }
 
-function potentialStructuredRandomSearch(allQPs, iter=250000, maxDepth = 3) {
+function findMutationChainsForQPSet(allQPs) {
+  var baseMutationChains = allQPs.map(function(qp, i) {
+    if (i === 0) {
+      return []
+    } else {
+      return null;
+    }
+  })
+
+    outer: while (true) {      
+       for(var i = 0; i < baseMutationChains.length; i++) {
+        if (baseMutationChains[i] === null) {
+          for (var i2 = 0; i2 < baseMutationChains.length; i2++) {
+            if (i !== i2 && baseMutationChains[i2] !== null) {
+              var possible = findPossibleMutationNodes(allQPs[i2], allQPs[i])
+              if (possible.length === 1) {
+                baseMutationChains[i] = deepCopy(baseMutationChains[i2]).concat(possible)
+                continue outer;
+              }
+            }
+          }
+        }
+      }
+      //wasn't able to find anything
+      break outer;
+    }
+    return baseMutationChains
+}
+
+
+function potentialStructuredRandomSearch(allQPs, iter=10000, maxDepth = 3) {
   //we know that any node mutable in the base QP must generate another QP in the result
-  var requiredMutationChains = []
   var requiredMutationNodes = []
   allQPs[0].nodes.forEach(function(node) {
     var hasLoop = allQPs[0].edges.some(edg => edg.from === node.id && edg.to === node.id)
     if (!hasLoop) {
       requiredMutationNodes.push(parseInt(node.id))
-      requiredMutationChains.push([parseInt(node.id)])
     }
   })
 
-  var baseMutationChains = allQPs.map(function(qp, i) {
-    if (i === 0) {return []}
-    var possible = findPossibleMutationNodes(allQPs[0], qp)
-    if (possible.length === 1) {
-      return possible
-    } else {
-      return null
-    }
-  })
+  var baseMutationChains = findMutationChainsForQPSet(allQPs)
+
+  //can't generate anything random
+  if (!baseMutationChains.some(i => i === null)) {
+    iter = 1;
+  }
+
   //TODO we should be able to match all of the required chains to a QP just based on which edges change
   //keeping in mind that edges need to be remapped
   //for a single edge to be added or removed, an adjacent node or the third in a triangle must have been mutated
@@ -1346,6 +1375,11 @@ function potentialStructuredTest(max=100) {
           data = data.triangulations.map(x => JSON.parse(x));
           data = data.map(t => t.map(e => JSON.parse(e)));
           data = data.map(x => QPFromTriangulation([x, cs]));
+          //TODO remove
+          if (data.length > 500) {
+            console.warn('skipping ' [r, a, b, c].join(",") + " because the exchange number is too big")
+            break
+          }
           } catch (e) {
             results.failedTriangulation.push([r, a, b, c])
             break
