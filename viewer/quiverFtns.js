@@ -1155,10 +1155,10 @@ function potentialStructuredSearch(expectedQuivers, mutationSequences) {
 
     obj.seq.slice(0, -1).reverse().forEach(function(node) {
     //  console.log('mutate back', node)
-      console.log(tryBuildReplacementPotentials(deepCopy(newQP)))
+    //  console.log(tryBuildReplacementPotentials(deepCopy(newQP)))
       newQP = mutateQP(node, newQP)
     })
-    console.log(tryBuildReplacementPotentials(deepCopy(newQP)))
+    //console.log(tryBuildReplacementPotentials(deepCopy(newQP)))
 
     //console.log('done', obj.seq, newQP)
 
@@ -1217,20 +1217,51 @@ function simplifyMutationChains(baseQP, potential, mutationChains) {
     })
 }
 
-function potentialStructuredRandomSearch(allQPs, iter=1000000, maxDepth = 4) {
+https://stackoverflow.com/questions/6274339/how-can-i-shuffle-an-array
+function shuffleArr(a) {
+  var j, x, i;
+  for (i = a.length - 1; i > 0; i--) {
+      j = Math.floor(Math.random() * (i + 1));
+      x = a[i];
+      a[i] = a[j];
+      a[j] = x;
+  }
+  return a;
+}
+
+
+function potentialStructuredRandomSearch(allQPs, iter=250000, maxDepth = 3) {
+  //we know that any node mutable in the base QP must generate another QP in the result
+  var requiredMutationChains = []
+  var requiredMutationNodes = []
+  allQPs[0].nodes.forEach(function(node) {
+    var hasLoop = allQPs[0].edges.some(edg => edg.from === node.id && edg.to === node.id)
+    if (!hasLoop) {
+      requiredMutationNodes.push(parseInt(node.id))
+      requiredMutationChains.push([parseInt(node.id)])
+    }
+  })
   outer: for (var i = 0; i < iter; i++) {
-    var mutationChains = allQPs.map(function(qp, i) {
-      if (i === 0) {
-        return []
-      }
-      var arr = new Array(Math.round(Math.random() * maxDepth)).fill(0)
-      arr = arr.map(i => Math.floor(Math.random() * qp.nodes.length))
-      return arr
-    })
+    var mutationChains = deepCopy(requiredMutationChains)
+/*     if (i % 1000 === 0) {
+      console.log(i)
+    } */
+
+    for (var c = 0; c < (allQPs.length - requiredMutationChains.length - 1); c++) {
+      var arr = new Array(Math.round(Math.random() * (maxDepth - 1))).fill(0)
+      arr = arr.map(i => Math.floor(Math.random() * allQPs[0].nodes.length))
+      //any mutation chain must start with a node that's initially mutable
+      arr.unshift(requiredMutationNodes[Math.floor(Math.random() * requiredMutationNodes.length)])
+      mutationChains.push(arr)
+    }
+    shuffleArr(mutationChains)
+    //first QP is the base
+    mutationChains.unshift([])
+    
     try {
       var result = potentialStructuredSearch(allQPs, mutationChains);
       var simplifiedChains = simplifyMutationChains(allQPs[0], result, mutationChains)
-      return [result, simplifiedChains]
+      return [result, simplifiedChains, i]
       break outer;
     } catch (e) {}
   }
@@ -1703,7 +1734,6 @@ function tryBuildReplacementPotentials(qp) {
   fourTerms = fourTerms.filter(function(term) {
     //try to replace any two edges with a shortcut
     var edges = term[1].split(",").map(e => parseInt(e))
-    console.log(edges)
     for (var i = 0; i < edges.length; i++) {
       var thisEdge = edges[i];
       var nextEdge = edges.find(edg => qp.edges[edg][0] === qp.edges[thisEdge][1] && qp.edges[edg][1] !== qp.edges[thisEdge][0])
