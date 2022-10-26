@@ -1229,6 +1229,42 @@ function shuffleArr(a) {
   return a;
 }
 
+function findPossibleMutationNodes(qp1, qp2) {
+  var qps = remapQPNodes(deepCopy([qp1, qp2]))
+  .map(q => convertQuiver(q)).map(base => makeQP(base.edges, base.nodes, base.frozenNodes, base.potential, 'fromThing'))
+
+  var edgeDiff = diffQPEdges(qps[0], qps[1])
+
+  var possibleNodes = null
+  edgeDiff.notInB.forEach(function(edg) {
+    var adjacent = qps[0].nodes.filter(function(node) {
+      return node === edg[0] || node === edg[1] || qps[0].edges.some(function(otherEdge) {
+        return (otherEdge[0] === node && edg.includes(otherEdge[1]))
+        || (otherEdge[1] === node && edg.includes(otherEdge[0]))
+      })
+    })
+    if (possibleNodes === null) {
+      possibleNodes = adjacent
+    } else {
+      possibleNodes = possibleNodes.filter(n => adjacent.includes(n))
+    }
+  })
+
+  edgeDiff.notInA.forEach(function(edg) {
+    var adjacent = qps[1].nodes.filter(function(node) {
+      return node === edg[0] || node === edg[1] || qps[1].edges.some(function(otherEdge) {
+        return (otherEdge[0] === node && edg.includes(otherEdge[1]))
+        || (otherEdge[1] === node && edg.includes(otherEdge[0]))
+      })
+    })
+    if (possibleNodes === null) {
+      possibleNodes = adjacent
+    } else {
+      possibleNodes = possibleNodes.filter(n => adjacent.includes(n))
+    }
+  })
+  return possibleNodes
+}
 
 function potentialStructuredRandomSearch(allQPs, iter=250000, maxDepth = 3) {
   //we know that any node mutable in the base QP must generate another QP in the result
@@ -1241,23 +1277,38 @@ function potentialStructuredRandomSearch(allQPs, iter=250000, maxDepth = 3) {
       requiredMutationChains.push([parseInt(node.id)])
     }
   })
-  outer: for (var i = 0; i < iter; i++) {
-    var mutationChains = deepCopy(requiredMutationChains)
-/*     if (i % 1000 === 0) {
-      console.log(i)
-    } */
 
-    for (var c = 0; c < (allQPs.length - requiredMutationChains.length - 1); c++) {
-      var arr = new Array(Math.round(Math.random() * (maxDepth - 1))).fill(0)
-      arr = arr.map(i => Math.floor(Math.random() * allQPs[0].nodes.length))
-      //any mutation chain must start with a node that's initially mutable
-      arr.unshift(requiredMutationNodes[Math.floor(Math.random() * requiredMutationNodes.length)])
-      mutationChains.push(arr)
+  var baseMutationChains = allQPs.map(function(qp, i) {
+    if (i === 0) {return []}
+    var possible = findPossibleMutationNodes(allQPs[0], qp)
+    if (possible.length === 1) {
+      return possible
+    } else {
+      return null
     }
-    shuffleArr(mutationChains)
-    //first QP is the base
-    mutationChains.unshift([])
-    
+  })
+  //TODO we should be able to match all of the required chains to a QP just based on which edges change
+  //keeping in mind that edges need to be remapped
+  //for a single edge to be added or removed, an adjacent node or the third in a triangle must have been mutated
+  //take the intersection of all of these
+  //can we repeat this for the remaining quivers?
+  //and if we do base -> a 2+ quiver with this method, do we detect that we can't reach it?
+  outer: for (var i = 0; i < iter; i++) {
+    var mutationChains = deepCopy(baseMutationChains)
+     if (i % 1000 === 0) {
+      console.log(i)
+    }
+
+    for (var c = 0; c < mutationChains.length; c++) {
+      if (mutationChains[c] === null) {
+        var arr = new Array(Math.round(Math.random() * (maxDepth - 1))).fill(0)
+        arr = arr.map(i => Math.floor(Math.random() * allQPs[0].nodes.length))
+        //any mutation chain must start with a node that's initially mutable
+        arr.unshift(requiredMutationNodes[Math.floor(Math.random() * requiredMutationNodes.length)])
+        mutationChains[c] = arr
+      }
+    }
+      
     try {
       var result = potentialStructuredSearch(allQPs, mutationChains);
       var simplifiedChains = simplifyMutationChains(allQPs[0], result, mutationChains)
@@ -1285,7 +1336,7 @@ function potentialStructuredTest(max=100) {
         I believe the issue is that the mutation chains are generated blindly, and sometimes an impossible chain is generated (because there's a loop at the location that should be mutated) - also the final potentail affects which chains are possible
         So we perform an extra step to verify that the result is correct, and try again if not
         */
-        while (!succeeded && trials < 100) {
+        while (!succeeded && trials < 8) {
           trials++
           try {
           var r = a + b + c
@@ -1696,7 +1747,7 @@ function tryBuildReplacementPotentials(qp) {
   var threeTerms = qp.potential.filter(function(term) {
     var edges = term[1].split(",").map(e => parseInt(e))
     var edges_nonloops = edges.filter(edg => qp.edges[edg][0] !== qp.edges[edg][1])
-    return edges_nonloops.length === 3
+    return edges.length === 3 && edges_nonloops.length === 3
   })
 
   threeTerms = threeTerms.filter(function(term) {
@@ -1728,7 +1779,7 @@ function tryBuildReplacementPotentials(qp) {
   var fourTerms = qp.potential.filter(function(term) {
     var edges = term[1].split(",").map(e => parseInt(e))
     var edges_nonloops = edges.filter(edg => qp.edges[edg][0] !== qp.edges[edg][1])
-    return edges_nonloops.length === 4
+    return edges.length === 4 && edges_nonloops.length === 4
   })
 
   fourTerms = fourTerms.filter(function(term) {
