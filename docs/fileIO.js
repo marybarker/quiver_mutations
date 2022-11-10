@@ -7,7 +7,7 @@ function saveFile(fmt='globalQP') {
   });
 
   if (fmt == 'globalTriangulation') {
-    var opt = makeTriangulation(TRIglobalEdges, TRIglobalBoundaryEdges);
+    var opt = makeTriangulation(TRIglobalEdges, TRIglobalCoords, TRIglobalBoundaryEdges);
     data = JSON.stringify({
       "nodes": TRIglobalCoords,
       "edges": TRIglobalEdges,
