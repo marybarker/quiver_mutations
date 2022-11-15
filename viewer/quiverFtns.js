@@ -1350,6 +1350,7 @@ function potentialStructuredRandomSearch(allQPs, iter=10000, maxDepth = 3) {
 function potentialStructuredTest(max=100) {
   var results = {
     failedTriangulation: [],
+    exchangeNumTooBig: [],
     failedGenerate: [],
     failedCheck: [],
     successes: [],
@@ -1365,7 +1366,7 @@ function potentialStructuredTest(max=100) {
         I believe the issue is that the mutation chains are generated blindly, and sometimes an impossible chain is generated (because there's a loop at the location that should be mutated) - also the final potentail affects which chains are possible
         So we perform an extra step to verify that the result is correct, and try again if not
         */
-        while (!succeeded && trials < 8) {
+        while (!succeeded && trials < 50) {
           trials++
           try {
           var r = a + b + c
@@ -1377,7 +1378,8 @@ function potentialStructuredTest(max=100) {
           data = data.map(x => QPFromTriangulation([x, cs]));
           //TODO remove
           if (data.length > 500) {
-            console.warn('skipping ' [r, a, b, c].join(",") + " because the exchange number is too big")
+            console.warn('skipping ', [r, a, b, c].join(",") + " because the exchange number is too big")
+            results.exchangeNumTooBig.push([r, a, b, c])
             break
           }
           } catch (e) {
