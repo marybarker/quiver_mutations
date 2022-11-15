@@ -105,6 +105,14 @@ function argsort(arr) {
     return arrcpy.map(decor).sort(function(a, b){return a[0]-b[0];}).map(undecor);
 }
 
+function getBoundaryEdges (r, edges, coords) {
+    console.log(r, edges, coords)
+    var gb1 = range(0, edges.length).filter(e => (isCollinear([[r, 0, 0], [0, r, 0]], coords[edges[e][0]]) && isCollinear([[r, 0, 0], [0, r, 0]], coords[edges[e][1]])))
+    var gb2 = range(0, edges.length).filter(e => (isCollinear([[0, r, 0], [0, 0, r]], coords[edges[e][0]]) && isCollinear([[0, r, 0], [0, 0, r]], coords[edges[e][1]])))
+    var gb3 = range(0, edges.length).filter(e => (isCollinear([[0, 0, r], [r, 0, 0]], coords[edges[e][0]]) && isCollinear([[0, 0, r], [r, 0, 0]], coords[edges[e][1]])))
+    return gb1.concat(gb2).concat(gb3)
+  }
+
 function callTriangulation() {
     // function that draws initial configuration for triangulate tab of window
     var a = parseFloat(document.getElementById("A_value").value);
@@ -116,10 +124,7 @@ function callTriangulation() {
     globalCoords = t[1];
     globalTriangulation = [t[0], t[1]];
 
-    var gb1 = range(0, globalEdges.length).filter(e => (isCollinear([[r,0,0], [0,r,0]], globalCoords[globalEdges[e][0]]) && isCollinear([[r,0,0], [0,r,0]], globalCoords[globalEdges[e][1]])));
-    var gb2 = range(0, globalEdges.length).filter(e => (isCollinear([[0,r,0], [0,0,r]], globalCoords[globalEdges[e][0]]) && isCollinear([[0,r,0], [0,0,r]], globalCoords[globalEdges[e][1]])));
-    var gb3 = range(0, globalEdges.length).filter(e => (isCollinear([[0,0,r], [r,0,0]], globalCoords[globalEdges[e][0]]) && isCollinear([[0,0,r], [r,0,0]], globalCoords[globalEdges[e][1]])));
-    globalBoundaryEdges = gb1.concat(gb2).concat(gb3);
+    globalBoundaryEdges = getBoundaryEdges(r, globalEdges, globalCoords)
 
     viewTriangulation();
 }
