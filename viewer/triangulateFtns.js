@@ -55,7 +55,7 @@ function allUniqueTriangulations(t, boundary_edges) {
     var coords = t[1];
 
     // generate initial triangles and edge-to-triangles lists
-    var tri = makeTriangulation(edges, boundary_edges);
+    var tri = makeTriangulation(edges, coords, boundary_edges);
     var triangles = tri[0].map(x => [...x].sort());
     var edge_to_triangle = tri[1];
 
@@ -295,6 +295,7 @@ function findLinearGroups(edge_indices, segments, coordinates) {
 function flip(edge_index, edges, coordinates, triangles=[], edge_to_triangle=[], boundary_edges=null, inplace=false) {
     // this routine flips an edge in a given triangulation
 
+    var old_triangles_length = triangles.length;
     if (boundary_edges != null) {
         if (boundary_edges.includes(edge_index)) {
             return [false, edges, triangles, edge_to_triangle];
@@ -302,7 +303,7 @@ function flip(edge_index, edges, coordinates, triangles=[], edge_to_triangle=[],
     }
     var e = edges[edge_index];
     if ((triangles.length < 1) || (edge_to_triangle.length < 1)) {
-        var t = makeTriangulation(edges, boundary_edges);
+        var t = makeTriangulation(edges, coordinates, boundary_edges);
         triangles = t[0];
         edge_to_triangle = t[1];
     }
@@ -545,7 +546,7 @@ function latticePoints(r=6,a=1,b=2,c=3,nonunit=true) {
     return points;
 }
 
-function makeTriangulation(edges, boundary_edges=null){
+function makeTriangulation(edges, coords, boundary_edges=null){
     // this routine takes a set of edges (given as lists of pairs [p1,p2]
     // where p1 and p2 denote the indices for the vertices that make the endpoints of the given edge
     // and it returns a list of all the triangles that can be generated from that configuration 
@@ -649,10 +650,18 @@ function makeTriangulation(edges, boundary_edges=null){
         var ts_to_keep = [];
         for (let ti = 0; ti < triangles.length; ti++) {
             let t = triangles[ti];
-            if (!t.every(e => (edge_to_triangle[e].length != expected[e]))) {
+            if (t.every(e => (edge_to_triangle[e].length == expected[e]))) {
                 ts_to_keep.push(ti);
             } else {
-	    }
+                let tri_endpoints = unique(t.map(e => edges[e]).flat());
+                let other_edges = edges.filter(function(e, ei){return (!t.includes(ei)) && (tri_endpoints.some(p => e.includes(p)))});
+                let other_endpoint_coords = unique(other_edges.map(e => [e[0], e[1]]).flat().filter(p => !tri_endpoints.includes(p))).map(c => coords[c]);
+                let other_endpoints = other_edges.map(e => [e[0], e[1]]).flat().filter(p => !tri_endpoints.includes(p));
+
+                if (!other_endpoint_coords.some(c => is_interior_to_tri(coords[tri_endpoints[0]], coords[tri_endpoints[1]], coords[tri_endpoints[2]], c))) {
+                    ts_to_keep.push(ti);
+                }
+	        }
         }
         triangles = ts_to_keep.map(ti => triangles[ti]);
         edge_to_triangle = edge_to_triangle.map(function(x) {
@@ -663,6 +672,28 @@ function makeTriangulation(edges, boundary_edges=null){
     }
     return [triangles, edge_to_triangle];
 }
+
+function triangle_area(t1, t2, t3) {
+    var x1 = t1[0]; var y1 = t1[1];
+    var x2 = t2[0]; var y2 = t2[1];
+    var x3 = t3[0]; var y3 = t3[1];
+    return Math.abs((x1*(y2-y3) + x2*(y3-y1)+ x3*(y1-y2))/2.0);
+ }
+ 
+ function is_interior_to_tri(t1, t2, t3, point) {
+     //https://www.geeksforgeeks.org/check-whether-a-given-point-lies-inside-a-triangle-or-not/
+     /* Calculate area of triangle ABC */
+     if ((point[0] > Math.max(t1[0], t2[0], t3[0])) || (point[0] < Math.min(t1[0], t2[0], t3[0]))
+      || (point[1] > Math.max(t1[1], t2[1], t3[1])) || (point[1] < Math.min(t1[1], t2[1], t3[1]))) {
+         return false;
+     }
+     var A = triangle_area(t1, t2, t3);
+     var A1 = triangle_area(point, t2, t3);
+     var A2 = triangle_area(t1, point, t3);
+     var A3 = triangle_area(t1, t2, point);
+     var B = A1 + A2 + A3;
+     return (A == B);
+ } 
 
 function matmul(a, b) {
     // matrix multiplication (oh, how I miss numpy...)
@@ -831,7 +862,7 @@ function QPFromTriangulation(t) {
                 return ei;
 	    }
 	}).filter(y => y != null);
-        var tri = makeTriangulation(edges, extremal_edges);
+        var tri = makeTriangulation(edges, coordinates, extremal_edges);
 
         var triangles = tri[0];
         var edge_to_triangle = tri[1];
@@ -1013,7 +1044,7 @@ function ReidsRecipe(segments, strengths, potential_segments, longest_extension,
 function resolveNetworkFlip(n, p) {
     // this routine flips the clicked edge on the canvas, and updates globals accordingly
     var e = p.edges[0].toString();
-    var tri = makeTriangulation(globalTriangulation[0], globalBoundaryEdges);
+    var tri = makeTriangulation(globalTriangulation[0], globalCoords, globalBoundaryEdges);
     var opt = flip(parseInt(e), globalTriangulation[0], globalTriangulation[1], tri[0], tri[1], globalBoundaryEdges);
     if (opt[0]) {
 	var es = JSON.parse(JSON.stringify(opt[1])).map(
@@ -1022,18 +1053,20 @@ function resolveNetworkFlip(n, p) {
 	    });
 	globalEdges = es;
 	globalTriangulation = [globalEdges, globalCoords];
-    }
-    updateNetworkFromGlobals();
 
-    document.getElementById("tri-edges").innerText = JSON.stringify(network_edges.get(), network_output_fields, 4);
+    updateNetworkTriFromGlobal();
+
+    document.getElementById("tri-edges").innerText = JSON.stringify(network_edges.get(),output_fields, 4);
     var tri = opt[2].map(function(t) {
-	    return {
+            return {
                 edge1: "index: "+t[0].toString() + ", "+JSON.stringify(globalEdges[t[0]]), 
                 edge2: "index: "+t[1].toString() + ", "+JSON.stringify(globalEdges[t[1]]), 
                 edge3: "index: "+t[2].toString() + ", "+JSON.stringify(globalEdges[t[2]])
-	    };
+            };
     });
-    document.getElementById("tri-triangles").innerText = JSON.stringify(tri, network_output_fields, 4);
+    document.getElementById("tri-triangles").innerText = JSON.stringify(tri,output_fields, 4);
+    updateGlobalTriFromNetwork();
+    }
 }
 
 function rotateSimplexToPlane(coordinates) {
@@ -1313,7 +1346,7 @@ function viewTriangulation() {
     });
 
     document.getElementById("tri-edges").innerText = JSON.stringify(network_edges.get(), network_output_fields, 4);
-    var opt = makeTriangulation(globalEdges, globalBoundaryEdges);
+    var opt = makeTriangulation(globalEdges, globalCoords, globalBoundaryEdges);
     var tri = opt[0].map(function(t) {
 	    return {
 	        edge1: "index: "+t[0].toString() + ", "+JSON.stringify(globalEdges[t[0]]), 
