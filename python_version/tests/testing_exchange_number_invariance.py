@@ -55,6 +55,7 @@ def try_perturbing_potential(QP):
 n = 6
 print("looking at the D_%d case"%(2*n))
 a = D2n(n)
+a = tetrahedralQP(n)
 
 try_adding_edges(a)
 try_perturbing_potential(a)
