@@ -374,6 +374,7 @@ function flip(edge_index, edges, coordinates, triangles=[], edge_to_triangle=[],
                         return [...e2t];
 		    }
 		});
+    
                 return [true, new_edges, new_triangles, new_edge_to_triangle];
 	    }
         }
@@ -665,7 +666,7 @@ function makeTriangulation(edges, coords, boundary_edges=null){
                 if (!other_endpoint_coords.some(c => is_interior_to_tri(coords[tri_endpoints[0]], coords[tri_endpoints[1]], coords[tri_endpoints[2]], c))) {
                     ts_to_keep.push(ti);
                 }
-	    }
+      	    }
         }
         triangles = ts_to_keep.map(ti => triangles[ti]);
         edge_to_triangle = edge_to_triangle.map(function(x) {

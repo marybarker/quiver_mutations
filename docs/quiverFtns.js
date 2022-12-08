@@ -794,7 +794,6 @@ function QPFromTriangulation(t) {
 	    }
 	}).filter(y => y != null);
         var tri = makeTriangulation(edges, coordinates, extremal_edges);
-
         var triangles = tri[0];
         var edge_to_triangle = tri[1];
 
