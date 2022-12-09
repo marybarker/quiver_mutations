@@ -1114,6 +1114,9 @@ function triangulation(R,a,b,c) {
     // interior lattice points for junior simplex (also scaled by R)
     var coordinates = latticePoints(R,a,b,c);
     var strCoords = coordinates.map(x => JSON.stringify(x))
+    // make sure lattice points are unique
+    coordinates = [...new Set(strCoords)].map(sc => coordinates[strCoords.indexOf(sc)]);
+    strCoords = unique(strCoords);
 
     // STEP 1: generate initial rays and their strengths
     var step1output = generateInitialRays(R, eis, coordinates);
