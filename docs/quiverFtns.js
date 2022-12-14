@@ -1519,7 +1519,7 @@ function shuffleArr(a) {
 }
 
 function findPossibleMutationNodes(qp1, qp2) {
-  var qps = remapQPNodes(deepCopy([qp1, qp2]))
+  var qps = deepCopy([qp1, qp2])
   .map(q => convertQuiver(q)).map(base => makeQP(base.edges, base.nodes, base.frozenNodes, base.potential, 'fromThing'))
 
   var edgeDiff = diffQPEdges(qps[0], qps[1])
@@ -1669,6 +1669,10 @@ function potentialStructuredTest(max=100) {
             console.warn('skipping ' [r, a, b, c].join(",") + " because the exchange number is too big")
             break
           }
+
+          //the data can have inconsistent node IDs between quivers, but the position data can be used to correct for this
+          //TODO do this in triangulateFtns
+          data = remapQPNodes(data)
           } catch (e) {
             results.failedTriangulation.push([r, a, b, c])
             break
