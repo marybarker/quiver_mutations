@@ -1553,10 +1553,64 @@ function findPossibleMutationNodes(qp1, qp2) {
     }
   })
   if (possibleNodes === null) {
+    //TODO wrong?
     console.warn('was passed two identical quivers to compare')
+    console.log(qps, edgeDiff, qp1, qp2)
+  }
+  //remove possibilities that can't be mutated because a loop exists at that node
+  if (possibleNodes) {
+    possibleNodes = possibleNodes.filter(node => !qps[0].edges.some(edg => edg[0] === node && edg[1] === node))
   }
   return possibleNodes || []
 }
+
+//cycle based implementation 
+/*
+function findPossibleMutationNodes2(qp1, qp2) {
+  var qps = deepCopy([qp1, qp2])
+  .map(q => convertQuiver(q)).map(base => makeQP(base.edges, base.nodes, base.frozenNodes, base.potential, 'fromThing'))
+
+  var qpCycles = qps.map(q => findAllCycles(q, 4).map(cyc => cyc.map(t => q.edges[t])))
+
+  console.log(qpCycles)
+
+  var edgeDiff = diffQPEdges(qps[0], qps[1])
+
+  var possibleNodes = null
+  edgeDiff.notInB.forEach(function(edg) {
+    var origCycles = qpCycles[0].filter(c => c.some(t => arrayEquals(t, edg)))
+    var adjacent = []
+    origCycles.forEach(c => c.forEach(e => {
+      adjacent = adjacent.concat(e)
+    }))
+    adjacent = adjacent.filter((i, idx) => adjacent.indexOf(i) === idx)
+    console.log('b', edg, adjacent)
+    if (possibleNodes === null) {
+      possibleNodes = adjacent
+    } else {
+      possibleNodes = possibleNodes.filter(n => adjacent.includes(n))
+    }
+  })
+
+  edgeDiff.notInA.forEach(function(edg) {
+    var adjacent = qps[1].nodes.filter(function(node) {
+      return node === edg[0] || node === edg[1] || qps[1].edges.some(function(otherEdge) {
+        return (otherEdge[0] === node && edg.includes(otherEdge[1]))
+        || (otherEdge[1] === node && edg.includes(otherEdge[0]))
+      })
+    })
+    console.log('a', edg, adjacent)
+    if (possibleNodes === null) {
+      possibleNodes = adjacent
+    } else {
+      possibleNodes = possibleNodes.filter(n => adjacent.includes(n))
+    }
+  })
+  if (possibleNodes === null) {
+    console.warn('was passed two identical quivers to compare')
+  }
+  return possibleNodes || []
+}*/
 
 function findMutationChainsForQPSet(allQPs) {
   var baseMutationChains = allQPs.map(function(qp, i) {
@@ -1586,6 +1640,41 @@ function findMutationChainsForQPSet(allQPs) {
     }
     return baseMutationChains
 }
+
+//the "right" version that finds all the possible chain sets (too large to process)
+/* function findMutationChainsForQPSetFull(allQPs) {
+  var baseMutationChains = allQPs.map(function(qp, i) {
+    if (i === 0) {
+      return [[]]
+    } else {
+      return null;
+    }
+  })
+
+    outer: while (true) {      
+       for(var i = 0; i < baseMutationChains.length; i++) {
+        if (baseMutationChains[i] === null) {
+          var results = []
+          for (var i2 = 0; i2 < baseMutationChains.length; i2++) {
+            if (i !== i2 && baseMutationChains[i2] !== null) {
+              var possible = findPossibleMutationNodes(allQPs[i2], allQPs[i])
+              if (possible.length === 1) {
+                results = results.concat(baseMutationChains[i2].filter(chain => chain[chain.length - 1] !== possible[0]).map(possibleChain => deepCopy(possibleChain).concat(possible)))
+              }
+            }
+          }
+          if (results.length > 0) {
+            baseMutationChains[i] = results
+            continue outer
+          }
+        }
+      }
+      //wasn't able to find anything
+      break outer;
+    }
+    return baseMutationChains
+}
+ */
 
 
 function potentialStructuredRandomSearch(allQPs, iter=10000, maxDepth = 3) {
