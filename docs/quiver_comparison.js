@@ -178,8 +178,8 @@ function doPartialComparison (potential, expected) {
     return expectedStrings.indexOf(stringifyQuiverForComparison(a)) - expectedStrings.indexOf(stringifyQuiverForComparison(b))
   })
 
-  const expectedMatchStrings = deepCopy(expected).map(q => stringifyQP(convertQuiver(q)))
-  const actualMatchStrings = deepCopy(resultQuivers).map(q => stringifyQP(convertQuiver(q)))
+  const expectedMatchStrings = deepCopy(expected).map(q => stringifyQPOldVersion(convertQuiver(q)))
+  const actualMatchStrings = deepCopy(resultQuivers).map(q => stringifyQPOldVersion(convertQuiver(q)))
 
   const exactMatch = arrayEquals(expectedMatchStrings.sort(), actualMatchStrings.sort())
 
@@ -224,8 +224,8 @@ function performMinimalAnalysis (potential, expected) {
       return expectedStrings.indexOf(stringifyQuiverForComparison(a)) - expectedStrings.indexOf(stringifyQuiverForComparison(b))
     })
 
-    const expectedMatchStrings = deepCopy(expected).map(q => stringifyQP(convertQuiver(q)))
-    const actualMatchStrings = deepCopy(resultQuivers).map(q => stringifyQP(convertQuiver(q)))
+    const expectedMatchStrings = deepCopy(expected).map(q => stringifyQPOldVersion(convertQuiver(q)))
+    const actualMatchStrings = deepCopy(resultQuivers).map(q => stringifyQPOldVersion(convertQuiver(q)))
 
     const exactMatch = arrayEquals(expectedMatchStrings.sort(), actualMatchStrings.sort())
 
@@ -296,8 +296,8 @@ function performQuiverComparison () {
 
     // is this an exact match?
 
-    const expectedMatchStrings = deepCopy(expected).map(q => stringifyQP(convertQuiver(q)))
-    const actualMatchStrings = deepCopy(resultQuivers).map(q => stringifyQP(convertQuiver(q)))
+    const expectedMatchStrings = deepCopy(expected).map(q => stringifyQPOldVersion(convertQuiver(q)))
+    const actualMatchStrings = deepCopy(resultQuivers).map(q => stringifyQPOldVersion(convertQuiver(q)))
 
     const exactMatch = arrayEquals(expectedMatchStrings.sort(), actualMatchStrings.sort())
 

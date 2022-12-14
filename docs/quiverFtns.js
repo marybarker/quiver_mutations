@@ -561,7 +561,7 @@ function generateRandomPotential() {
 
 
 function getAllMutationsForQP (qp, maxMutationsToFind = Infinity) {
-    var alreadySeen = [stringifyQP(qp)]
+    var alreadySeen = [stringifyQPOldVersion(qp)]
     var chains = ['']
   
     var maxRuntime = 10000
@@ -581,7 +581,7 @@ function getAllMutationsForQP (qp, maxMutationsToFind = Infinity) {
         }
         var mutated = mutateQP(currentNode, qp)
         //we don't need a deep copy here, because we don't use qp again after this point (and mutateQP shouldn't modify it anyway)
-        var mutatedStr = stringifyQP(mutated)
+        var mutatedStr = stringifyQPOldVersion(mutated)
         if (!alreadySeen.includes(mutatedStr)) {
           alreadySeen.push(mutatedStr)
           chains.push(chain + currentNode)
