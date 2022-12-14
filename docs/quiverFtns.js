@@ -204,6 +204,24 @@ function dotProduct(v1, v2) { // n dimensional dot product (assumes length of v1
     return v1.map((x, i) => v1[i] * v2[i]).reduce((m, n) => m + n);
 }
 
+  //assigns each self-loop a unique radius so that they don't overlap
+  function updateEdgeRadii(id) {
+      var thisEdge = QPNetworkEdges.get(id);
+
+      if (thisEdge.from === thisEdge.to) {
+          var count = QPNetworkEdges.get().filter(function (otherEdge) {
+              return otherEdge.from === thisEdge.from & otherEdge.to === thisEdge.to && parseInt(otherEdge.id) < parseInt(thisEdge.id)
+          }).length
+
+          thisEdge.selfReference = {
+              size: 15 + (count * 5)
+          }
+
+          QPNetworkEdges.update(thisEdge)
+      }
+  }
+
+
 function drawQPNetwork() {
     QPNetworkNodes = new vis.DataSet();
     QPNetworkEdges = new vis.DataSet();
@@ -237,23 +255,6 @@ function drawQPNetwork() {
 	  4);
     });
     updateNetworkQPFromGlobal();
-
-    //assigns each self-loop a unique radius so that they don't overlap
-    function updateEdgeRadii(id) {
-        var thisEdge = QPNetworkEdges.get(id);
-
-        if (thisEdge.from === thisEdge.to) {
-            var count = QPNetworkEdges.get().filter(function (otherEdge) {
-                return otherEdge.from === thisEdge.from & otherEdge.to === thisEdge.to && parseInt(otherEdge.id) < parseInt(thisEdge.id)
-            }).length
-
-            thisEdge.selfReference = {
-                size: 15 + (count * 5)
-            }
-
-            QPNetworkEdges.update(thisEdge)
-        }
-    }
 
     //update the initial dataset
     QPNetworkEdges.get().forEach(edge => updateEdgeRadii(edge.id))
