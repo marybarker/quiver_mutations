@@ -1,5 +1,5 @@
 // QP globals
-var QPNetworkNodes, QPNetworkEdges, QPNetworkFrozenNodes, QPNetworkPotential, QPNetwork;
+var QPNetworkNodes, QPNetworkEdges, QPNetworkFrozenNodes, QPNetworkPotential, QPNetworkPotentialVisualization, QPNetwork;
 var QPglobalNodes = [[-100,0],[0,100],[100,0],[100,-100],[0,-200],[-100,-100]];
 var QPglobalEdges = [[0,1],[1,0],[1,2],[2,1],[0,2],[2,0],[2,3],[3,2],[3,3],
                      [3,4],[4,3],[4,4],[4,5],[5,4],[5,5],[5,5],[5,0],[0,5]];
@@ -9,6 +9,19 @@ var QPglobalPotential = [[1,"0,2,5"], [1,"1,4,3"], [1,"8,9,10"], [1,"2,6,7,3"], 
 
 var output_fields = ["id", "from", "to", "coef", "edge1", "edge2", "edge3"]; // which data objects to print to screen
 
+window.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('graph-data-edges').addEventListener('change', function () {
+    if (this.checked) {
+      QPNetwork.setData({ nodes: QPNetworkNodes, edges: QPNetworkEdges })
+    }
+  })
+  
+  document.getElementById('graph-data-potential').addEventListener('change', function () {
+    if (this.checked) {
+      QPNetwork.setData({ nodes: QPNetworkNodes, edges: QPNetworkPotentialVisualization })
+    }
+  })
+})
 
 function addTermToPotential(t, coef=1) {
     var c2 = 0;
@@ -227,6 +240,7 @@ function drawQPNetwork() {
     QPNetworkEdges = new vis.DataSet();
     QPNetworkFrozenNodes = new vis.DataSet();
     QPNetworkPotential = new vis.DataSet();
+    QPNetworkPotentialVisualization = new vis.DataSet();
 
     QPNetworkNodes.on("*", function () {
         document.getElementById("nodes").innerText = JSON.stringify(
@@ -254,6 +268,25 @@ function drawQPNetwork() {
           output_fields,
 	  4);
     });
+
+    QPNetworkPotentialVisualization = new vis.DataSet()
+    QPNetworkPotential.on('*', function () {
+      QPNetworkPotentialVisualization.clear()
+      QPNetworkPotential.get().forEach(function (term, idx) {
+        var termEdges = term.id.split(',')
+        var termColor = 'rgb(' + [Math.round(50 + Math.random() * 150), Math.round(50 + Math.random() * 150), Math.round(50 + Math.random() * 150)].join(',') + ')'
+        for (var i = 0; i < termEdges.length; i++) {
+          QPNetworkPotentialVisualization.add(Object.assign({}, QPNetworkEdges.get(termEdges[i]), {
+            id: null, // need to remove the original edge ID so that each item here gets assigned a new unique ID
+            color: termColor,
+            label: term.coef,
+            font: { size: 40 },
+            selfReference: { size: 40 + (5 * idx) }
+          }))
+        }
+      })
+    })
+
     updateNetworkQPFromGlobal();
 
     //update the initial dataset
