@@ -14,7 +14,7 @@ function saveFile(fmt='globalQP') {
       "triangles": opt[0]
     });
   } else if (fmt == 'QPFromTriangulation') {
-    data = JSON.stringify(QPFromTriangulation(globalTriangulation));
+    data = JSON.stringify(QPFromTriangulation(TRIglobalTriangulation));
   } else {
     data = allUniqueTriangulations(TRIglobalTriangulation, TRIglobalBoundaryEdges);
     const cs = data.coordinates.map(y => y.map(z=>parseFloat(z)));
