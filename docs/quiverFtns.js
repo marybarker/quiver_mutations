@@ -1725,6 +1725,15 @@ function potentialStructuredRandomSearch(allQPs, iter=10000, maxDepth = 3) {
   }
 }
 
+// https://www.geeksforgeeks.org/gcd-in-python/
+function gcd(a, b) {
+  if (b === 0) {
+    return Math.abs(a)
+  } else {
+    return gcd (b, a % b);
+  }
+}
+
 function potentialStructuredTest(max=100) {
   var results = {
     failedTriangulation: [],
@@ -1735,6 +1744,9 @@ function potentialStructuredTest(max=100) {
   for (var a = 1; a <= max; a++) {
     for(var b= 1; b <= max; b++) {
       for (var c = 1; c <= max; c++) {
+        if (gcd(a, gcd(b, c)) !== 1) {
+          continue
+        }
         console.log(a, b, c)
         var succeeded = false;
         var trials = 0;
