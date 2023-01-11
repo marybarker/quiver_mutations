@@ -14,13 +14,15 @@ function saveFile(fmt='globalQP') {
       "triangles": opt[0]
     });
   } else if (fmt == 'QPFromTriangulation') {
-          data = QPFromTriangulation(TRIglobalTriangulation);
+    data = JSON.stringify(QPFromTriangulation(TRIglobalTriangulation));
   } else {
     data = allUniqueTriangulations(TRIglobalTriangulation, TRIglobalBoundaryEdges);
     const cs = data.coordinates.map(y => y.map(z=>parseFloat(z)));
     data = data.triangulations.map(x => JSON.parse(x));
     data = data.map(t => t.map(e => JSON.parse(e)));
     data = data.map(x => QPFromTriangulation([x, cs]));
+
+    data = JSON.stringify(data)
   }
 
   const textToBLOB = new Blob([data], {type: "text/plain"});

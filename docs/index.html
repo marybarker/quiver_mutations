@@ -37,12 +37,13 @@
     <body onload="openPage('QP', this); drawQPNetwork()">
         <button class="tablink" onclick="openPage('QP', this); drawQPNetwork()" id="defaultOpen">Manipulate QPs interactively</button>
         <button class="tablink" onclick="openPage('TRI', this); drawTriNetwork()">Generate QPs from Triangulation</button>
+        <button class="tablink" onclick="openPage('comparison-tab', this);">Compare triangulation and QPs</button>
 
 	<div id="QP" class="tabcontent">
             <table>
                 <! ROW 1: VIS OF QUIVER AND EDITING OPTIONS>
                 <tr>
-                    <td width="50%">
+                    <td width="60%">
                         <div class="Anetwork" id="mynetwork"></div>
                     </td>
                     <td width="50%" class="menuBar">
@@ -75,6 +76,18 @@
                             <span id="exchange-number-output">--</span>
                             &nbsp;
                             <button onclick="showQPExchangeNumber()">Calculate</button>
+                    </td>
+                </tr>
+            </table>
+
+            <table style="margin-bottom: 0.5em">
+                <tr>
+                    <td>
+                        Show:
+                        <input type="radio" id="graph-data-edges" name="graph-data-option" value="edges" checked autocomplete="off"/>
+                        <label for="graph-data-edges">All edges</label>
+                        <input type="radio" id="graph-data-potential" name="graph-data-option" value="potential" autocomplete="off"/>
+                        <label for="graph-data-potential">Potential</label>
                     </td>
                 </tr>
             </table>
@@ -196,5 +209,49 @@
 			</div>
                 </div>
 	</div>
+
+    <div id="comparison-tab" class="tabcontent">
+        <div id="potential-comparison-area">
+            <p>
+                Array of the expected quivers (output of generate triangulation &gt; download all QPs to file)
+            </p>
+            <textarea id="comparison-expected-input" placeholder="Expected input" style="width:100%; height:75px"></textarea>
+
+            <br>
+            <p>
+                Array of the possible potentials (found using potentialRandomSearch)
+            </p>
+            <textarea id="comparison-potentials-input" placeholder="list of potentials" style="width:100%; height:75px"></textarea>
+
+            <p>Click on a quiver and drag the nodes to rearrange. The quiver sets of valid potentials will match the expected quiver set.</p>
+            <div id="quiver-comparison-container"></div>
+
+            <style>
+                .comp-container {
+                    width: 420px;
+                    height: 420px;
+                    margin: 0 1em 0.25em 1em;
+                    display: inline-block;
+                }
+                .comp-row {
+                    overflow: auto;
+                    white-space: nowrap;
+                }
+                #comparison-top-row {
+                    position: sticky;
+                    top: 0;
+                    background: #fff;
+                    z-index: 1;
+                    border-bottom: 2px #ccc solid;
+                }
+
+            </style>
+        </div>
+    </div>
+
+
+    <!-- comparison tab -->
+    <script src="quiver_comparison.js"></script>
+
     </body>
 </html>
