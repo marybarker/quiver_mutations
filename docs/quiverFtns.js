@@ -1743,7 +1743,7 @@ function potentialStructuredTest(max=100) {
   }
   for (var a = 1; a <= max; a++) {
     for(var b= 1; b <= max; b++) {
-      for (var c = 1; c <= max; c++) {
+      abcloop: for (var c = 1; c <= max; c++) {
         if (gcd(a, gcd(b, c)) !== 1) {
           continue
         }
@@ -1767,14 +1767,24 @@ function potentialStructuredTest(max=100) {
           data = data.map(x => QPFromTriangulation([x, cs]));
           //TODO remove
           if (data.length > 500) {
-            console.warn('skipping ' [r, a, b, c].join(",") + " because the exchange number is too big")
+            console.warn('skipping ' + [r, a, b, c].join(",") + " because the exchange number is too big")
             break
           }
 
           //the data can have inconsistent node IDs between quivers, but the position data can be used to correct for this
           //TODO do this in triangulateFtns
           data = remapQPNodes(data)
+
+          for (var i1 = 0; i1 < data.length; i1++) {
+            for (var i2 = 0; i2 < data.length; i2++) {
+              if (i1 !== i2 && stringifyQP(convertQuiver(deepCopy(data[i1]))) === stringifyQP(convertQuiver(deepCopy(data[i2])))) {
+                console.warn(r, a, b, c, " has duplicate quivers ", i1, i2)
+                continue abcloop
+              }
+            }
+          }
           } catch (e) {
+            console.warn(e)
             results.failedTriangulation.push([r, a, b, c])
             break
           }
