@@ -1628,8 +1628,24 @@ function findMutationChainsForQPSet(allQPs) {
             if (i !== i2 && baseMutationChains[i2] !== null) {
               var possible = findPossibleMutationNodes(allQPs[i2], allQPs[i])
               if (possible.length === 1) {
-                baseMutationChains[i] = deepCopy(baseMutationChains[i2]).concat(possible)
-                continue outer;
+                var successSearch = false;
+                try {
+                  potentialStructuredSearch([
+                    deepCopy(allQPs[i2]),
+                    deepCopy(allQPs[i])
+                  ], [
+                    [],
+                    [possible[0]]
+                  ])
+                  successSearch = true;
+                } catch (e) {
+                  //which ones does this apply to?
+                  console.warn(i, i2, possible, '1 possible but can\'t search', e, allQPs)
+                }
+                if (successSearch) {
+                  baseMutationChains[i] = deepCopy(baseMutationChains[i2]).concat(possible)
+                  continue outer;
+                }
               }
             }
           }
@@ -1737,6 +1753,8 @@ function gcd(a, b) {
 function potentialStructuredTest(max=100) {
   var results = {
     failedTriangulation: [],
+    duplicateQuivers: [],
+    exchangeNumTooBig: [],
     failedGenerate: [],
     failedCheck: [],
     successes: [],
@@ -1765,34 +1783,37 @@ function potentialStructuredTest(max=100) {
           data = data.triangulations.map(x => JSON.parse(x));
           data = data.map(t => t.map(e => JSON.parse(e)));
           data = data.map(x => QPFromTriangulation([x, cs]));
-          //TODO remove
-          if (data.length > 500) {
-            console.warn('skipping ' + [r, a, b, c].join(",") + " because the exchange number is too big")
-            break
-          }
-
+    
           //the data can have inconsistent node IDs between quivers, but the position data can be used to correct for this
           //TODO do this in triangulateFtns
           data = remapQPNodes(data)
-
-          for (var i1 = 0; i1 < data.length; i1++) {
-            for (var i2 = 0; i2 < data.length; i2++) {
-              if (i1 !== i2 && stringifyQP(convertQuiver(deepCopy(data[i1]))) === stringifyQP(convertQuiver(deepCopy(data[i2])))) {
-                console.warn(r, a, b, c, " has duplicate quivers ", i1, i2)
-                continue abcloop
-              }
-            }
-          }
           } catch (e) {
             console.warn(e)
             results.failedTriangulation.push([r, a, b, c])
             break
           }
 
+          //TODO remove
+          if (data.length > 500) {
+            console.warn('skipping ' + [r, a, b, c].join(",") + " because the exchange number is too big")
+            results.exchangeNumTooBig.push([r, a, b, c])
+            continue abcloop
+          }
+          
+          for (var i1 = 0; i1 < data.length; i1++) {
+            for (var i2 = 0; i2 < data.length; i2++) {
+              if (i1 !== i2 && stringifyQP(convertQuiver(deepCopy(data[i1]))) === stringifyQP(convertQuiver(deepCopy(data[i2])))) {
+                console.warn(r, a, b, c, " has duplicate quivers ", i1, i2)
+                results.duplicateQuivers.push([r, a, b, c])
+                continue abcloop
+              }
+            }
+          }
+
           var result = potentialStructuredRandomSearch(data)
           if (!result) {
             results.failedGenerate.push([r, a, b, c])
-            break;
+            continue abcloop;
           } 
           var verification = doPartialComparison(result[0], data)
           
