@@ -1,9 +1,9 @@
 function saveFile(fmt='globalQP') {
   var data = JSON.stringify({
-    "nodes": QPglobalNodes,
-    "edges": QPglobalEdges,
-    "frozenNodes": QPglobalFrozenNodes,
-    "potential": QPglobalPotential
+    "nodes": QPNetworkNodes.get(),
+    "edges": QPNetworkEdges.get(),
+    "frozenNodes": QPNetworkFrozenNodes.get(),
+    "potential": QPNetworkPotential.get()
   });
 
   if (fmt == 'globalTriangulation') {
@@ -15,7 +15,7 @@ function saveFile(fmt='globalQP') {
     });
   } else if (fmt == 'QPFromTriangulation') {
     data = JSON.stringify(QPFromTriangulation(TRIglobalTriangulation));
-  } else {
+  } else if (fmt == 'allQPsFromTriangulation') {
     data = allUniqueTriangulations(TRIglobalTriangulation, TRIglobalBoundaryEdges);
     const cs = data.coordinates.map(y => y.map(z=>parseFloat(z)));
     data = data.triangulations.map(x => JSON.parse(x));
