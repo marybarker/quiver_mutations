@@ -1693,6 +1693,8 @@ function findMutationChainsForQPSet(allQPs) {
  */
 
 
+// a variant of potentialStructuredSearch; if we couldn't find all the mutation chains, tries random mutation chains for the missing entries
+/*
 function potentialStructuredRandomSearch(allQPs, iter=10000, maxDepth = 3) {
   //we know that any node mutable in the base QP must generate another QP in the result
   var requiredMutationNodes = []
@@ -1739,7 +1741,7 @@ function potentialStructuredRandomSearch(allQPs, iter=10000, maxDepth = 3) {
       break outer;
     } catch (e) {}
   }
-}
+}*/
 
 // https://www.geeksforgeeks.org/gcd-in-python/
 function gcd(a, b) {
@@ -1754,6 +1756,7 @@ function potentialStructuredTest(max=100) {
   var results = {
     failedTriangulation: [],
     duplicateQuivers: [],
+    failedMutationChains: [],
     exchangeNumTooBig: [],
     failedGenerate: [],
     failedCheck: [],
@@ -1766,16 +1769,7 @@ function potentialStructuredTest(max=100) {
           continue
         }
         console.log(a, b, c)
-        var succeeded = false;
-        var trials = 0;
-        /*
-        It's possible for potentialStructuredRandomSearch to produce a potential and sequence of mutation chains that isn't right
-        I believe the issue is that the mutation chains are generated blindly, and sometimes an impossible chain is generated (because there's a loop at the location that should be mutated) - also the final potentail affects which chains are possible
-        So we perform an extra step to verify that the result is correct, and try again if not
-        */
-        while (!succeeded && trials < 8) {
-          trials++
-          try {
+        try {
           var r = a + b + c
           var tri = triangulation(r, a, b, c);
           var data = allUniqueTriangulations(tri, getBoundaryEdges(r, tri[0], tri[1]))
@@ -1787,47 +1781,57 @@ function potentialStructuredTest(max=100) {
           //the data can have inconsistent node IDs between quivers, but the position data can be used to correct for this
           //TODO do this in triangulateFtns
           data = remapQPNodes(data)
-          } catch (e) {
-            console.warn(e)
-            results.failedTriangulation.push([r, a, b, c])
-            break
-          }
+        } catch (e) {
+          console.warn(e)
+          results.failedTriangulation.push([r, a, b, c])
+          break
+        }
 
-          //TODO remove
-          if (data.length > 500) {
-            console.warn('skipping ' + [r, a, b, c].join(",") + " because the exchange number is too big")
-            results.exchangeNumTooBig.push([r, a, b, c])
-            continue abcloop
-          }
-          
-          for (var i1 = 0; i1 < data.length; i1++) {
-            for (var i2 = 0; i2 < data.length; i2++) {
-              if (i1 !== i2 && stringifyQP(convertQuiver(deepCopy(data[i1]))) === stringifyQP(convertQuiver(deepCopy(data[i2])))) {
-                console.warn(r, a, b, c, " has duplicate quivers ", i1, i2)
-                results.duplicateQuivers.push([r, a, b, c])
-                continue abcloop
-              }
+        //TODO remove
+        if (data.length > 500) {
+          console.warn('skipping ' + [r, a, b, c].join(",") + " because the exchange number is too big")
+          results.exchangeNumTooBig.push([r, a, b, c])
+          continue abcloop
+        }
+        
+        //TODO investigate why this occurs
+        for (var i1 = 0; i1 < data.length; i1++) {
+          for (var i2 = 0; i2 < data.length; i2++) {
+            if (i1 !== i2 && stringifyQP(convertQuiver(deepCopy(data[i1]))) === stringifyQP(convertQuiver(deepCopy(data[i2])))) {
+              console.warn(r, a, b, c, " has duplicate quivers ", i1, i2)
+              results.duplicateQuivers.push([r, a, b, c])
+              continue abcloop
             }
           }
-
-          var result = potentialStructuredRandomSearch(data)
-          if (!result) {
-            results.failedGenerate.push([r, a, b, c])
-            continue abcloop;
-          } 
-          var verification = doPartialComparison(result[0], data)
-          
-           if (verification[2] === true) {
-            results.successes.push({
-              input: [r, a, b, c],
-              data: data,
-              output: result,
-              verification
-            })
-            succeeded = true
-          }
         }
-        if (!succeeded) {
+
+        var mutationChains = findMutationChainsForQPSet(data)
+        if (mutationChains.some(i => i === null)) {
+          console.warn(r, a, b, c, ': couldn\'t find all mutation chains')
+          results.failedMutationChains.push([r, a, b, c])
+          continue abcloop
+        }
+        
+        var result
+        try {
+          result = potentialStructuredSearch(data, mutationChains)
+        }  catch (e) {}
+        
+        if (!result) {
+          results.failedGenerate.push([r, a, b, c])
+          continue abcloop;
+        }
+
+        var verification = doPartialComparison(result, data)
+        
+        if (verification[2] === true) {
+          results.successes.push({
+            input: [r, a, b, c],
+            data: data,
+            output: result,
+            verification
+          })
+        } else {
           results.failedCheck.push([r, a, b, c])
         }
       }
