@@ -761,7 +761,12 @@ function mutateQP(vertex, QP) {
         wPrime =  combineLikeTermsInPotential(wPrime);
 
         // reduce the resulting quiver
-        return reduceQP(makeQP(savedEdges, QP.nodes, QP.frozenNodes, wPrime, inputType="fromQP"));
+        var reduced = reduceQP(makeQP(savedEdges, QP.nodes, QP.frozenNodes, wPrime, inputType="fromQP"));
+        if (reduced != null) {
+            return reduced;
+        } else {
+            return makeQP(QP.edges, QP.nodes, QP.frozenNodes, QP.potential, inputType="fromQP");
+        }
     } else {
         return makeQP(QP.edges, QP.nodes, QP.frozenNodes, QP.potential, inputType="fromQP");
     }
@@ -1971,12 +1976,16 @@ function reduceQP(QP) {
             reduceDict[e] = termsForE;
 
             if (!foundReplacement) {
-                failedToReplace.push(e);
                 reduceDict[e] = [[1, [e]]];
                 failedToReplace.push(e);
             }
         }
-
+        for (var edgeIdx = 0; edgeIdx < squareTerms.flat().length; edgeIdx++) {
+            var thisEdge = squareTerms.flat()[edgeIdx];
+            if ((reduceDict[thisEdge].length == 1) && (reduceDict[thisEdge][0][1].includes(thisEdge))) {
+                return null;
+            }
+        }
         for (let e2r = 0; e2r < failedToReplace.length; e2r++) {
             let edgeToRemove = failedToReplace[e2r];
             if (edgesToRemove.indexOf(edgeToRemove) >= 0) {
