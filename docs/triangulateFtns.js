@@ -30,7 +30,7 @@ function allUniqueTriangulations(t, boundary_edges) {
     // function to convert edges to string of sorted list of sorted lists 
     // (this gives well-posedness when comparing triangulations)
     function sortedString(listOfLists) {
-        let tl = listOfLists.map(x => JSON.stringify(x));
+        let tl = listOfLists.map(x => JSON.stringify(x.sort()));
         tl.sort();
         return JSON.stringify(tl);
     }

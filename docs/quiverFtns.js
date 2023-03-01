@@ -1477,7 +1477,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
   
     var altTestQP = deepCopy(expectedQuivers[0])
     altTestQP.potential = deepCopy(existingTerms)
-    console.log(tryBuildReplacementPotentials(altTestQP))
+   // console.log(tryBuildReplacementPotentials(altTestQP))
   
     return existingTerms
   
@@ -1641,7 +1641,7 @@ function findMutationChainsForQPSet(allQPs) {
                   successSearch = true;
                 } catch (e) {
                   //which ones does this apply to?
-                  console.warn(i, i2, possible, '1 possible but can\'t search', e, allQPs)
+              //    console.warn(i, i2, possible, '1 possible but can\'t search', e, allQPs)
                 }
                 if (successSearch) {
                   baseMutationChains[i] = deepCopy(baseMutationChains[i2]).concat(possible)
@@ -1769,6 +1769,10 @@ function potentialStructuredTest(max=100) {
         if (gcd(a, gcd(b, c)) !== 1) {
           continue
         }
+        if (c < b || b < a || c < a) {
+          continue
+        }
+
         console.log(a, b, c)
         try {
           var r = a + b + c
@@ -1814,14 +1818,16 @@ function potentialStructuredTest(max=100) {
         }
         
         var result = null
+        var err
         try {
           result = potentialStructuredSearch(data, mutationChains)
         }  catch (e) {
+          err = e
           console.warn('search failed', e)
         }
         
         if (!result) {
-          results.failedGenerate.push([r, a, b, c])
+          results.failedGenerate.push([r, a, b, c, err])
           continue abcloop;
         }
 
