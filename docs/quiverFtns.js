@@ -1812,10 +1812,12 @@ function potentialStructuredTest(max=100) {
           continue abcloop
         }
         
-        var result
+        var result = null
         try {
           result = potentialStructuredSearch(data, mutationChains)
-        }  catch (e) {}
+        }  catch (e) {
+          console.warn('search failed', e)
+        }
         
         if (!result) {
           results.failedGenerate.push([r, a, b, c])
