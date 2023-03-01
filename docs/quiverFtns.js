@@ -765,6 +765,7 @@ function mutateQP(vertex, QP) {
         if (reduced != null) {
             return reduced;
         } else {
+            console.warn('reduction failed')
             return makeQP(QP.edges, QP.nodes, QP.frozenNodes, QP.potential, inputType="fromQP");
         }
     } else {
