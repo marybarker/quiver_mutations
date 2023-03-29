@@ -27,37 +27,49 @@ function allUniqueTriangulations(t, boundary_edges) {
     var maxRuntime = 10000;
     var beginTime = Date.now();
 
-    // function to convert edges to string of sorted list of sorted lists 
+    // function to convert edges to string of sorted list of sorted lists
     // (this gives well-posedness when comparing triangulations)
     function sortedString(listOfLists) {
-        let tl = listOfLists.map(x => JSON.stringify(x));
+        let tl = listOfLists.map(x => JSON.stringify([...x].sort()));
         tl.sort();
         return JSON.stringify(tl);
     }
 
-    // recursive function for flipping arbitrarily-long sequences of edges 
+    //  function for flipping arbitrarily-long sequences of edges
     // in the triangulation to obtain "new" triangulations
     function tryFlippingAllEdges(es, ts, e2ts, alreadyMet) {
-        if (Date.now() - beginTime > maxRuntime) {
-            return;
-        }
+        var to_return = [];
         for (let e = 0; e < es.length; e++) {
             var flipped = flip(e, es, coords, ts, e2ts, boundary_edges);
-
             if (flipped[0]) {//check if that edge could be flipped
                 var sflipped = sortedString(flipped[1]);
-    
                 if (alreadyMet.includes(sflipped)) {//check if the current state has already been met
     	        } else {// if it's a new triangulation, add it, and try flipping all edges for this one
     	            alreadyMet.push(sflipped);
-                    tryFlippingAllEdges(flipped[1], flipped[2], flipped[3], alreadyMet);
+                    to_return.push(flipped);
     	        }
     	    }
         }
+        return to_return;
     }
 
-    var uniqueList = [sortedString(edges)];
-    tryFlippingAllEdges(edges, triangles, edge_to_triangle, uniqueList);
+    var uniqueList = [sortedString(edges)]
+    var to_try = [[0, edges, triangles, edge_to_triangle]];
+    var not_finished = true;
+    while(not_finished) {
+        not_finished = false;
+        var current_list = [];
+        for (let i = 0; i < to_try.length; i++) {
+            let this_tri = to_try[i];
+            var this_time = tryFlippingAllEdges(this_tri[1], this_tri[2], this_tri[3], uniqueList);
+            current_list = current_list.concat(this_time);
+        }
+        to_try = current_list;
+        if (to_try.length > 0) {
+            not_finished = true;
+        } 
+    }
+
     return {triangulations: uniqueList, coordinates: coords, timeout: Date.now() - beginTime > maxRuntime};
 }
 
