@@ -1762,7 +1762,7 @@ function potentialStructuredTest(max=100) {
         }
 
         //TODO remove
-        if (data.length > 500) {
+        if (data.length > 10000) {
           console.warn('skipping ' + [r, a, b, c].join(",") + " because the exchange number is too big")
           results.exchangeNumTooBig.push([r, a, b, c])
           continue abcloop
