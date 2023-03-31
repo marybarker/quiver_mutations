@@ -1810,21 +1810,40 @@ function potentialStructuredTest(max=100) {
         }
 
         var verification = doPartialComparison(result, data)
+        var minimalVerification = doMinimalVerification(result, data)
         
-        if (verification[2] === true) {
+        if (verification[2] === true && minimalVerification === true) {
           results.successes.push({
             input: [r, a, b, c],
             data: data,
             output: result,
-            verification
+            verification,
+            minimalVerification
           })
         } else {
-          results.failedCheck.push([r, a, b, c])
+          results.failedCheck.push([r, a, b, c, verification, minimalVerification])
         }
       }
     }
   }
   return results;                        
+}
+
+function doMinimalVerification(result, data) {
+  if (!doPartialComparison(result, data)[2] === true) {
+    throw new Error('potential isn\'t valid')
+    return
+  }
+
+  for (var i = 0; i < result.length; i++) {
+    //try removing one term at a time from the potential
+    var subPotential = result.filter((item, idx) => idx !== i)
+    if (doPartialComparison(subPotential, data)[2] === true) {
+      console.warn('potential isn\'t minimal', subPotential, data)
+      return false;
+    }
+  }
+  return true
 }
 
 function potentialTermIsSubsetOfEdges(term) {
