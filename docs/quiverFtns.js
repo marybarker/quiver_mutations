@@ -1056,6 +1056,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
     const ruleMatchPotentials = []
     const potentialsWithMatchingExchangeNum = []
     const sizeBuckets = {}
+    const quiverSetsForDesiredExchangeNum = {}
   
     // limits the terms in the generated potentials to approximately this size
   
@@ -1106,6 +1107,13 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
   
         if (exchangeNum === expectedExchangeNum) {
           potentialsWithMatchingExchangeNum.push(constructedPotential)
+
+          var quiverSetKey = deepCopy(exchangeNumResult.quivers).sort()
+          if(quiverSetsForDesiredExchangeNum[quiverSetKey]) {
+            quiverSetsForDesiredExchangeNum[quiverSetKey]++
+          } else {
+            quiverSetsForDesiredExchangeNum[quiverSetKey] = 1
+          }
           
           if (quiverSetsMaybeIsomorphic(exchangeNumResult.quivers.map(qp => JSON.parse(qp)), expectedQuivers)) {
             console.log('likely', JSON.stringify(constructedPotential))
@@ -1169,7 +1177,8 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
       potentialsWithMatchingExchangeNum,
       comp,
       ruleMatchPotentials,
-      sizeBuckets
+      sizeBuckets,
+      quiverSetsForDesiredExchangeNum
     }
   }
   
