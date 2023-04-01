@@ -1600,10 +1600,24 @@ function findMutationChainsForQPSet(allQPs) {
     }
   })
 
+    var lastI2 = 0;
+
     outer: while (true) {      
        for(var i = 0; i < baseMutationChains.length; i++) {
         if (baseMutationChains[i] === null) {
-          for (var i2 = 0; i2 < baseMutationChains.length; i2++) {
+
+          /*
+          we want to loop 0...base.length, but this requires potentially checking many quivers before we get to the right one
+          The right quiver is usually the same or within a couple positions of the last correct quiver, so we change the loop to
+          (lastCorrect - 5)...base.length, then start over at 0 if we don't find anything
+
+          This could cause us to pick a different quiver, if there are multiple that pass the check. But we don't have any indication
+          of which one is correct anyway.
+          */
+          var hasTriedBeginning = false;
+          var i2 = Math.max(0, lastI2 - 5);
+
+          while (i2 < baseMutationChains.length) {
             if (i !== i2 && baseMutationChains[i2] !== null) {
               var possible = findPossibleMutationNodes(allQPs[i2], allQPs[i])
               if (possible.length === 1) {
@@ -1622,10 +1636,19 @@ function findMutationChainsForQPSet(allQPs) {
               //    console.warn(i, i2, possible, '1 possible but can\'t search', e, allQPs)
                 }
                 if (successSearch) {
+                //  console.log(i2, i);
                   baseMutationChains[i] = deepCopy(baseMutationChains[i2]).concat(possible)
+                  lastI2 = i2;
                   continue outer;
                 }
               }
+            }
+
+            //loop control
+            i2++;
+            if (i2 === baseMutationChains.length && !hasTriedBeginning) {
+              hasTriedBeginning = true;
+              i2 = 0;
             }
           }
         }
@@ -1778,9 +1801,10 @@ function potentialStructuredTest(max=100) {
         }
         
         //TODO investigate why this occurs
+        const stringifiedQuiverSet = data.map(q => stringifyQP(convertQuiver(deepCopy(q))))
         for (var i1 = 0; i1 < data.length; i1++) {
           for (var i2 = 0; i2 < data.length; i2++) {
-            if (i1 !== i2 && stringifyQP(convertQuiver(deepCopy(data[i1]))) === stringifyQP(convertQuiver(deepCopy(data[i2])))) {
+            if (i1 !== i2 && stringifiedQuiverSet[i1] === stringifiedQuiverSet[i2]) {
               console.warn(r, a, b, c, " has duplicate quivers ", i1, i2)
               results.duplicateQuivers.push([r, a, b, c])
               continue abcloop
