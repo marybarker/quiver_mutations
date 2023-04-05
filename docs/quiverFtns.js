@@ -1808,7 +1808,7 @@ function potentialStructuredTest(max=100) {
         } catch (e) {
           console.warn(e)
           results.failedTriangulation.push([r, a, b, c])
-          break
+          continue
         }
 
         //TODO remove
