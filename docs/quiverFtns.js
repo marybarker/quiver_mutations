@@ -1057,6 +1057,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
     const potentialsWithMatchingExchangeNum = []
     const sizeBuckets = {}
     const quiverSetsForDesiredExchangeNum = {}
+    const quiverBucketsForExpectedEN = []
   
     // limits the terms in the generated potentials to approximately this size
   
@@ -1113,6 +1114,18 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
             quiverSetsForDesiredExchangeNum[quiverSetKey]++
           } else {
             quiverSetsForDesiredExchangeNum[quiverSetKey] = 1
+          }
+
+          var bucketFound = false;
+          for (var b = 0; b < quiverBucketsForExpectedEN.length; b++) {
+            if (quiverSetsMaybeIsomorphic(exchangeNumResult.quivers.map(qp => JSON.parse(qp)), quiverBucketsForExpectedEN[b][0])) {
+              quiverBucketsForExpectedEN[b].push(exchangeNumResult.quivers.map(qp => JSON.parse(qp)))
+              bucketFound = true;
+              break;
+            }
+          }
+          if (!bucketFound) {
+            quiverBucketsForExpectedEN.push([exchangeNumResult.quivers.map(qp => JSON.parse(qp))])
           }
           
           if (quiverSetsMaybeIsomorphic(exchangeNumResult.quivers.map(qp => JSON.parse(qp)), expectedQuivers)) {
@@ -1178,7 +1191,8 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
       comp,
       ruleMatchPotentials,
       sizeBuckets,
-      quiverSetsForDesiredExchangeNum
+      quiverSetsForDesiredExchangeNum,
+      quiverBucketsForExpectedEN
     }
   }
   
@@ -1794,7 +1808,7 @@ function potentialStructuredTest(max=100) {
         }
 
         //TODO remove
-        if (data.length > 10000) {
+        if (data.length > 20000) {
           console.warn('skipping ' + [r, a, b, c].join(",") + " because the exchange number is too big")
           results.exchangeNumTooBig.push([r, a, b, c])
           continue abcloop
