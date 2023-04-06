@@ -1788,6 +1788,7 @@ function potentialStructuredTest(max=100) {
         if (gcd(a, gcd(b, c)) !== 1) {
           continue
         }
+        //note: disable this when testing a family like 1,2,a, because this'll skip 1,2,1
         if (c < b || b < a || c < a) {
           continue
         }
@@ -1812,11 +1813,11 @@ function potentialStructuredTest(max=100) {
         }
 
         //TODO remove
-        if (data.length > 20000) {
+        /*if (data.length > 20000) {
           console.warn('skipping ' + [r, a, b, c].join(",") + " because the exchange number is too big")
           results.exchangeNumTooBig.push([r, a, b, c])
           continue abcloop
-        }
+        }*/
         
         //TODO investigate why this occurs
         const stringifiedQuiverSet = data.map(q => stringifyQP(convertQuiver(deepCopy(q))))
