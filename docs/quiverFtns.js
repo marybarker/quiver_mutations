@@ -1018,7 +1018,7 @@ function quiverSetsMaybeIsomorphicSimple (setA, setB) {
     return s;
   }
 
-function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], maxCycleLength = 5, minPotentialTerms=1, maxPotentialTerms = 100, requiredTerms = [], numberToTest = 5000) {
+function potentialRandomSearch (qp, expectedExchangeNum, maxExchangeNum = Infinity, expectedQuivers = [], maxCycleLength = 4, minPotentialTerms=1, maxPotentialTerms = 100, requiredTerms = [], numberToTest = 5000) {
     // var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
     var cyclesWithoutQuadratics = extendCyclesWithSelfLoops(findAllCycles(qp, maxCycleLength), qp, maxCycleLength).filter(cycle => cycle.length > 2 && cycle.length <= maxCycleLength)
 
@@ -1103,7 +1103,7 @@ function potentialRandomSearch (qp, expectedExchangeNum, expectedQuivers = [], m
 
       qpt.potential = constructedPotential
       try {
-        var exchangeNumResult = getAllMutationsForQP(qpt, expectedExchangeNum + 1)
+        var exchangeNumResult = getAllMutationsForQP(qpt, maxExchangeNum + 1)
         var exchangeNum = exchangeNumResult.quivers.length
 
         //unconditionally put this set in a bucket (even if the exchange num doesn't match)
