@@ -50,6 +50,12 @@ function remapQPNodes (allQPSArr) {
         const newId = allQPSArr[0].nodes.find(n => Math.abs(n.x - node.x) < 0.000001 && Math.abs(n.y - node.y) < 0.000001).id
         oldNewMap[node.id] = newId
         node.id = newId
+        node.label = newId
+      })
+      //there's a hidden requirement that the nodes must be sorted for mutations to work
+      //because of things like allThreeCycles: "v1 in QP.nodes"
+      qp.nodes = qp.nodes.sort(function(a, b) {
+        return parseInt(a.id) - parseInt(b.id)
       })
       qp.edges.forEach(function (edge, idx) {
         edge.from = oldNewMap[edge.from]
